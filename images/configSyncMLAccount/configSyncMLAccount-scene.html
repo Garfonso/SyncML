@@ -1,0 +1,93 @@
+<div id="main" class="palm-hasheader">
+	<div class="palm-header center" id="main-hdr">
+	  Configure SyncML
+	</div>
+</div>
+
+<!--
+<div x-mojo-loc='' class="palm-body-title" id="name"></div>
+<div x-mojo-loc='' class="palm-body-text" id="round"></div>
+-->
+
+<div class="palm-group">
+	<div class="palm-group-title">SyncML Server</div>
+	<div class="palm-list">
+		<div class="palm-row first">
+			<div class="palm-row-wrapper textfield-group" x-mojo-focus-highlight="true">
+				<div class="title">
+					<div id="txtName" x-mojo-element="TextField"></div>      
+				</div>
+			</div>
+		</div>
+		<div class="palm-row">
+			<div class="palm-row-wrapper textfield-group" x-mojo-focus-highlight="true">
+				<div class="title">
+					<div id="txtURL" x-mojo-element="TextField"></div>      
+				</div>
+			</div>
+		</div>
+		<div class="palm-row">
+			<div class="palm-row-wrapper textfield-group" x-mojo-focus-highlight="true">
+				<div class="title">
+					<div id="txtUser" x-mojo-element="TextField"></div>      
+				</div>
+			</div>
+		</div>
+		<div class="palm-row last">
+			<div class="palm-row-wrapper textfield-group" x-mojo-focus-highlight="true">
+				<div class="title">
+					<div id="txtPass" x-mojo-element="PasswordField"></div>      
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+<div class="palm-group">
+	<div class="palm-group-title">Sync Calenadar</div>
+	<div class="palm-list">					
+		<div class="palm-row first">
+			<div class="palm-row-wrapper">
+				<div id="ckCalendar" class="right" x-mojo-element="CheckBox"></div>
+				<div class="title">Sync Calendar</div>  
+			</div>
+		</div>
+		<div class="palm-row">
+			<div class="palm-row-wrapper">
+				<div id="lsCalendarMethod" class="right" x-mojo-element="ListSelector"></div>  
+			</div>
+		</div>
+		<div class="palm-row last">
+			<div class="palm-row-wrapper textfield-group" x-mojo-focus-highlight="true">
+				<div class="title">
+					<div id="txtCalendarPath" x-mojo-element="TextField"></div>      
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+<div class="palm-group">
+	<div class="palm-group-title">Sync Contacts</div>
+	<div class="palm-list">					
+		<div class="palm-row first">
+			<div class="palm-row-wrapper">
+				<div id="ckContacts" class="right" x-mojo-element="CheckBox"></div>
+				<div class="title">Sync Contacts</div>
+			</div>
+		</div>	
+		<div class="palm-row">
+			<div class="palm-row-wrapper">
+				<div id="lsContactsMethod" class="right" x-mojo-element="ListSelector"></div>  
+			</div>
+		</div>			
+		<div class="palm-row last">
+			<div class="palm-row-wrapper textfield-group" x-mojo-focus-highlight="true">
+				<div class="title">
+					<div id="txtContactsPath" x-mojo-element="TextField"></div>      
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+
+<div id="btnSave" x-mojo-element="Button"></div>
+<div id="btnDelete" x-mojo-element="Button"></div>

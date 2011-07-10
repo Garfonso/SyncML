@@ -1,0 +1,27 @@
+[
+	{"source": "app/model/cPlugin.js" },
+	{"source": "app/model/iCal.js"},
+ 	{"source": "app/model/SyncMLAccount.js"},
+	{"source": "app/model/eventCallbacks.js"},
+    {"source": "app/assistants/stage-assistant.js"},
+    {
+        "scenes": "welcome",
+        "source": "app/assistants/welcome-assistant.js"
+    },
+    {
+        "scenes": "configSyncMLAccount",
+        "source": "app/assistants/configSyncMLAccount-assistant.js"
+    },
+    {
+        "scenes": "syncScene",
+        "source": "app/assistants/syncScene-assistant.js"
+    },
+	{"source": "app/lib/StringBuffer.js"},
+    {"source": "app/lib/SyncMLFormatter.js"},
+    {"source": "app/lib/SyncMLStatus.js"},
+    {"source": "app/lib/ext_base64.js"},
+    {"source": "app/lib/SyncManager.js"},
+    {"source": "app/lib/DeviceConfig.js"},
+    {"source": "app/lib/SyncSource.js"},
+    {"source": "app/lib/DepotMappingManager.js"}
+]

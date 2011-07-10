@@ -1,0 +1,10 @@
+{
+	"id": "info.mobo.webossyncml",
+	"version": "1.0.0",
+	"vendor": "Mobo WebOS",
+	"type": "web",
+	"plug-ins": true,
+	"main": "index.html",
+	"title": "webOsSyncML",
+	"icon": "icon.png"
+}

@@ -1,0 +1,32 @@
+<div id="main" class="palm-hasheader">
+	<div class="palm-header center" id="main-hdr">
+	  Synchronizing
+	</div>
+</div>
+
+<div id="btnStart" x-mojo-element="Button"></div>
+
+<table>
+	<tr><td>Events</td><td>Successfull</td><td>Failed</td></tr>
+	<tr><td>Added</td><td align="right"><div id="eventsAdded">0</div></td><td align="right"><div id="eventsAddFailed">0</div></td></tr>
+	<tr><td>Updated</td><td align="right"><div id="eventsUpdated">0</div></td><td align="right"><div id="eventsUpdateFailed">0</div></td></tr>
+	<tr><td>Deleted</td><td align="right"><div id="eventsDeleted">0</div></td><td align="right"><div id="eventsDeleteFailed">0</div></td></tr>
+</table>
+
+<div x-mojo-loc='' class="palm-body-title" id="logOutput"></div>
+
+<object type="application/x-palm-remote" id="webOsSyncMLPlugin" width=10 height=10 x-palm-pass-event="true">
+
+<param name="appid" value="info.mobo.webossyncml">
+
+<!-- this is the name of the plugin executable installed in the root of your application -->
+<param name="exe" value="webOsSyncML_plugin">
+
+<!-- this gets passed on command line to the plugin executable when it's started -->
+<param name="Param1" value="1"> 
+
+<!-- this would be a second parameter if this wasn't commented -->
+<param name="Param2" value="2"> 
+
+</object>
+
