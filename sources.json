@@ -1,8 +1,8 @@
 [
-	{"source": "app/model/cPlugin.js" },
+	{"source": "app/model/eventCallbacks.js"},
+	{"source": "app/model/helpers.js"},
 	{"source": "app/model/iCal.js"},
  	{"source": "app/model/SyncMLAccount.js"},
-	{"source": "app/model/eventCallbacks.js"},
     {"source": "app/assistants/stage-assistant.js"},
     {
         "scenes": "welcome",

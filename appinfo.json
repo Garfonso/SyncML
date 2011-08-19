@@ -1,10 +1,10 @@
 {
-	"id": "info.mobo.webossyncml",
+	"id": "info.mobo.syncmlclient",
 	"version": "1.0.0",
 	"vendor": "Mobo WebOS",
 	"type": "web",
-	"plug-ins": true,
+	"plug-ins": false,
 	"main": "index.html",
-	"title": "webOsSyncML",
+	"title": "SyncML Client",
 	"icon": "icon.png"
 }

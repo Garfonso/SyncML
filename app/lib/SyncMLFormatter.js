@@ -17,30 +17,29 @@ function formatEndSyncML() {
 	return "</SyncML>\n";
 }
 function formatCredentials(b64Login) {
-	cred = new StringBuffer(); 
-	cred.append("<Cred>\n");
-	cred.append("<Meta>").append("<Type xmlns=\"syncml:metinf\">syncml:auth-basic</Type>\n")
-            .append("<Format xmlns=\"syncml:metinf\">b64</Format>\n")
-            .append("</Meta>\n").append("<Data>").append(b64Login)
-            .append("</Data>").append("</Cred>\n");
-        return cred.toString(); 
+	var cred = "<Cred>\n"
+	         + "<Meta><Type xmlns=\"syncml:metinf\">syncml:auth-basic</Type>\n"
+             + "<Format xmlns=\"syncml:metinf\">b64</Format>\n" 
+             + "</Meta>\n"
+             + "<Data>" + b64Login
+             + "</Data></Cred>\n";
+        return cred; 
 } 
 
 function formatSyncHeader(sessionid, msgid, src, tgt, tags) {
-	ret = new StringBuffer();
-
-        ret.append("<SyncHdr>\n").append("<VerDTD>1.2</VerDTD>\n")
-           .append("<VerProto>SyncML/1.2</VerProto>\n").append("<SessionID>")
-           .append(sessionid).append("</SessionID>\n").append("<MsgID>")
-           .append(msgid).append("</MsgID>\n").append("<Target><LocURI>")
-           .append(tgt).append("</LocURI></Target>\n").append("<Source><LocURI>")
-           .append(src).append("</LocURI></Source>\n");
+	var ret = "<SyncHdr>\n"
+            + "<VerDTD>1.2</VerDTD>\n"
+            + "<VerProto>SyncML/1.2</VerProto>\n"
+            + "<SessionID>" + sessionid + "</SessionID>\n"
+            + "<MsgID>" + msgid + "</MsgID>\n"
+            + "<Target><LocURI>" + tgt + "</LocURI></Target>\n"
+            + "<Source><LocURI>" + src + "</LocURI></Source>\n";
 
         if (tags !== null) {
-            ret.append(tags);
+            ret += tags;
         }
-        ret.append("</SyncHdr>\n"); 
-        return ret.toString();
+        ret += "</SyncHdr>\n"; 
+        return ret;
 } 
 function formatMaxMsgSize(maxSize) {
 	return "<Meta><MaxMsgSize>"+maxSize+"</MaxMsgSize></Meta>\n";
@@ -78,63 +77,71 @@ function createDevInf(devInf, sourceName, sourceType) {
         if (devInf.devType === null) {
             devInf.devType = "";
         }
-        sb = new StringBuffer();
-        sb.append("<DevInf xmlns='syncml:devinf'>\n").append("<VerDTD>1.2</VerDTD>\n")//mandatory
-          .append("<Man>" + devInf.man + "</Man>\n")//mandatory: name of the manufacturer of the device
-          .append("<Mod>" + devInf.mod + "</Mod>\n")//mandatory: model name or model number of the device
-          .append("<OEM>" + devInf.oem + "</OEM>\n")//optional: Original Equipment Manufacturer
-          .append("<FwV>" + devInf.fwv + "</FwV>\n")//mandatory: firmware version of the device or a date
-          .append("<SwV>" + devInf.swv + "</SwV>\n")//mandatory: software version of the device or a date
-          .append("<HwV>" + devInf.hwv + "</HwV>\n")//mandatory: hardware version of the device or a date
-          .append("<DevID>" + devInf.devID + "</DevID>\n")//mandatory: identifier of the source synchronization device
-          .append("<DevTyp>" + devInf.devType + "</DevTyp>\n");//mandatory: type of the source synchronization device (see OMA table)
+        
+        var sb = "<DevInf xmlns='syncml:devinf'>\n" 
+        	   + "<VerDTD>1.2</VerDTD>\n"          //mandatory
+               + "<Man>" + devInf.man + "</Man>\n" //mandatory: name of the manufacturer of the device
+               + "<Mod>" + devInf.mod + "</Mod>\n" //mandatory: model name or model number of the device
+               + "<OEM>" + devInf.oem + "</OEM>\n" //optional: Original Equipment Manufacturer
+               + "<FwV>" + devInf.fwv + "</FwV>\n" //mandatory: firmware version of the device or a date
+               + "<SwV>" + devInf.swv + "</SwV>\n" //mandatory: software version of the device or a date
+               + "<HwV>" + devInf.hwv + "</HwV>\n" //mandatory: hardware version of the device or a date
+               + "<DevID>" + devInf.devID + "</DevID>\n" //mandatory: identifier of the source synchronization device
+               + "<DevTyp>" + devInf.devType + "</DevTyp>\n"; //mandatory: type of the source synchronization device (see OMA table)
 
         //optional flag (if present, the server SHOULD send time in UTC form)
         if (devInf.utc) {
-            sb.append("<UTC/>\n");
+            sb += "<UTC/>\n";
         }
         //optional (if present, it specifies that the device supports receiving
         //large objects)
         if (devInf.loSupport) {
-            sb.append("<SupportLargeObjs/>\n");
+            sb += "<SupportLargeObjs/>\n";
         }
         //optional: server MUST NOT send <NumberOfChanges> if the client has
         //not specified this flag
         if (devInf.nocSupport) {
-            sb.append("<SupportNumberOfChanges/>\n");
+            sb += "<SupportNumberOfChanges/>\n";
         }
 
         //<DataStore> one for each of the local datastores
-        sb.append("<DataStore>\n")//
-          .append("<SourceRef>" + sourceName + "</SourceRef>\n") //required for each specified datastore
-          .append("<Rx-Pref>\n").append("<CTType>").append(sourceType)
-          .append("</CTType>\n").append("<VerCT></VerCT>\n")
-          .append("</Rx-Pref>\n") //required for each specified datastore
-          .append("<Tx-Pref>\n").append("<CTType>").append(sourceType)
-          .append("</CTType>\n").append("<VerCT></VerCT>\n").append("</Tx-Pref>\n") //SyncCap
-          .append("<SyncCap>\n")//mandatory
-          .append("<SyncType>1</SyncType>\n")//Support of 'two-way sync'
-          .append("<SyncType>2</SyncType>\n")//Support of 'slow two-way sync'
+        sb += "<DataStore>\n" //
+            + "<SourceRef>" + sourceName + "</SourceRef>\n" //required for each specified datastore
+            + "<Rx-Pref>\n"
+            + "<CTType>" + sourceType + "</CTType>\n"
+            + "<VerCT></VerCT>\n"
+            + "</Rx-Pref>\n" //required for each specified datastore
+            + "<Tx-Pref>\n"
+            + "<CTType>" + sourceType + "</CTType>\n"
+            + "<VerCT></VerCT>\n"
+            + "</Tx-Pref>\n" //SyncCap
+            + "<SyncCap>\n"//mandatory
+            + "<SyncType>1</SyncType>\n" //Support of 'two-way sync'
+            + "<SyncType>2</SyncType>\n" //Support of 'slow two-way sync'
           //TODO: add support of one way?
-          .append("<SyncType>7</SyncType>\n")//Support of 'server alerted sync'
-          .append("</SyncCap>\n").append("</DataStore>\n").append("</DevInf>\n");
+            + "<SyncType>7</SyncType>\n" //Support of 'server alerted sync'
+            + "</SyncCap>\n"
+            + "</DataStore>\n"
+            + "</DevInf>\n";
 
-        return sb.toString();
+        return sb;
 }
 function formatPutDeviceInfo(cmdId, devInf, sourceName, sourceType) {
-sb = new StringBuffer();
-
         //TODO: retrieve most values from the passed DeviceConfig object
-        sb.append("<Put>\n")
-          .append("<CmdID>").append(cmdId).append("</CmdID>\n")
-          .append("<Meta>\n")
-          .append("<Type xmlns='syncml:metinf'>application/vnd.syncml-devinf+xml</Type>\n")
-          .append("</Meta>\n").append("<Item>\n")
-          .append("<Source><LocURI>./devinf12</LocURI></Source>\n")
-          .append("<Data>\n").append(createDevInf(devInf, sourceName, sourceType)) //closing all tags
-          .append("</Data>\n").append("</Item>\n").append("</Put>\n");
+        var sb = "<Put>\n"
+               + "<CmdID>" + cmdId + "</CmdID>\n"
+               + "<Meta>\n"
+               + "<Type xmlns='syncml:metinf'>application/vnd.syncml-devinf+xml</Type>\n"
+               + "</Meta>\n"
+               + "<Item>\n"
+               + "<Source><LocURI>./devinf12</LocURI></Source>\n"
+               + "<Data>\n"
+               + createDevInf(devInf, sourceName, sourceType) //closing all tags
+               + "</Data>\n"
+               + "</Item>\n"
+               + "</Put>\n";
 
-        return sb.toString();
+        return sb;
 }
 
 function formatAlerts(cmdId, syncMode, nextAnchor,
@@ -144,7 +151,7 @@ function formatAlerts(cmdId, syncMode, nextAnchor,
                                filter,
                                maxDataSize) {
 
-        sb = new StringBuffer();
+        var sb;
 
         // XXX CHECK IT OUT XXX
         // the Last overwrite the Next?????????????????
@@ -154,17 +161,17 @@ function formatAlerts(cmdId, syncMode, nextAnchor,
             timestamp = "<Last>" + lastAnchor + "</Last>\n" + timestamp;
         }
 
-        sb.append("<Alert>\n");
-        sb.append("<CmdID>" + cmdId + "</CmdID>\n");
-        sb.append("<Data>");
+        sb += "<Alert>\n";
+        sb += "<CmdID>" + cmdId + "</CmdID>\n";
+        sb += "<Data>";
 
         // First, use the syncMode passed as argument,
         // if not valid, use the default for the source
         // as last chance, check the anchor.
         if (syncMode !== 0) {
-            sb.append(syncMode);
+            sb += syncMode;
         } else if (sourceSyncMode !== 0) {
-            sb.append(SyncML.ALERT_CODE_SLOW);
+            sb += SyncML.ALERT_CODE_SLOW; //TODO: wo kommt das her??
         } else if (lastAnchor !== 0) {
             sb.append(SyncML.ALERT_CODE_FAST);
         } else {
