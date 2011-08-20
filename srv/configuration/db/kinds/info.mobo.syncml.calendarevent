@@ -1,0 +1,11 @@
+{
+	"id": "info.mobo.syncml.calendarevent:1",
+	"sync": true,
+	"extends": ["com.palm.calendarevent:1"],
+	"indexes":
+	[ 
+		{	"name":"calendarId", "props": [{"name": "calendarId"}, {"name": "_rev"}]},
+		{	"name":"revNumber", "incDel": true, "props": [{"name": "_rev"}]},
+		{	"name":"parentId", "props": [{"name": "parentId"}]}
+	]
+}

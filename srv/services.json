@@ -1,0 +1,15 @@
+{
+"id": "info.mobo.syncml.service",
+"description": "SyncML Client Service for synchronisation of calendar and contact data with generic syncml servers.",
+"services": [ {
+    "name": "info.mobo.syncml.service",
+    "description": "SyncML Client Service",
+	"assistant": "ServiceAssistant",
+    "commands": [ 
+		{
+			"name": "sync",
+			"assistant": "SyncAssistant"
+		}
+		]
+	}]
+}

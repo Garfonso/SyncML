@@ -1,0 +1,13 @@
+{
+  "id": "info.mobo.syncml",
+  "package_format_version": 2,
+  "loc_name": "SyncML Client for WebOS",
+  "version": "0.0.1",
+  "icon": "icon48.png",
+  "miniicon": "icon48.png",
+  "vendor": "Garfonso",
+  "vendorurl": "http://syncml.mobo.info",
+  "app": "info.mobo.syncml.client",
+  "accounts": ["info.mobo.syncml.account"],
+  "services": ["info.mobo.syncml.service"]
+}

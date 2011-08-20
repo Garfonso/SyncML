@@ -1,0 +1,24 @@
+[
+{
+	"type": "db.kind",
+	"object": "info.mobo.syncml.store.accounts:1",
+	"caller": "info.mobo.syncml.client",
+	"operations": {
+		"read": "allow",
+		"create": "allow",
+		"delete": "allow",
+		"update": "allow"
+	}
+},
+{
+	"type": "db.kind",
+	"object": "info.mobo.syncml.store.accounts:1",
+	"caller": "info.mobo.syncml.service",
+	"operations": {
+		"read": "allow",
+		"create": "allow",
+		"delete": "allow",
+		"update": "allow"
+	}
+}
+]

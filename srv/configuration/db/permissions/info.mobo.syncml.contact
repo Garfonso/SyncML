@@ -1,0 +1,90 @@
+[
+{
+	"type": "db.kind",
+	"object": "info.mobo.syncml.contact:1",
+	"caller": "info.mobo.syncml.client",
+	"operations": {
+		"read": "allow",
+		"create": "allow",
+		"delete": "allow",
+		"update": "allow"
+	}
+},
+{
+	"type": "db.kind",
+	"object": "info.mobo.syncml.contact:1",
+	"caller": "info.mobo.syncml.service",
+	"operations": {
+		"read": "allow",
+		"create": "allow",
+		"delete": "allow",
+		"update": "allow"
+	}
+},
+{
+		"type": "db.kind",
+		"object": "info.mobo.syncml.contact:1",
+		"caller": "*",
+		"operations": {
+			"extend": "allow"
+		}
+	},
+	{
+		"type": "db.kind",
+		"object": "info.mobo.syncml.contact:1",
+		"caller": "com.palm.service.contacts.linker",
+		"operations": {
+			"read": "allow",
+			"create": "allow"
+		}
+	},
+	{
+		"type": "db.kind",
+		"object": "info.mobo.syncml.contact:1",
+		"caller": "com.palm.app.contacts",
+		"operations": {
+			"read": "allow",
+			"create": "allow",
+			"delete": "allow",
+			"update": "allow"
+		}
+	},
+	{
+		"type": "db.kind",
+		"object": "info.mobo.syncml.contact:1",
+		"caller": "com.palm.app.enyo-contacts",
+		"operations": {
+			"read": "allow",
+			"create": "allow",
+			"delete": "allow",
+			"update": "allow"
+		}
+	},
+	{
+		"type": "db.kind",
+		"object": "info.mobo.syncml.contact:1",
+		"caller": "com.palm.dataimport",
+		"operations": {
+			"read": "allow",
+			"create": "allow"
+		}
+	},
+	{
+		"type": "db.kind",
+		"object": "info.mobo.syncml.contact:1",
+		"caller": "com.palm.service.contacts",
+		"operations": {
+			"read": "allow",
+			"create": "allow",
+			"update": "allow"
+		}
+	},
+	{
+		"type": "db.kind",
+		"object": "info.mobo.syncml.contact:1",
+		"caller": "com.palm.*",
+		"operations": {
+			"read": "allow"
+		}
+	}
+]

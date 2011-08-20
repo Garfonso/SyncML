@@ -1,0 +1,6 @@
+{
+	"id": "info.mobo.syncml.calendar:1",
+	"sync": true,
+	"extends": ["com.palm.calendar:1"],
+	"indexes": [{"name": "accountId", "props": [{"name": "accountId"}]}]
+}

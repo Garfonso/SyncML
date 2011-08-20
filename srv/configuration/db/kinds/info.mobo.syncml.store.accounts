@@ -1,0 +1,10 @@
+{
+	"id": "info.mobo.syncml.store.accounts:1",
+	"sync": true,
+	"indexes": [{
+		"name": "webOsAccountId",
+		"props": [{
+			"name": "webOsAccountId"
+		}]
+	}]
+}

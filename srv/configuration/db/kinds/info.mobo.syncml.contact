@@ -1,0 +1,45 @@
+{
+	"id": "info.mobo.syncml.contact:1",
+	"sync": true,
+	"extends": ["com.palm.contact:1"],
+	"indexes": [{
+		"name": "imsi_name_index",
+		"props": [{
+			"name":"syncSource.extended.imsi"
+		}, {
+			"name":"syncSource.name"
+		}, {
+			"name":"syncSource.extended.index"
+		}]
+	}, {
+		"name": "folderId_rev",
+		"props": [{
+			"name": "folderId"
+		}, {
+			"name": "_rev"
+		}]
+	}, {
+		"name": "rev",
+		"props": [{
+			"name": "_rev"
+		}],
+		"incDel":true
+	}, {
+		"name": "rev_folderId",
+		"props": [{
+			"name": "_rev"
+		}, {
+			"name": "folderId"
+		}]
+	}, {
+		"name": "accountId",
+		"props": [{
+			"name": "accountId"
+		}]
+	}, {
+		"name": "remoteId",
+		"props": [{
+			"name": "remoteId"
+		}]
+	}]
+}

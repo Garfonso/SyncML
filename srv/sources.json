@@ -1,0 +1,34 @@
+[{
+    "library": {
+        "name": "foundations",
+        "version": "1.0"
+    }
+},
+{ 
+	"library": {
+		"name": "calendar.io",
+		"version": "1.0"
+	}
+},
+{
+	"source": "assitants/oncapabilitieschangedassistant.js"
+},
+{
+	"source": "assistants/validatorassistant.js"
+},
+{
+	"source": "assistants/oncreateassistant.js"
+},
+{
+	"source": "assistants/ondeleteassistant.js"
+},
+{
+	"source": "assistants/onenabledassistant.js"
+},
+{
+	"source": "assistants/serviceassistant.js"
+},
+{
+	"source": "assistants/syncassistant.js"
+}
+]

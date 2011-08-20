@@ -1,0 +1,29 @@
+{
+	"templateId": "info.mobo.syncml.account",
+	"loc_name": "SyncML Account",
+	"icon": {
+		"loc_32x32": "images/icon32.png",
+		"loc_48x48": "images/icon48.png"
+	},
+	"hidden":false,
+	"readPermissions": ["info.mobo.syncml.*","com.palm.*"],
+	"writePermissions": ["info.mobo.syncml.*","com.palm.*"],
+	"capabilityProviders": [{
+		"capability": "CALENDAR",
+		"sync" : "palm://info.mobo.syncml.service/sync",
+		"id": "info.mobo.syncml.calendar",
+		"loc_name": "SyncML Calendar",
+        "dbkinds": {  
+                "calendar": "info.mobo.syncml.calendar:1",
+				"calendarevent" : "info.mobo.syncml.calendarevent:1"
+        }
+	},
+	{
+		"capability": "CONTACTS",
+		"id": "info.mobo.syncml.contact",
+		"loc_name": "SyncML Contacts",
+        "dbkinds": {  
+                "contact": "info.mobo.syncml.contact:1"
+        }
+	}]
+}
