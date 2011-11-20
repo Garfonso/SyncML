@@ -1,6 +1,6 @@
 {
 	"id": "info.mobo.syncml.contact:1",
-	"sync": true,
+	"sync": false,
 	"extends": ["com.palm.contact:1"],
 	"indexes": [{
 		"name": "imsi_name_index",

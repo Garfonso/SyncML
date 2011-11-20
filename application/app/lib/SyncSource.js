@@ -9,7 +9,6 @@ SyncSource = Class.create({
 			this.encoding = config.encoding;
 			this.syncMode = config.syncMode;
 			
-			this.logCallBack = Mojo.Log.info;
 			
 			// Init lists
 			this.allItems = null;
@@ -32,19 +31,15 @@ SyncSource = Class.create({
 		},
 		
 		addItem: function(item) {
-			this.logCallBack("Add Item called with item " + JSON.stringify(item));
 		},
 		
 		updateItem: function(item) {
-			this.logCallBack("Update Item called with item " + JSON.stringify(item));
 		},
 		
 		deleteItem: function(item) {
-			this.logCallBack("Delete Item called with item " + JSON.stringify(item));
 		},
 		
 		nextItem: function() {
-			this.logCallBack("nextItemCalled!");
 			if (this.allItems === null) {
 			}
 			if (this.allIndex<this.allItems.length) {
@@ -59,7 +54,6 @@ SyncSource = Class.create({
 		},
 		
 		nextNewItem: function() {
-			this.logCallBack("nextNewCalled!");
 			if (this.newItems === null) {
 			}
 			if (this.newIndex < this.newItems.length) {
@@ -74,7 +68,6 @@ SyncSource = Class.create({
 		},
 		
 		nextUpdatedItem: function() {
-			this.logCallBack("nextUpdatedCalled!");
 			if (this.updItems === null) {
 			}
 			if (this.updIndex < this.updItems.length) {
@@ -89,7 +82,6 @@ SyncSource = Class.create({
 		},
 		
 		nextDeletedItem: function() {
-			this.logCallBack("nextDeletedCalled!");
 			if (this.delItems === null) {
 			}
 			if (this.delIndex < this.delItems.length) {
@@ -104,7 +96,7 @@ SyncSource = Class.create({
 		},
 		
 		setItemStatus: function(key, status) {
-			this.logCallBack("setItemStatus called with " + JSON.stringify(key) + " - " + JSON.stringify(status));
+			
 		},
 		
 		getLastAnchor: function() {
@@ -124,35 +116,26 @@ SyncSource = Class.create({
 		},
 		
 		beginSync: function(syncMode) {
-			this.logCallBack("BeginSync called with " + JSON.stringify(syncMode));
 		},
 		
 		endSync: function() {
-			this.logCallBack("endSyncCalled");
 		},
 		
 		createSyncItem: function(key, type, state, parent, size) {
-			this.logCallBack("createSyncItem called with key=" + JSON.stringify(key) + ",type=" + JSON.stringify(type));
-			this.logCallBack(",state="+JSON.stringify(state)+",parent="+JSON.stringify(parent)+",size="+JSON.stringify(size));
 		},
 		
 		initAllItems: function() {
-			this.logCallBack("initAllItemsCalled");
 		},
 		
 		initNewItems: function() {
-			this.logCallBack("initNewItemsCalled");
 		},
 		
 		initUpdItems: function() {
-			this.logCallBack("initUpdItemsCalled");
 		},
 		
 		initDelItems: function() {
-			this.logCallBack("initDelItemsCalled");
 		},
 		
 		getItemContent: function(item) {
-			this.logCallBack("getItemsContent Called " + JSON.stringify(item));
 		}
 });

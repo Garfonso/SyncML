@@ -1,6 +1,6 @@
 {
 	"id": "info.mobo.syncml.calendarevent:1",
-	"sync": true,
+	"sync": false,
 	"extends": ["com.palm.calendarevent:1"],
 	"indexes":
 	[ 

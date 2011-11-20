@@ -190,18 +190,22 @@ SyncManager = Class.create({
 			var lastMappingSent = (this.mappings.length === 0);
 			this.logCallBack("Starting Sync");
 			
-			this.source.beginSync();
-			this.sendItemsLoop();
+			//call beginSync for syncSource which was given as parameter to sync().
+			this.source.beginSync(this.syncMode);
+			
+			//send local changes:
+			log("Having data: " + JSON.stringify(data));
+			switch(this.syncMode)
+			{
+			case SYNC_TWO_WAY:
+			//TODO: iterate over data, adding things to a message...
+			default: 
+				this.mappingManager.removeMappings();
+			} 
 		},
-				
+		
 		syncMappingFailure: function() {
 			this.errorCallBack("Error getting mappings");
-		},
-
-		sendItemsLoop: function() {
-			var command = formatSyncHdrStatus(200);
-			
-			//TODO: mapping??
 		},
 		
 		sendToServer: function(text, callback) {

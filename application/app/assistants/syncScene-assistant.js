@@ -3,9 +3,6 @@ function SyncSceneAssistant() {
 	   additional parameters (after the scene name) that were passed to pushScene. The reference
 	   to the scene controller (this.controller) has not be established yet, so any initialization
 	   that needs the scene controller should be done in the setup function below. */
-	  
-	this.LogMessage = "";
-	this.LogElement = null;
 }
 
 SyncSceneAssistant.prototype.setup = function() {
@@ -27,7 +24,8 @@ SyncSceneAssistant.prototype.setup = function() {
 //		this.log("iCal Object: " + JSON.stringify(icalEvent));
 //		this.log("iCal: " + makeICal(icalEvent));
 		//throw "blabla";
-	this.LogElement = this.controller.get("logOutput");
+	this.oldLog = log;
+	log = logGUI.bind(this,this.controller);
 	
 	eventCallbacks.eventsUpdatedElement = this.controller.get("eventsUpdated");
 	eventCallbacks.eventsUpdateFailedElement = this.controller.get("eventsUpdateFailed");
@@ -35,8 +33,7 @@ SyncSceneAssistant.prototype.setup = function() {
 	eventCallbacks.eventsAddFailedElement = this.controller.get("eventsAddFailed");
 	eventCallbacks.eventsDeletedElement = this.controller.get("eventsDeleted");
 	eventCallbacks.eventsDeleteFailedElement = this.controller.get("eventsDeleteFailed");
-	eventCallbacks.log = this.log.bind(this);
-	eventCallbacks.continueWithContacts = this.continueWithContacts.bind(this);
+	//eventCallbacks.log = log.bind(this);
 	eventCallbacks.controller = this.controller;
 
 	/* use Mojo.View.render to render view templates and add them to the scene, if needed */
@@ -71,103 +68,25 @@ SyncSceneAssistant.prototype.setup = function() {
 
 SyncSceneAssistant.prototype.checkAccount = function() 
 {
-	this.log("Check account");
-	if(account.webOsAccountId !== undefined)
-	{
-		this.log("Have account Id: " + account.webOsAccountId);
-		try {
-			this.controller.serviceRequest('palm://com.palm.accounts/crud', {
-				method: 'listAccounts',
-				parameters: {},
-				onSuccess: function(r){
-					var i;
-					var found = false;
-					var accounts = r.list;
-					for(i = 0; i < accounts.length; i++)
-					{
-						if(accounts[i].accountId === account.webOsAccountId)
-						{
-							found = true;
-						}
-					}
-					
-					if(found) 
-					{
-						this.log("Account is there.");
-						eventCallbacks.checkCalendar();
-					}
-					else
-					{
-						this.log("Account not there, try to create it.");
-						account.webOsAccountId = undefined;
-						this.checkAccount();
-					}
-				}.bind(this),
-				onFailur: function(error){ this.log("Something went very wrong: " + error + " - " + JSON.stringify(error));}.bind(this)
-			});
-		}
-		catch(e)
-		{
-			this.log("Exception during get account..?? Try to recreate it.");
+	log("Check account");
+	if (account.webOsAccountId !== undefined) {
+		log("Have account Id: " + account.webOsAccountId);
+		account.getAccountInfo(function(){ eventCallbacks.checkCalendar();}, 
+		function(){
+			log("No account..");
 			account.webOsAccountId = undefined;
-			eventCallbacks.checkAccount();
-		}
+			this.checkAccount();
+		}.bind(this));
 	}
-	else
-	{	
-		this.log("Need to create account.");
-		var myDataTypes = [];
-		if(account.syncCalendar)
-		{
-			myDataTypes.push("CALENDAR");
-		}
-		if(account.syncContacts)
-		{
-			myDataTypes.push("CONTACTS");
-		}
-		Mojo.Log.info(Mojo.appPath+"/icon32.png");
-		
-		this.controller.serviceRequest('palm://com.palm.accounts/crud', { 
-			method: 'createAccount', 
-			parameters: { 
-				displayName: account.name,
-				dataTypes: myDataTypes, 
-				domain: account.name, 
-				icons: {"32x32" : Mojo.appPath+"icon32.png", "48x48": Mojo.appPath+"icon48.png"}, 
-				isDataReadOnly: false, 
-				username: account.username 
-			}, 
-			onSuccess: function(accountId)
-			{
-				Mojo.Log.info("Created Account: " + Object.toJSON(accountId));
-				account.webOsAccountId = accountId.accountId;
-				saveConfig();
-				eventCallbacks.checkCalendar();	
-			}.bind(this), 
-			onFailure: function(error)
-			{
-				Mojo.Controller.errorDialog("Could not create account. Can't sync. :(\n" + Object.toJSON(error));
-			} 
-		});  
+	else {
+		log("Need to create account.");
+		account.createAccount(function(){ eventCallbacks.checkCalendar();});
 	}
 };
-
-SyncSceneAssistant.prototype.continueWithContacts = function()
-{
-};
-
-var modes = {	"two-way":             200, // TWO-WAY Specifies a client-initiated, two-way synchronization. 
-				"slow":                201, // SLOW SYNC Specifies a client-initiated, two-way slow-synchronization. 
-				"one-way-from-client": 202, // ONE-WAY FROM CLIENT Specifies the client-initiated, one-way only synchronization from the client to the server. 
-				"refresh-from-client": 203, // REFRESH FROM CLIENT Specifies the client-initiated, refresh operation for the oneway only synchronization from the client to the server. 
-				"one-way-from-server": 204, // ONE-WAY FROM SERVER Specifies the client-initiated, one-way only synchronization from the server to the client. 
-				"refresh-from-server": 205 // REFRESH FROM SERVER Specifies the client-initiated, refresh operation of the one-way only synchronization from the server to the client. 
-	};
-
 
 SyncSceneAssistant.prototype.startSync = function()
 {
-	this.controller.get("btnStart").mojo.activate();
+/*	this.controller.get("btnStart").mojo.activate();
 	syncSource = new SyncSource({
 			name: 'calendar',
 			type: 'text/calendar',
@@ -176,12 +95,18 @@ SyncSceneAssistant.prototype.startSync = function()
 			syncMode: modes[account.syncCalendarMethod],
 			lastAnchor: 0
 	});
-	syncSource.logCallback = this.log.bind(this);
+	syncSource.logCallback = log.bind(this);
+	log("==== Creating SyncManager");
 	syncManager = new SyncManager(account.url, account.username, account.password, account.deviceId);
-	syncManager.setLogCallback(this.log.bind(this));
-	syncManager.setErrorCallback(this.log.bind(this));
+	log("==== Created SyncManager");
+	syncManager.setLogCallback(log.bind(this));
+	syncManager.setErrorCallback(log.bind(this));
+	log("==== Calling syncManager.sync");
 	syncManager.sync(syncSource,modes[account.syncCalendarMethod],false);
+	log("==== syncManager.sync returned!");*/
 	
+	//this needs to happen in finished.
+	/*
 	if (account.syncCalendar) {
 		eventCallbacks.finishSync(true);
 	}
@@ -190,8 +115,18 @@ SyncSceneAssistant.prototype.startSync = function()
 			account.syncContactsMethod = "two-way";
 		}
 	}
-	saveConfig();
-	this.controller.get("btnStart").mojo.deactivate();
+	account.saveConfig();
+	this.controller.get("btnStart").mojo.deactivate();*/
+	
+	
+	log("Starting...");
+	SyncML.initialize(account);
+	log("syncer initialized.");
+	log("=== Trying to call checkCredentials.");
+	
+	var checkCredCallback = function(result) { log("CheckCredentials came back: " + JSON.stringify(result)); }.bind(this);
+	
+	SyncML.checkCredentials(checkCredCallback);
 };
 
 SyncSceneAssistant.prototype.finished = function(calOk,conOk)
@@ -200,12 +135,12 @@ SyncSceneAssistant.prototype.finished = function(calOk,conOk)
 	{
 		if(calOk === "ok")
 		{
-			this.log("Calendar sync worked.");
+			log("Calendar sync worked.");
 			eventCallbacks.finishSync(true);
 		}
 		else
 		{
-			this.log("Calendar sync had errors.");
+			log("Calendar sync had errors.");
 			//account.syncCalendarMethod = "slow";
 		}
 	}
@@ -213,7 +148,7 @@ SyncSceneAssistant.prototype.finished = function(calOk,conOk)
 	{
 		if(conOk === "ok")
 		{
-			this.log("Contacts sync worked.");
+			log("Contacts sync worked.");
 			//TODO: call doneWithChanges!
 		
 			if (account.syncContactsMethod === "slow" || account.syncContactsMethod.indexOf("refresh") !== -1) {
@@ -222,20 +157,21 @@ SyncSceneAssistant.prototype.finished = function(calOk,conOk)
 		}
 		else
 		{
-			this.log("Contacts sync had errors.");
+			log("Contacts sync had errors.");
 			//account.syncContactsMethod = "slow";
 		}
 	}
 	
+	account.saveConfig();
 	this.controller.get("btnStart").mojo.deactivate();
 };
 
-SyncSceneAssistant.prototype.log = function(message)
+/*SyncSceneAssistant.prototype.log = function(message)
 {
 	this.LogMessage = "<p>" + message + "</p>" + this.LogMessage;
 	this.LogElement.innerHTML = this.LogMessage;
 	Mojo.Log.info(message);
-};
+};*/
 
 SyncSceneAssistant.prototype.activate = function(event) {
 	/* put in event handlers here that should only be in effect when this scene is active. For
@@ -245,7 +181,8 @@ SyncSceneAssistant.prototype.activate = function(event) {
 SyncSceneAssistant.prototype.deactivate = function(event) {
 	/* remove any event handlers you added in activate and do any other cleanup that should happen before
 	   this scene is popped or another scene is pushed on top */
-	saveConfig();
+	log = this.oldLog;
+	account.saveConfig();
 };
 
 SyncSceneAssistant.prototype.cleanup = function(event) {

@@ -7,9 +7,13 @@ function SyncMLAccount(){
     this.syncContacts = false;
     this.syncContactsPath = undefined;
     this.syncContactsMethod = "slow";
+    this.syncContactsNext = undefined;
+    this.syncContactsLast = undefined;
     this.syncCalendar = false;
     this.syncCalendarPath = undefined;
     this.syncCalendarMethod = "slow";
+    this.syncCalendarNext = undefined;
+    this.syncCalendarLast = undefined;
     
     this.webOsAccountId = undefined;
     this.webOsCalendarId = undefined;
@@ -46,7 +50,7 @@ SyncMLAccount.prototype.saveConfig = function(){
 	try {
 		log("SaveCofnig called!!! For webos id: " + this.webOsAccountId + " and db id " + this.dbId );
 		//log("saving info.mobo.syncml.store.accounts -> value:" + acctId);
-		var acctObj = [{
+		var acctObj = [this]/*[{
 			"_kind": "info.mobo.syncml.store.accounts:1",
 			"username": this.username,
 			"password": this.password,
@@ -64,8 +68,8 @@ SyncMLAccount.prototype.saveConfig = function(){
 			"webOsCalendarId": this.webOsCalendarId,
 			"webOsContactsId": this.webOsContactsId,
 			"webOsCalendarRev": this.webOsCalendarRev,
-			"webOsContactsRev": this.webOsContactsRev
-		}];
+			"webOsContactsRev": this.webOsContactsRev 
+		}]*/;
 		var resultFunc = function(future){
 			var result = future.result;
 			if (result.returnValue === true) {
@@ -121,10 +125,14 @@ SyncMLAccount.prototype.findAccount = function() {
 			if(future.result.results.length>0) {
 		        log("Got accountId: " + JSON.stringify(future.result.results[0]));
 				result = future.result.results[0];
-				this.webOsAccountId = result.webOsAccountId;
+				for(var field in result)
+				{
+				  this[field] = result[field];
+				}
+				//this.webOsAccountId = result.webOsAccountId;
 				this.dbId = result._id;
 					
-				this.username = result.username;
+				/*this.username = result.username;
 				this.password = result.password;
 				this.name = result.name;
 				this.url = result.url;
@@ -138,7 +146,7 @@ SyncMLAccount.prototype.findAccount = function() {
 				this.webOsCalendarId = result.webOsCalendarId;
 				this.webOsContactsId = result.webOsContactsId;
 				this.webOsCalendarRev = result.webOsCalendarRev;
-				this.webOsContactsRev = result.webOsContactsRev;
+				this.webOsContactsRev = result.webOsContactsRev;*/
 				
 				if(this.webOsCalendarRev === undefined) 
 				{
@@ -153,6 +161,7 @@ SyncMLAccount.prototype.findAccount = function() {
 				future.result = "";
 			}
 			
+			//TODO: change this for multiple accounts!
 			if(future.result.results.length > 1)
 			{
 				var i;
@@ -330,6 +339,34 @@ SyncMLAccount.prototype.modifyAccount = function(){
 		onSuccess: function(e) { log("Account modified = "+JSON.stringify(e)); this.saveConfig(); },
 		onFailure: function(e) { log("modifiyAccount failure: errorCode = " + e.errorCode + ", errorText = "+e.errorText); }      
 	});
+};
+
+SyncMLAccount.prototype.checkDeviceId = function(callback){
+	if (account.deviceId === undefined) {
+		log("Need to get device id!");
+		this.controller
+				.serviceRequest(
+						'palm://com.palm.preferences/systemProperties',
+						{
+							method : "Get",
+							parameters : {
+								"key" : "com.palm.properties.nduid"
+							},
+							//TODO: what about failure??
+							onSuccess : function(response) {
+								account.deviceId = response["com.palm.properties.nduid"];
+								this.log("Got deviceId: "
+										+ account.deviceId
+										+ " recall checkCredentials.");
+								this.checkCredentials(callback);
+							}.bind(this)
+						});
+		return false; //tell caller that we need to get device id and we will call calback. 
+	}
+	else
+	{
+		return true; //tell caller that we don't get device id, because we already have and he can carry on.
+	}
 };
 
 var account = new SyncMLAccount();
