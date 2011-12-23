@@ -25,6 +25,28 @@ var syncMLMessage = function () {
     xmlParser = new DOMParser(),
     cmdId = 0;
 
+  //helper function to print a node content:
+  function printNode(node){
+    var child, string;
+
+    //catch nodes with values:
+    if (node.nodeValue) {
+      return node.nodeValue;
+    }
+
+    string = "<" + node.nodeName + ">\n";
+
+    child = node.firstChild;
+    while(child){
+      string += printNode(child);
+      child = child.nextSibling;
+    }
+
+    string += "</" + node.nodeName + ">\n";
+
+    return string;
+  }
+
   //returns current cmd Id and increments it for next call.
   function getCmdId() {
     var retVal = cmdId;
@@ -51,12 +73,12 @@ var syncMLMessage = function () {
     node = elements[0];
     if (node) {
       if (elements.length > 1) {
-        log("Warning: More than one element of type " + name + " in " + dom.textContent + ". Only first element processed.");
+        log("Warning: More than one element of type " + name + " in " + printNode(dom) + ". Only first element processed.");
       }
 
       return node.childNodes[0].nodeValue; //return containing text
     } else if (required) {
-      throw ({name: "SyntaxError", message: "Could not find node with name " + name + " in " + dom.textContent});
+      throw ({name: "SyntaxError", message: "Could not find node with name " + name + " in " + printNode(dom)});
     }
   }
 
@@ -109,7 +131,7 @@ var syncMLMessage = function () {
         item.meta = readMeta(child);
         break;
       default:
-        log("Unexpected type (" + child.nodeName + ") in: " + child.textContent);
+        log("Unexpected type (" + child.nodeName + ") in: " + printNode(child));
         break;
       }
 
@@ -128,7 +150,7 @@ var syncMLMessage = function () {
     items = node.getElementsByTagName("Item");
     if (items && items.length > 0) {
       if (items.length !== 1) {
-        log("More than one item in Alert. Can't handle that yet: " + node.textContent);
+        log("More than one item in Alert. Can't handle that yet: " + printNode(node));
       }
       alert.item = readItem(items[0]); //this should contain source and target and meta with last/next anchor for sync-alerts.
     }
@@ -226,7 +248,7 @@ var syncMLMessage = function () {
         sync.source = getTagText(child, "LocURI", true);
         break;
       default: //ignore: NoResp, Cred, Meta and Atomic, Copy, Move, Sequence.
-        log("Unexpected node type (" + child.nodeName + ") in sync received: " + node.textContent);
+        log("Unexpected node type (" + child.nodeName + ") in sync received: " + printNode(node));
         break;
       }
 
@@ -254,6 +276,9 @@ var syncMLMessage = function () {
       case "Status":
         obj = readStatus(node);
         if (obj) {
+          if (!bodyObj.status[obj.msgRef]) {
+            bodyObj.status[obj.msgRef] = [];
+          }
           bodyObj.status[obj.msgRef][obj.cmdRef] = obj;
         }
         break;
@@ -267,7 +292,7 @@ var syncMLMessage = function () {
         bodyObj.isFinal = true;
         break;
       default:
-        log("Unexpected node type (" + node.nodeName + ") in SyncBody received: " + node.textContent);
+        log("Unexpected node type (" + node.nodeName + ") in SyncBody received: " + printNode(node));
         break;
       }
 
@@ -278,7 +303,14 @@ var syncMLMessage = function () {
   }
 
   return {
-    //public interface:    
+    //public interface:  
+    getBody: function () {
+      return body;
+    },
+
+    getHeader: function () {
+      return header;
+    },
 
     //adds credential information to the header.
     addCredentials: function (cred) {

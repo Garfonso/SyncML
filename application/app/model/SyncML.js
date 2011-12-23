@@ -3,37 +3,37 @@
 /*jslint indent: 2 */
 
 var SyncMLModes = {
-    "two-way":             200, // TWO-WAY Specifies a client-initiated, two-way synchronization. 
-    "slow":                201, // SLOW SYNC Specifies a client-initiated, two-way slow-synchronization. 
-    "one-way-from-client": 202, // ONE-WAY FROM CLIENT Specifies the client-initiated, one-way only synchronization from the client to the server. 
-    "refresh-from-client": 203, // REFRESH FROM CLIENT Specifies the client-initiated, refresh operation for the oneway only synchronization from the client to the server. 
-    "one-way-from-server": 204, // ONE-WAY FROM SERVER Specifies the client-initiated, one-way only synchronization from the server to the client. 
-    "refresh-from-server": 205 // REFRESH FROM SERVER Specifies the client-initiated, refresh operation of the one-way only synchronization from the server to the client. 
+    "two-way":             "200", // TWO-WAY Specifies a client-initiated, two-way synchronization. 
+    "slow":                "201", // SLOW SYNC Specifies a client-initiated, two-way slow-synchronization. 
+    "one-way-from-client": "202", // ONE-WAY FROM CLIENT Specifies the client-initiated, one-way only synchronization from the client to the server. 
+    "refresh-from-client": "203", // REFRESH FROM CLIENT Specifies the client-initiated, refresh operation for the oneway only synchronization from the client to the server. 
+    "one-way-from-server": "204", // ONE-WAY FROM SERVER Specifies the client-initiated, one-way only synchronization from the server to the client. 
+    "refresh-from-server": "205" // REFRESH FROM SERVER Specifies the client-initiated, refresh operation of the one-way only synchronization from the server to the client. 
   };
 
 //Other SyncML Alert Codes:
 //https://core.forge.funambol.org/wiki/SyncMLAlertCodes
 var SyncMLAlertCodes = {
-    100: "show", //data should be shown to client.
+    "100": "show", //data should be shown to client.
     //client-initiated sync modes:
-    200: "two-way",
-    201: "slow",
-    202: "one-way-from-client",
-    203: "refresh-from-client",
-    204: "one-way-from-server",
-    205: "refresh-from-server",
+    "200": "two-way",
+    "201": "slow",
+    "202": "one-way-from-client",
+    "203": "refresh-from-client",
+    "204": "one-way-from-server",
+    "205": "refresh-from-server",
     //server-initiated sync modes:
-    206: "two-way-by-server",
-    207: "one-way-from-client-by-server",
-    208: "refresh-from-client-by-server",
-    209: "one-way-from-server-by-server",
-    210: "refresh-from-server-by-server",
+    "206": "two-way-by-server",
+    "207": "one-way-from-client-by-server",
+    "208": "refresh-from-client-by-server",
+    "209": "one-way-from-server-by-server",
+    "210": "refresh-from-server-by-server",
     //misc:
-    221: "result-alert", //requests sync results
-    222: "next-message", //requests next message
-    223: "no-end-of-data", //end of data not received => message missing? Syntax error?
-    224: "suspend", //suspend sync session
-    225: "resume"  // resume sync session
+    "221": "result-alert", //requests sync results
+    "222": "next-message", //requests next message
+    "223": "no-end-of-data", //end of data not received => message missing? Syntax error?
+    "224": "suspend", //suspend sync session
+    "225": "resume"  // resume sync session
   };
 
 //some more or less static device infos.
@@ -67,7 +67,7 @@ var DeviceProperties = {
 
 var SyncML = (function () {
   "use strict";
-  var sessionInfo, account = {};
+  var sessionInfo, account = {}, lastMsg;
 	//the object to communicate with the SyncML server.
 	//for base64 decoding / encoding try window.atob() and window.btoa().
 
@@ -76,8 +76,8 @@ var SyncML = (function () {
   //private members & methods:
   sessionInfo = {
     sessionId: new Date().getTime(),
-    msgId: 1,
-    cmdId: 1, 
+    msgId: 0,
+    cmdId: 0, 
     error: null,
     url: ''
   };
@@ -85,25 +85,44 @@ var SyncML = (function () {
   //returns current msg id and increments it for next call. Also resets cmdId.
   //this is ok, because the msgId is always used in the header.
   function getMsgId() {
-    var retVal = sessionInfo.msgId;
     sessionInfo.msgId += 1;
     sessionInfo.cmdId = 1;
-    return retVal;
+    return sessionInfo.msgId;
   }
 
   //sends a message to the server.
   function sendToServer(text, callback) {
+    log("Callback: " + callback + " - " + JSON.stringify(callback));
     log("Sending to " + sessionInfo.url);
     return new Ajax.Request(sessionInfo.url, {
       //success and failure don't seem to be called... why the hell??? Stupid thing. :(
-      //onSuccess : callback,
-      //onFailure : function (transport) { log("Request failed."); log("Got: " + JSON.stringify(transport)); },
-      onComplete : callback, //function (transport) { log("Request completed"); log("Got: " + transport.responseText); },
+      //callback log("Got: " + transport.responseText);
+      onFailure : function (transport) { log("Request failed"); }.bind(this),
+      onSuccess : function (transport) { log("Request succeeded"); callback(transport); }.bind(this),
+      onComplete : function (transport) { log("Request completed"); }.bind(this),
       postBody : text,
       method : 'post',
       contentType : 'application/vnd.syncml+xml'
     });
   }
+  
+  function parseCredResponse(callback, transport) {
+    var responseMsg, status;
+
+    log("Got response: " + transport.responseText);
+
+    responseMsg = syncMLMessage();
+    responseMsg.buildMessageFromResponse(transport.responseText);
+    status = responseMsg.getBody().status[sessionInfo.msgId]["0"].data; //status of last msg and header => allways 0. 
+    if (status === "212" || status === "200") {
+      log("Good credentials.");
+      callback(true);
+    } else {
+      log("Wrong credentials?, status data: " + status);
+      callback(false);
+    }
+  }
+
 
   //define public interface:
 	return {
@@ -156,30 +175,9 @@ var SyncML = (function () {
 			}
 		},*/
 
-	  parseCredResponse : function (callback, transport) {
-	    var responseMsg, status;
-
-	    log("transport:" + JSON.stringify(transport));
-	    log("callback:" + JSON.stringify(callback));
-	    
-	    log("Got: ");
-	    log(transport.responseText);
-
-	    responseMsg = syncMLMessage();
-	    responseMsg.buildMessageFromResponse(transport.responseText);
-	    status = responseMsg.body.status[1][0].data; //status of header of first msg. Make that dynamic to the previous msg. 
-	    if (status === 212 || status === 200) {
-	      log("Good credentials.");
-	      callback(true);
-	    } else {
-	      log("Wrong credentials?, status data: " + status);
-	      callback(false);
-	    }
-    },
-
-		//finished 5.10.2011, is working with eGroupware, both ok and false.
+	  //finished 5.10.2011, is working with eGroupware, both ok and false.
 		//callback will be called with true or false as argument.
-		checkCredentials : function (callback) {
+		checkCredentials: function (callback) {
 		  var content, msg = syncMLMessage(); //TODO: ist das richtig so??? :(
 		  msg.addCredentials(account); //cool, will find username and password field. :)
 		  msg.setFinal(true);
@@ -187,7 +185,8 @@ var SyncML = (function () {
 		  content = msg.buildMessage({sessionId: sessionInfo.sessionId, msgId: getMsgId(), target: account.url, source: DeviceProperties.id});
 
 			log("Sending to server: " + content);
-			sendToServer(content, this.parseCredResponse.bind(this, callback)); //TODO: do we need this bind? Can we pass that parameter nicer?
+			sendToServer(content, parseCredResponse.bind(this,callback)); //.bind(this,callback)); //TODO: do we need this bind? Can we pass that parameter nicer?
+			lastMsg = msg;
 		},
 
 		sendSyncInitializationMsg: function (callback) {

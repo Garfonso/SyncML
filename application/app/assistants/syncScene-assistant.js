@@ -123,7 +123,7 @@ SyncSceneAssistant.prototype.startSync = function()
     return;
   }
   
-  try{
+  //try{
     this.lockded = true;
     log("Starting...");
     SyncML.initialize(account);
@@ -133,7 +133,8 @@ SyncSceneAssistant.prototype.startSync = function()
     var checkCredCallback = function(result) { log("CheckCredentials came back: " + JSON.stringify(result)); this.locked = false; }.bind(this);
 
     SyncML.checkCredentials(checkCredCallback);
-  } catch (e) { log("Error: " + e.name + " what: " + e.message + " - " + e.stack); this.locked = false; }
+    log("CheckCred came back...");
+  //} catch (e) { log("Error: " + e.name + " what: " + e.message + " - " + e.stack); this.locked = false; }
 };
 
 SyncSceneAssistant.prototype.finished = function(calOk,conOk)
