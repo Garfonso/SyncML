@@ -63,8 +63,6 @@ var DeviceProperties = {
 // 8. For all Add commands build a map with mapitems where target is id on server and source is new id on device.
 // 9. Send this message.
 
-//TODO: move cmdId to syncMLMessage. Will not be used here, but there. :)
-
 var SyncML = (function () {
   "use strict";
   var sessionInfo, account = {}, lastMsg;
@@ -77,16 +75,13 @@ var SyncML = (function () {
   sessionInfo = {
     sessionId: new Date().getTime(),
     msgId: 0,
-    cmdId: 0, 
     error: null,
     url: ''
   };
 
-  //returns current msg id and increments it for next call. Also resets cmdId.
-  //this is ok, because the msgId is always used in the header.
+  //returns a msgId for a new message: 
   function getMsgId() {
     sessionInfo.msgId += 1;
-    sessionInfo.cmdId = 1;
     return sessionInfo.msgId;
   }
 
@@ -97,15 +92,15 @@ var SyncML = (function () {
     return new Ajax.Request(sessionInfo.url, {
       //success and failure don't seem to be called... why the hell??? Stupid thing. :(
       //callback log("Got: " + transport.responseText);
-      onFailure : function (transport) { log("Request failed"); }.bind(this),
-      onSuccess : function (transport) { log("Request succeeded"); callback(transport); }.bind(this),
-      onComplete : function (transport) { log("Request completed"); }.bind(this),
+      onFailure : function () { log("Request failed"); },
+      onSuccess : function (transport) { log("Request succeeded"); callback(transport); },
+      onComplete : function () { log("Request completed"); },
       postBody : text,
       method : 'post',
       contentType : 'application/vnd.syncml+xml'
     });
   }
-  
+
   function parseCredResponse(callback, transport) {
     var responseMsg, status;
 
@@ -129,7 +124,6 @@ var SyncML = (function () {
 	  initialize: function (inAccount) {
 	    sessionInfo.sessionId = new Date().getTime();
 	    sessionInfo.msgId = 1;
-	    sessionInfo.cmdId = 1;
 	    sessionInfo.error = null;
 	    sessionInfo.url = inAccount.url; //initialize with global url, might change later.
 	    account = inAccount; //TODO: is this still a reference?
@@ -185,7 +179,7 @@ var SyncML = (function () {
 		  content = msg.buildMessage({sessionId: sessionInfo.sessionId, msgId: getMsgId(), target: account.url, source: DeviceProperties.id});
 
 			log("Sending to server: " + content);
-			sendToServer(content, parseCredResponse.bind(this,callback)); //.bind(this,callback)); //TODO: do we need this bind? Can we pass that parameter nicer?
+			sendToServer(content, parseCredResponse.bind(this, callback)); //.bind(this,callback)); //TODO: do we need this bind? Can we pass that parameter nicer?
 			lastMsg = msg;
 		},
 

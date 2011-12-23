@@ -18,15 +18,15 @@ var syncMLMessage = function () {
     body = { //will contain information about the body.
       alerts: [], //contains alerts. Should be mostly just one for sync initialization...
       status: {}, //contains status reports = aks/nacks of previous commands
-      sync: [],   //contains sync commands add/replace/delete
+      sync: [ { add: [], del: [], replace: [] } ],   //contains sync commands add/replace/delete
       isFinal: true //final needs to be specified in the last message of the "SyncML Package".. TODO: find out what "package" means. More messages, because one would  be to big??
     },
     //helper to parse XML text messages.
     xmlParser = new DOMParser(),
-    cmdId = 0;
+    cmdId = 0; //necessary to start with Id 1. 
 
   //helper function to print a node content:
-  function printNode(node){
+  function printNode(node) {
     var child, string;
 
     //catch nodes with values:
@@ -37,7 +37,7 @@ var syncMLMessage = function () {
     string = "<" + node.nodeName + ">\n";
 
     child = node.firstChild;
-    while(child){
+    while (child) {
       string += printNode(child);
       child = child.nextSibling;
     }
@@ -47,25 +47,42 @@ var syncMLMessage = function () {
     return string;
   }
 
-  //returns current cmd Id and increments it for next call.
+  //returns cmdId for a new command, starting with 1. 
   function getCmdId() {
-    var retVal = cmdId;
     cmdId += 1;
-    return retVal;
+    return cmdId;
+  }
+
+  //write a node with value: 
+  function writeNodeValue(name, value, prefix, meta) {
+    m.push(prefix + "<" + name + (meta ? " xmlns=\"syncml:metinf\"" : "") + ">" + value + "</" + name + ">\n");
+  }
+
+  //writes new cmd to message.
+  function writeCmdId(prefix) {
+    cmdId += 1;
+    writeNodeValue("CmdId", cmdId, prefix);
   }
 
   function addCredentialsToHeader() {
     if (header.encodedCredentials) {
-      m.push("<Cred>\n");
-      m.push("<Meta><Type xmlns=\"syncml:metinf\">syncml:auth-basic</Type>"); //currently only supporting basic auth :(
-      m.push("<Format xmlns=\"syncml:metinf\">b64</Format>\n");m.push("</Meta>");
-      m.push("<Data>");m.push(header.encodedCredentials);m.push("</Data>\n</Cred>\n");
+      m.push("\t\t<Cred>\n");
+      m.push("\t\t\t<Meta>\n");
+      writeNodeValue("Type", "syncml:auth-basic", "\t\t\t\t", true); //currently only supporting basic auth 
+      writeNodeValue("Format", "b64", "\t\t\t\t", true);
+      m.push("\t\t\t</Meta>\n");
+      writeNodeValue("Data", header.encodedCredentials, "\t\t\t");
+      m.push("\t\t</Cred>\n");
     }
   }
 
   function addTargetSource(info, prefix) {
-    m.push(prefix);m.push("<Target><LocURI>");m.push(info.target);m.push("</LocURI></Target>\n");
-    m.push(prefix);m.push("<Source><LocURI>");m.push(info.source);m.push("</LocURI></Source>\n");
+    if (info.target) {
+      m.push(prefix); m.push("<Target><LocURI>"); m.push(info.target); m.push("</LocURI></Target>\n");
+    }
+    if (info.source) {
+      m.push(prefix); m.push("<Source><LocURI>"); m.push(info.source); m.push("</LocURI></Source>\n");
+    }
   }
 
   function getTagText(dom, name, required) {
@@ -110,6 +127,29 @@ var syncMLMessage = function () {
     //ignoring all the memory stuff, can't handle that anyways. See if I can react to maxMsgSize.. :(
   }
 
+  //helper function to add meta to msg
+  function addMetaToMsg(meta, prefix) {
+    m.push(prefix); m.push("<Meta>\n");
+    var nprefix = prefix + "\t";
+    if (meta.anchor) {
+      m.push(nprefix); m.push("<Anchor xmlns='syncml:metinf'>\n");
+      if (meta.last) {
+        writeNodeValue("Last", meta.last, nprefix + "\t", true);
+      }
+      writeNodeValue("Next", meta.next, nprefix + "\t", true);
+    }
+    if (meta.format) {
+      writeNodeValue("Format", meta.format, nprefix + "\t", true);
+    }
+    if (meta.type) {
+      writeNodeValue("Type", meta.type, nprefix + "\t", true);
+    }
+    if (meta.maxMsgSize) {
+      writeNodeValue("MaxMsgSize", meta.maxMsgSize, nprefix + "\t", true);
+    }
+    m.push(prefix); m.push("</Meta>\n");
+  }
+
   //helper function to parse items
   function readItem(node) {
     var child, item = {};
@@ -141,6 +181,20 @@ var syncMLMessage = function () {
     return item;
   }
 
+  //helper function to write item to msg
+  function addItemToMsg(item, prefix) {
+    m.push(prefix); m.push("<Item>\n");
+    var nprefix = prefix + "\t";
+    addTargetSource(item, nprefix);
+    if (item.meta) {
+      addMetaToMsg(item.meta, prefix);
+    }
+    if (item.data) {
+      writeNodeValue("Data", item.data, nprefix);
+    }
+    m.push(prefix); m.push("</Item>\n");
+  }
+
   //helper function to parse alerts
   function readAlert(node) {
     var items, alert = {};
@@ -156,6 +210,21 @@ var syncMLMessage = function () {
     }
 
     return alert;
+  }
+
+  //helper function to add alert to msg:
+  function addAlertToMsg(alert, prefix) {
+    var i, nprefix;
+    m.push(prefix); m.push("<Alert>\n");
+    nprefix = prefix + "\t";
+    writeCmdId(nprefix);
+    if (alert.items) {
+      for (i = 0; i < alert.items.length; i += 1) {
+        addItemToMsg(alert.items[i], nprefix);
+      }
+    }
+    writeNodeValue("Data", alert.data, nprefix);
+    m.push(prefix); m.push("</Alert>\n");
   }
 
   //helper function to parse status
@@ -185,29 +254,87 @@ var syncMLMessage = function () {
     return status;
   }
 
+  //helper function to add a status to the msg.
+  function addStatusToMsg(status, prefix) {
+    var i, nprefix;
+    m.push(prefix); m.push("<Status>\n");
+    nprefix = prefix + "\t";
+    writeCmdId(nprefix);
+    writeNodeValue("MsgRef", status.msgRef, nprefix);
+    writeNodeValue("CmdRef", status.cmdRef, nprefix);
+    if (status.cmdName) {
+      writeNodeValue("Cmd", status.cmdName, nprefix);
+    }
+    if (status.targetRef) {
+      writeNodeValue("TargetRef", status.targetRef, nprefix);
+    }
+    if (status.sourceRef) {
+      writeNodeValue("SourceRef", status.sourceRef, nprefix);
+    }
+    if (status.cred) {
+      writeNodeValue("Cred", status.cred, nprefix);
+    }
+    if (status.items) {
+      for (i = 0; i < status.items.length; i += 1) {
+        addItemToMsg(status.items[i], nprefix);
+      }
+    }
+    writeNodeValue("Data", status.data, nprefix);
+    m.push(prefix); m.push("</Status>\n");
+  }
+
+  //helper function to add a syncCmd to the msg.
+  function addSyncCmdToMsg(cmd, prefix) {
+    var i;
+    writeCmdId(prefix);
+    for (i = 0; i < cmd.items.length; i += 1) {
+      addItemToMsg(cmd.items[i], prefix);
+    }
+  }
+
   //helper function to parse add/replace commands
   function readAddReplace(node) {
     var obj = { items: []}, meta, items, i;
-
     //ignoring NoResp, Cred.
-
     obj.cmdId = getTagText(node, "CmdID", true);
     meta = node.getElementsByTagName("Meta")[0];
     if (meta) {
       obj.meta = readMeta(meta);
     }
-
     items = node.getElementsByTagName("Item");
     for (i = 0; i < items.length; i += 1) {
       obj.items.push_back(readItem(items[i]));
     }
-
     return obj;
   }
 
   function readDelete(node) {
     //igrnoring SftDelete and Archive.
     return readAddReplace(node);
+  }
+
+  //helper function to add sync to the msg:
+  function addSyncToMsg(sync, prefix) {
+    var i, nprefix;
+    m.push(prefix); m.push("<Sync>\n");
+    nprefix = prefix + "\t";
+    writeCmdId(nprefix);
+    addTargetSource(sync, nprefix);
+    for (i = 0; i < sync.add.length; i += 1) {
+      m.push(nprefix); m.push("<Add>\n");
+      addSyncCmdToMsg(sync.add[i], nprefix + "\t");
+      m.push(nprefix); m.push("</Add>\n");
+    }
+    for (i = 0; i < sync.del.length; i += 1) {
+      m.push(nprefix); m.push("<Delete>\n");
+      addSyncCmdToMsg(sync.del[i], nprefix + "\t");
+      m.push(nprefix); m.push("</Delete>\n");
+    }
+    for (i = 0; i < sync.replace.length; i += 1) {
+      m.push(nprefix); m.push("<Replace>\n");
+      addSyncCmdToMsg(sync.replace[i], nprefix + "\t");
+      m.push(nprefix); m.push("</Replace>\n");
+    }
   }
 
   //helper function to parse sync:
@@ -329,6 +456,8 @@ var syncMLMessage = function () {
 
     //returns the complete message as XML
     buildMessage: function (sessionInfo) {
+      var msgRef, cmdRef, i;
+
       //check parameters:
       if (typeof sessionInfo.sessionId !== 'number' || typeof sessionInfo.msgId !== 'number') {
         throw ({name: "InvalidParamters", message: "You need to specify sessionId and msgId as number-members of sessionInfo parameter." + JSON.stringify(sessionInfo) });
@@ -342,14 +471,10 @@ var syncMLMessage = function () {
       m.push("<SyncML>\n");
 
       //sync hdr:
-      m.push("<SyncHdr><VerDTD>1.2</VerDTD><VerProto>SyncML/1.2</VerProto>\n"); //init header
-      m.push("<SessionID>");
-      m.push(sessionInfo.sessionId);
-      m.push("</SessionID>\n"); //session id, stays constant over whole session.
-      m.push("<MsgID>");
-      m.push(sessionInfo.msgId);
-      m.push("</MsgID>\n"); //msg id needs to be unique for each new message in this session.
-      addTargetSource(sessionInfo, ""); //source and target paths. Source = on device, target = on server.
+      m.push("\t<SyncHdr><VerDTD>1.2</VerDTD><VerProto>SyncML/1.2</VerProto>\n"); //init header
+      writeNodeValue("SessionID", sessionInfo.sessionId, "\t\t");
+      writeNodeValue("MsgID", sessionInfo.msgId, "\t\t");
+      addTargetSource(sessionInfo, "\t\t"); //source and target paths. Source = on device, target = on server.
       //add optional credentials:
       addCredentialsToHeader(sessionInfo);
       m.push("</SyncHdr>");
@@ -357,13 +482,34 @@ var syncMLMessage = function () {
       //body:
       m.push("<SyncBody>\n");
 
+      //first add status responses:
+      for (msgRef in body.status) {
+        if (body.status.hasOwnProperty(msgRef)) {
+          for (cmdRef in body.status[msgRef]) {
+            if (body.status[msgRef].hasOwnProperty(cmdRef)) {
+              addStatusToMsg(body.status[msgRef][cmdRef], "\t");
+            }
+          }
+        }
+      }
+
+      //add alerts: 
+      for (i = 0; i < body.alerts.length; i += 1) {
+        addAlertToMsg(body.alerts[i], "\t");
+      }
+
+      //add syncCmd:
+      for (i = 0; i < body.sync.length; i += 1) {
+        addSyncToMsg(body.sync[i], "\t");
+      }
+
       if (body.isFinal) {
         m.push("<Final></Final>\n");
       }
       m.push("</SyncBody>\n");
 
       m.push("</SyncML>\n");
-      
+
       return m.join("");
     },
 
@@ -414,6 +560,7 @@ var syncMLMessage = function () {
       //TODO: implement.
     },
 
+    //only one syncCmd is currently supported. Will add every cmds here to this first syncCmd.
     addSyncCmd: function (cmd) {
       //adds add / replace /delete to the sync cmd of the message. 
       //need to give type (add/replace/delete), and the item,
@@ -429,7 +576,7 @@ var syncMLMessage = function () {
           meta: cmd.meta
         };
 
-      body.sync[cmd.type].push_back(obj);
+      body.sync[0][cmd.type].push_back(obj);
     }
   };
 };
