@@ -2,7 +2,9 @@
 	{"source": "app/model/eventCallbacks.js"},
 	{"source": "app/model/helpers.js"},
 	{"source": "app/model/iCal.js"},
+	{"source": "app/model/SyncMLMessage.js"},
 	{"source": "app/model/SyncML.js"},
+	{"source": "app/model/SyncMLFormatterFunctions.js"},
  	{"source": "app/model/SyncMLAccount.js"},
     {"source": "app/assistants/stage-assistant.js"},
     {
@@ -16,13 +18,5 @@
     {
         "scenes": "syncScene",
         "source": "app/assistants/syncScene-assistant.js"
-    },
-	{"source": "app/lib/StringBuffer.js"},
-    {"source": "app/lib/SyncMLFormatter.js"},
-    {"source": "app/lib/SyncMLStatus.js"},
-    {"source": "app/lib/ext_base64.js"},
-    {"source": "app/lib/SyncManager.js"},
-    {"source": "app/lib/DeviceConfig.js"},
-    {"source": "app/lib/SyncSource.js"},
-    {"source": "app/lib/DepotMappingManager.js"}
+    }
 ]

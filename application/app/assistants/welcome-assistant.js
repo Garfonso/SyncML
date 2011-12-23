@@ -5,11 +5,39 @@ function WelcomeAssistant() {
 	   that needs the scene controller should be done in the setup function below. */
 }
 
+function getDeviceId(callback){
+  if (DeviceProperties.devId === undefined) {
+    log("Need to get device id!");
+    this.controller
+        .serviceRequest(
+            'palm://com.palm.preferences/systemProperties',
+            {
+              method : "Get",
+              parameters : {
+                "key" : "com.palm.properties.nduid"
+              },
+              //TODO: what about failure??
+              onSuccess : function(response) {
+                DeviceProperties.devId = response["com.palm.properties.nduid"];
+                log("Got deviceId: "
+                    + DeviceProperties.devId);
+              }.bind(this)
+            });
+    return false; //tell caller that we need to get device id and we will call calback. 
+  }
+  else
+  {
+    return true; //tell caller that we don't get device id, because we already have and he can carry on.
+  }
+};
+
 WelcomeAssistant.prototype.setup = function() {
 	/* this function is for setup tasks that have to happen when the scene is first created */
 		
 	/* use Mojo.View.render to render view templates and add them to the scene, if needed */
 	
+  log("Account: " + JSON.stringify(account));
+  
 	account.controller = this.controller;
 	account.readFromConfig();
 	

@@ -54,12 +54,12 @@ SyncSceneAssistant.prototype.setup = function() {
 		this.log("Error" + e + " - " + JSON.stringify(e));
 	}*/
 	
-	if(account.deviceId === undefined)
+	if(!DeviceProperties.devID) //TODO: make sure this get's in before sync and move it into service..
 	{
 		this.controller.serviceRequest('palm://com.palm.preferences/systemProperties', {
 			method:"Get",
 			parameters:{"key": "com.palm.properties.nduid" },
-			onSuccess: function(response){ account.deviceId = response["com.palm.properties.nduid"]; this.log("Got deviceId: " + account.deviceId)}.bind(this)
+			onSuccess: function(response){ DeviceProperties.devID = response["com.palm.properties.nduid"]; log("Got deviceId: " + DeviceProperties.devID); }
 		});
 	}
 	
@@ -118,15 +118,22 @@ SyncSceneAssistant.prototype.startSync = function()
 	account.saveConfig();
 	this.controller.get("btnStart").mojo.deactivate();*/
 	
-	
-	log("Starting...");
-	SyncML.initialize(account);
-	log("syncer initialized.");
-	log("=== Trying to call checkCredentials.");
-	
-	var checkCredCallback = function(result) { log("CheckCredentials came back: " + JSON.stringify(result)); }.bind(this);
-	
-	SyncML.checkCredentials(checkCredCallback);
+  if(this.locked){
+    log("Sync already running. Correct?");
+    return;
+  }
+  
+  try{
+    this.lockded = true;
+    log("Starting...");
+    SyncML.initialize(account);
+    log("syncer initialized.");
+    log("=== Trying to call checkCredentials.");
+
+    var checkCredCallback = function(result) { log("CheckCredentials came back: " + JSON.stringify(result)); this.locked = false; }.bind(this);
+
+    SyncML.checkCredentials(checkCredCallback);
+  } catch (e) { log("Error: " + e.name + " what: " + e.message + " - " + e.stack); this.locked = false; }
 };
 
 SyncSceneAssistant.prototype.finished = function(calOk,conOk)
