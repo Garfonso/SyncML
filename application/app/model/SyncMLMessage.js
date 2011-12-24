@@ -11,7 +11,7 @@ var syncMLMessage = function () {
       encodedCredentials: undefined,  //credentials to authenticate user on the server.                  
 
       //response things:
-      url: undefined,                 //server might return a response url that is to be used in following communication.
+      respURI: undefined,                 //server might return a response url that is to be used in following communication.
       msgId: undefined,               //response msgId, use to filter duplicates
       sessionId: undefined            //response sessionId, use to filter false packets.
     },
@@ -19,7 +19,9 @@ var syncMLMessage = function () {
       alerts: [], //contains alerts. Should be mostly just one for sync initialization...
       status: {}, //contains status reports = aks/nacks of previous commands
       sync: [ { add: [], del: [], replace: [] } ],   //contains sync commands add/replace/delete
-      isFinal: true //final needs to be specified in the last message of the "SyncML Package".. TODO: find out what "package" means. More messages, because one would  be to big??
+      map: [], //mapping used to map local ids to global ids for new items from server TODO: support dafür implementieren!
+      putDevInfo: {}, //may transmit deviceInfo.
+      isFinal: true //final needs to be specified in the last message of the "SyncML Package".. 
     },
     //helper to parse XML text messages.
     xmlParser = new DOMParser(),
@@ -59,9 +61,12 @@ var syncMLMessage = function () {
   }
 
   //writes new cmd to message.
-  function writeCmdId(prefix) {
-    cmdId += 1;
-    writeNodeValue("CmdId", cmdId, prefix);
+  function writeCmdId(command, prefix) {
+    var cmdId = getCmdId();
+    command.cmdId = cmdId;
+    log("Write cmd called from " + JSON.stringify(command));
+    log("CmdId is now " + cmdId);
+    writeNodeValue("CmdID", cmdId, prefix);
   }
 
   function addCredentialsToHeader() {
@@ -85,46 +90,109 @@ var syncMLMessage = function () {
     }
   }
 
-  function getTagText(dom, name, required) {
-    var elements = dom.getElementsByTagName(name), node;
-    node = elements[0];
-    if (node) {
-      if (elements.length > 1) {
-        log("Warning: More than one element of type " + name + " in " + printNode(dom) + ". Only first element processed.");
+  function readTargetSource(node) {
+    var child = node.firstChild;
+    while (child) {
+      log("Target/Source-child: " + child.nodeName);
+      switch (child.nodeName) {
+      case "LocURI":
+        return child.firstChild.nodeValue;
+      case "LocName":
+        //ignore.
+        break;
       }
+    }
+  }
 
-      return node.childNodes[0].nodeValue; //return containing text
-    } else if (required) {
-      throw ({name: "SyntaxError", message: "Could not find node with name " + name + " in " + printNode(dom)});
+  function readAnchor(node) {
+    var child, anchor = {};
+    child = node.firstChild;
+    while (child) {
+      log("Anchor-child: " + child.nodeName);
+      switch (child.nodeName) {
+      case "Last":
+        anchor.last = child.firstChild.nodeValue;
+        break;
+      case "Next":
+        anchor.next = child.firstChild.nodeValue;
+        break;
+      default:
+        log("WARNING: readAnchor does not understand " + child.nodeName + ", yet. Value ignored. " + printNode(node));
+        break;
+      }
+      child = child.nextSibling;
+    }
+    return anchor;
+  }
+
+  function readMeta(node) {
+    var child, meta = {};
+    child = node.firstChild;
+    while (child) {
+      log("meta-child: " + child.nodeName);
+      switch (child.nodeName) {
+      case "Anchor":
+        meta.anchor = readAnchor(child);
+        break;
+      case "Format":
+        meta.format = child.firstChild.nodeValue;
+        break;
+      case "Type":
+        meta.type = child.firstChild.nodeValue;
+        break;
+      case "MaxMsgSize":
+        meta.maxMsgSize = child.firstChild.nodeValue;
+        break;
+      default:
+        log("WARNIG: readMeta does not understand " + child.nodeName + ", yet. Value ignored. " + printNode(node));
+        break;
+      }
+      child = child.nextSibling;
     }
   }
 
   //helper function to parse header values into this message:
   function readHeader(hdr) {
-    var header = {
-        sessionId:  getTagText(hdr, "SessionID", true),
-        msgId:      getTagText(hdr, "MsgID", true),
-        url:        getTagText(hdr, "RespURI"),
-        maxMsgSize: getTagText(hdr, "MaxMsgSize")
-      };
-    //As I see there are not really more header fields we need to understand.
-
-    return header;
-  }
-
-  function readMeta(node) {
-    var tmp, meta = {};
-
-    tmp = node.getElementsByTagName("Anchor")[0];
-    if (tmp) {
-      meta.anchor = { Last: getTagText(tmp, "Last"), Next: getTagText(tmp, "Next", true)};
+    var header = {}, child;
+    child = hdr.firstChild;
+    while (child) {
+      log("header-child: " + child.nodeName);
+      switch (child.nodeName) {
+      case "SessionID":
+        header.sessionId = child.firstChild.nodeValue;
+        break;
+      case "MsgID":
+        header.msgId = child.firstChild.nodeValue;
+        break;
+      case "RespURI":
+        header.respURI = child.firstChild.nodeValue;
+        break;
+      case "Meta":
+        header.meta = readMeta(child);
+        break;
+      case "VerDTD":
+        if (child.firstChild.nodeValue !== "1.2") {
+          log("WARNING: VerDTD not 1.2, but " + child.firstChild.nodeValue + ". Not sure what will happen...");
+        }
+        break;
+      case "VerProto":
+        if (child.firstChild.nodeValue !== "SyncML/1.2") {
+          log("WARNING: VerProto not SyncML/1.2, but " + child.firstChild.nodeValue + ". Not sure what will happen...");
+        }
+        break;
+      case "Target":
+        header.target = readTargetSource(child);
+        break;
+      case "Source":
+        header.source = readTargetSource(child);
+        break;
+      default:
+        log("WARNING: readHeader does not understand " + child.nodeName + ", yet. Value ignored. " + printNode(hdr));
+        break;
+      }
+      child = child.nextSibling;
     }
-
-    meta.format = getTagText(node, "Format");
-
-    meta.type = getTagText(node, "Type");
-    meta.maxMsgSize = getTagText(node, "MaxMsgSize");
-    //ignoring all the memory stuff, can't handle that anyways. See if I can react to maxMsgSize.. :(
+    return header;
   }
 
   //helper function to add meta to msg
@@ -134,18 +202,19 @@ var syncMLMessage = function () {
     if (meta.anchor) {
       m.push(nprefix); m.push("<Anchor xmlns='syncml:metinf'>\n");
       if (meta.last) {
-        writeNodeValue("Last", meta.last, nprefix + "\t", true);
+        writeNodeValue("Last", meta.anchor.last, nprefix + "\t", true);
       }
-      writeNodeValue("Next", meta.next, nprefix + "\t", true);
+      writeNodeValue("Next", meta.anchor.next, nprefix + "\t", true);
+      m.push(nprefix); m.push("</Anchor>\n");
     }
     if (meta.format) {
-      writeNodeValue("Format", meta.format, nprefix + "\t", true);
+      writeNodeValue("Format", meta.format, nprefix, true);
     }
     if (meta.type) {
-      writeNodeValue("Type", meta.type, nprefix + "\t", true);
+      writeNodeValue("Type", meta.type, nprefix, true);
     }
     if (meta.maxMsgSize) {
-      writeNodeValue("MaxMsgSize", meta.maxMsgSize, nprefix + "\t", true);
+      writeNodeValue("MaxMsgSize", meta.maxMsgSize, nprefix, true);
     }
     m.push(prefix); m.push("</Meta>\n");
   }
@@ -157,15 +226,16 @@ var syncMLMessage = function () {
     //may have: Target, Source, Meta, Data. Not supported by me: SourceParent, TargetPartent :)
     child = node.firstChild;
     while (child) {
+      log("item-child: " + child.nodeName);
       switch (child.nodeName) {
       case "Data":
-        item.data = child.nodeValue;
+        item.data = child.firstChild.nodeValue;
         break;
       case "Source":
-        item.source = getTagText(child, "LocURI", true);
+        item.source = readTargetSource(child);
         break;
       case "Target":
-        item.target = getTagText(child, "LocURI", true);
+        item.target = readTargetSource(child);
         break;
       case "Meta":
         item.meta = readMeta(child);
@@ -187,7 +257,7 @@ var syncMLMessage = function () {
     var nprefix = prefix + "\t";
     addTargetSource(item, nprefix);
     if (item.meta) {
-      addMetaToMsg(item.meta, prefix);
+      addMetaToMsg(item.meta, nprefix);
     }
     if (item.data) {
       writeNodeValue("Data", item.data, nprefix);
@@ -197,16 +267,36 @@ var syncMLMessage = function () {
 
   //helper function to parse alerts
   function readAlert(node) {
-    var items, alert = {};
-    alert.msgId = header.msgId;
-    alert.cmdId = getTagText(node, "CmdID", true);
-    alert.data  = getTagText(node, "Data", true);
-    items = node.getElementsByTagName("Item");
-    if (items && items.length > 0) {
-      if (items.length !== 1) {
-        log("More than one item in Alert. Can't handle that yet: " + printNode(node));
+    var alert = {}, child;
+    child = node.firstChild;
+    while (child) {
+      log("alert-child: " + child.nodeName);
+      switch (child.nodeName) {
+      case "CmdID":
+        alert.cmdId = child.firstChild.nodeValue;
+        break;
+      case "Data":
+        alert.data = child.firstChild.nodeValue;
+        break;
+      case "Item":
+        if (!alert.items) {
+          alert.items = [];
+        }
+        alert.items.push(readItem(child));
+        break;
+      default:
+        log("WARNING: readAlert does not understand " + child.nodeName + ". Ignored. " + printNode(node));
+        break;
       }
-      alert.item = readItem(items[0]); //this should contain source and target and meta with last/next anchor for sync-alerts.
+
+      child = child.nextSibling;
+    }
+
+    if (!alert.cmdId) {
+      throw ({name: "SyntaxError", message: "Need cmdId for alert, none found: " + printNode(node)});
+    }
+    if (!alert.data) {
+      throw ({name: "SyntaxError", message: "Need data for alert, none found: " + printNode(node)});
     }
 
     return alert;
@@ -217,7 +307,7 @@ var syncMLMessage = function () {
     var i, nprefix;
     m.push(prefix); m.push("<Alert>\n");
     nprefix = prefix + "\t";
-    writeCmdId(nprefix);
+    writeCmdId(alert, nprefix);
     if (alert.items) {
       for (i = 0; i < alert.items.length; i += 1) {
         addItemToMsg(alert.items[i], nprefix);
@@ -229,28 +319,52 @@ var syncMLMessage = function () {
 
   //helper function to parse status
   function readStatus(node) {
-    var status = { items: []}, items, item, i;
-
-    status.cmdId = getTagText(node, "CmdID", true);
-    status.msgRef = getTagText(node, "MsgRef", true);
-    status.cmdRef = getTagText(node, "CmdRef", true);
-    status.cmdName = getTagText(node, "Cmd"); //not really necessary
-    status.targetRef = getTagText(node, "TargetRef"); //could be 0 or more. Can't handle more, yet.
-    status.sourceRef = getTagText(node, "SourceRef"); // same as targetRef. See if more than one happens. 
-                                                     // Meaning is, that the status could affect multiple destinations at once...
-                                                     // I did not see a server that uses that, yet. 
-    status.cred = getTagText(node, "Cred");
-    status.chal = getTagText(node, "Chal");
-    status.data = getTagText(node, "Data", true); //the return code. This is the most important bit. :)
-
-    items = node.getElementsByTagName("Item"); //more information for the command..
-    for (i = 0; i < items.length; i += 1) {
-      item = readItem(items[i]);
-      if (item) {
-        status.items.push_back(item);
+    var status = { items: []}, child;
+    child = node.firstChild;
+    while (child) {
+      log("status-child: " + child.nodeName);
+      switch (child.nodeName) {
+      case "CmdID":
+        status.cmdId = child.firstChild.nodeValue;
+        break;
+      case "MsgRef":
+        status.msgRef = child.firstChild.nodeValue;
+        break;
+      case "CmdRef":
+        status.cmdRef = child.firstChild.nodeValue;
+        break;
+      case "Cmd":
+        status.cmdName = child.firstChild.nodeValue;
+        break;
+      case "TargetRef":
+        status.targetRef = child.firstChild.nodeValue;
+        break;
+      case "SourceRef":
+        status.sourceRef = child.firstChild.nodeValue;
+        break;
+      case "Cred":
+        status.cred = child.firstChild.nodeValue; //is this correct?
+        break;
+      case "Chal":
+        status.chal = child.firstChild.nodeValue; //is this correct?
+        break;
+      case "Data":
+        status.data = child.firstChild.nodeValue;
+        break;
+      case "Item":
+        status.items.push(readItem(child));
+        break;
+      default:
+        log("WARNING: readStatus does not understand " + child.nodeName + ". Ignored. " + printNode(node));
+        break;
       }
+
+      child = child.nextSibling;
     }
 
+    if (!status.data || !status.cmdId || !status.msgRef || status.cmdRef === undefined) {
+      throw ({name: "SyntaxError", message: "Need data, cmdId, msgRef and cmdRef for status, not all found: " + printNode(node)});
+    }
     return status;
   }
 
@@ -259,7 +373,7 @@ var syncMLMessage = function () {
     var i, nprefix;
     m.push(prefix); m.push("<Status>\n");
     nprefix = prefix + "\t";
-    writeCmdId(nprefix);
+    writeCmdId(status, nprefix);
     writeNodeValue("MsgRef", status.msgRef, nprefix);
     writeNodeValue("CmdRef", status.cmdRef, nprefix);
     if (status.cmdName) {
@@ -283,10 +397,29 @@ var syncMLMessage = function () {
     m.push(prefix); m.push("</Status>\n");
   }
 
+  //function to add a single status to the message object:
+  function mAddSingleStatus(cmd, name, msgRef) {
+    var k, status;
+    status = {
+      msgRef: msgRef,
+      cmdRef: cmd.cmdId,
+      cmdName: name,
+      targetRef: cmd.target,
+      sourceRef: cmd.source,
+      items: cmd.items,
+      meta: cmd.meta,
+      data: "200" //set default 200 for all cmds. SyncML can then take single stati to change them.
+    };
+    for (k = 0; k < status.items.length; k += 1) {
+      delete status.items[k].data; //delete data element of status-item, don't resend everything. 
+    }
+    body.status[msgRef][status.cmdRef] = status; //insert status at right position into body. :)
+  }
+
   //helper function to add a syncCmd to the msg.
   function addSyncCmdToMsg(cmd, prefix) {
     var i;
-    writeCmdId(prefix);
+    writeCmdId(cmd, prefix);
     for (i = 0; i < cmd.items.length; i += 1) {
       addItemToMsg(cmd.items[i], prefix);
     }
@@ -294,17 +427,29 @@ var syncMLMessage = function () {
 
   //helper function to parse add/replace commands
   function readAddReplace(node) {
-    var obj = { items: []}, meta, items, i;
+    var obj = { items: []}, child;
+    child = node.firstChild;
+    while (child) {
+      log("add/replace/delete-child: " + child.nodeName);
+      switch (child.nodeName) {
+      case "CmdID":
+        obj.cmdId = child.firstChild.nodeValue;
+        break;
+      case "Meta":
+        obj.meta = readMeta(child);
+        break;
+      case "Item":
+        obj.items.push(readItem(child));
+        break;
+      default:
+        log("WARNING: readAddReplace does not understand " + child.nodeName + ", yet. Value ignored. " + printNode(node));
+      }
+      child = node.nextSibling;
+    }
+    if (!obj.cmdId) {
+      throw ({name: "SyntaxError", message: "add/replace command needs cmdId, none found: " + printNode(node)});
+    }
     //ignoring NoResp, Cred.
-    obj.cmdId = getTagText(node, "CmdID", true);
-    meta = node.getElementsByTagName("Meta")[0];
-    if (meta) {
-      obj.meta = readMeta(meta);
-    }
-    items = node.getElementsByTagName("Item");
-    for (i = 0; i < items.length; i += 1) {
-      obj.items.push_back(readItem(items[i]));
-    }
     return obj;
   }
 
@@ -316,9 +461,16 @@ var syncMLMessage = function () {
   //helper function to add sync to the msg:
   function addSyncToMsg(sync, prefix) {
     var i, nprefix;
+    if (sync.add.length === 0 && sync.del.length === 0 && sync.replace.length === 0) {
+      log("Not adding empty sync.");
+      return;
+    }
     m.push(prefix); m.push("<Sync>\n");
     nprefix = prefix + "\t";
-    writeCmdId(nprefix);
+    writeCmdId(sync, nprefix);
+    if (!sync.target || !sync.source) {
+      throw ({name: "LogicError", message: "Sync command needs target/source. Please add them by calling setSyncTargetSource."});
+    }
     addTargetSource(sync, nprefix);
     for (i = 0; i < sync.add.length; i += 1) {
       m.push(nprefix); m.push("<Add>\n");
@@ -343,36 +495,37 @@ var syncMLMessage = function () {
 
     child = node.firstChid;
     while (child) {
+      log("sync-child: " + child.nodeName);
       switch (child.nodeName) {
       case "Add":
         obj = readAddReplace(child);
         if (obj) {
-          sync.add.push_back(obj);
+          sync.add.push(obj);
         }
         break;
       case "Replace":
         obj = readAddReplace(child);
         if (obj) {
-          sync.replace.push_back(obj);
+          sync.replace.push(obj);
         }
         break;
       case "Delete":
         obj = readDelete(child);
         if (obj) {
-          sync.del.push_back(obj);
+          sync.del.push(obj);
         }
         break;
       case "CmdID":
-        sync.cmdId = child.nodeValue;
+        sync.cmdId = child.firstChild.nodeValue;
         break;
       case "NumberOfChanges":
-        sync.numberOfChanges = child.nodeValue;
+        sync.numberOfChanges = child.firstChild.nodeValue;
         break;
       case "Target":
-        sync.target = getTagText(child, "LocURI", true);
+        sync.target = readTargetSource(child);
         break;
       case "Source":
-        sync.source = getTagText(child, "LocURI", true);
+        sync.source = readTargetSource(child);
         break;
       default: //ignore: NoResp, Cred, Meta and Atomic, Copy, Move, Sequence.
         log("Unexpected node type (" + child.nodeName + ") in sync received: " + printNode(node));
@@ -393,18 +546,19 @@ var syncMLMessage = function () {
     //parse all childs of the body:
     node = body.firstChild;
     while (node) {
+      log("body-child: " + node.nodeName);
       switch (node.nodeName) {
       case "Alert":
         obj = readAlert(node);
         if (obj) {
-          bodyObj.alerts.push_back(obj);
+          bodyObj.alerts.push(obj);
         }
         break;
       case "Status":
         obj = readStatus(node);
         if (obj) {
           if (!bodyObj.status[obj.msgRef]) {
-            bodyObj.status[obj.msgRef] = [];
+            bodyObj.status[obj.msgRef] = {};
           }
           bodyObj.status[obj.msgRef][obj.cmdRef] = obj;
         }
@@ -412,7 +566,7 @@ var syncMLMessage = function () {
       case "Sync":
         obj = readSync(node);
         if (obj) {
-          bodyObj.sync.push_back(obj);
+          bodyObj.sync.push(obj);
         }
         break;
       case "Final":
@@ -477,17 +631,23 @@ var syncMLMessage = function () {
       addTargetSource(sessionInfo, "\t\t"); //source and target paths. Source = on device, target = on server.
       //add optional credentials:
       addCredentialsToHeader(sessionInfo);
-      m.push("</SyncHdr>");
+      m.push("\t</SyncHdr>\n");
 
       //body:
-      m.push("<SyncBody>\n");
+      m.push("\t<SyncBody>\n");
+
+      if (body.putDevInfo.string) {
+        log("Adding putDevInfo...");
+        m.push(body.putDevInfo.string);
+      }
 
       //first add status responses:
       for (msgRef in body.status) {
         if (body.status.hasOwnProperty(msgRef)) {
+          log("Adding status...");
           for (cmdRef in body.status[msgRef]) {
             if (body.status[msgRef].hasOwnProperty(cmdRef)) {
-              addStatusToMsg(body.status[msgRef][cmdRef], "\t");
+              addStatusToMsg(body.status[msgRef][cmdRef], "\t\t");
             }
           }
         }
@@ -495,18 +655,20 @@ var syncMLMessage = function () {
 
       //add alerts: 
       for (i = 0; i < body.alerts.length; i += 1) {
-        addAlertToMsg(body.alerts[i], "\t");
+        log("Adding alert...");
+        addAlertToMsg(body.alerts[i], "\t\t");
       }
 
       //add syncCmd:
       for (i = 0; i < body.sync.length; i += 1) {
-        addSyncToMsg(body.sync[i], "\t");
+        log("Adding sync...");
+        addSyncToMsg(body.sync[i], "\t\t");
       }
 
       if (body.isFinal) {
-        m.push("<Final></Final>\n");
+        m.push("\t\t<Final></Final>\n");
       }
-      m.push("</SyncBody>\n");
+      m.push("\t</SyncBody>\n");
 
       m.push("</SyncML>\n");
 
@@ -530,6 +692,7 @@ var syncMLMessage = function () {
       } else {
         throw ({name: "SyntaxError", message: "Could not read SyncHdr of response " + xml});
       }
+      log("Header parsing finished.");
 
       //parse body:
       bodyXML = responseDOM.getElementsByTagName("SyncBody")[0];
@@ -538,45 +701,175 @@ var syncMLMessage = function () {
       } else {
         throw ({name: "SyntaxError", message: "Coult not read SyncBody of response " + xml});
       }
+
+      log("Body parsing finished.");
     },
 
-    matchCommandsFromMessage: function (oldMessage) {
+    matchCommandsFromMessage: function (cmds) {
       //matches the statuses in the current message to the commands in the old message 
       //and returns a set of commands that failed.
-      //TODO: implement!
+      var obody = cmds.getBody(), i, j, msgRef = cmds.getHeader().msgId, result = [], cmdId;
+      if (!body.status[msgRef]) { //wrong message ref... ?
+        return undefined;
+      }
 
-      return [];
+      //process alerts:
+      for (i = 0; i < obody.alerts.length(); i += 1) {
+        cmdId = obody.alerts[i].cmdId;
+        if (body.status[msgRef][cmdId] && body.status[msgRef][cmdId].data !== "200") {
+          result.push({cmd: obody.alerts[i], status: body.status[msgRef][cmdId]});
+        }
+      }
+
+      //process sync commands:
+      for (i = 0; i < obody.syncs.length(); i += 1) {
+        cmdId = obody.syncs[i].cmdId;
+        if (body.status[msgRef][cmdId] && body.status[msgRef][cmdId].data !== "200") {
+          result.push({cmd: obody.syncs[i], status: body.status[msgRef][cmdId]});
+        }
+
+        for (j = 0; j < obody.syncs[i].add.length(); j += 1) {
+          cmdId = obody.syncs[i].add[j].cmdId;
+          if (body.status[msgRef][cmdId] && body.status[msgRef][cmdId].data !== "200") {
+            result.push({cmd: obody.syncs[i].add[j], status: body.status[msgRef][cmdId]});
+          }
+        }
+
+        for (j = 0; j < obody.syncs[i].del.length(); j += 1) {
+          cmdId = obody.syncs[i].del[j].cmdId;
+          if (body.status[msgRef][cmdId] && body.status[msgRef][cmdId].data !== "200") {
+            result.push({cmd: obody.syncs[i].del[j], status: body.status[msgRef][cmdId]});
+          }
+        }
+
+        for (j = 0; j < obody.syncs[i].replace.length(); j += 1) {
+          cmdId = obody.syncs[i].replace[j].cmdId;
+          if (body.status[msgRef][cmdId] && body.status[msgRef][cmdId].data !== "200") {
+            result.push({cmd: obody.syncs[i].replace[j], status: body.status[msgRef][cmdId]});
+          }
+        }
+      }
+
+      if (obody.putDevInfo.cmdId && body.status[msgRef][obody.putDevInfo.cmdId] && body.status[msgRef][obody.putDevInfo.cmdId] !== "200") {
+        result.push({cmd: obody.putDevInfo, status: body.status[msgRef][obody.putDevInfo.cmdId]});
+      }
+
+      return result;
     },
 
-    addStatuses: function (cmds) {
-      //adds status 200 value for a set of commands to the current message.
+    //adds only one status. Call with cmd (like add cmd/alert) and name and msgRef.
+    addSingleStatus: mAddSingleStatus,
 
-      //TODO: implement.
+    addStatuses: function (cmds) {
+      //adds status 200 value for a set of commands from the old message to the current message.
+
+      var obody = cmds.getBody(), i, j, msgRef = cmds.getHeader().msgId;
+      if (!body.status[msgRef]) { //init msgRef field of body.
+        body.status[msgRef] = {};
+      }
+
+      //process alerts:
+      for (i = 0; i < obody.alerts.length(); i += 1) {
+        mAddSingleStatus(obody.alerts[i], "Alert", msgRef);
+      }
+
+      //process sync commands:
+      for (i = 0; i < obody.syncs.length(); i += 1) {
+        mAddSingleStatus(obody.syncs[i], "Sync", msgRef);
+
+        for (j = 0; j < obody.syncs[i].add.length(); j += 1) {
+          mAddSingleStatus(obody.syncs[i].add[j], "Add", msgRef);
+        }
+
+        for (j = 0; j < obody.syncs[i].del.length(); j += 1) {
+          mAddSingleStatus(obody.syncs[i].del[j], "Delete", msgRef);
+        }
+
+        for (j = 0; j < obody.syncs[i].replace.length(); j += 1) {
+          mAddSingleStatus(obody.syncs[i].del[j], "Replace", msgRef);
+        }
+      }
     },
 
     addAlert: function (alert) {
-      //adds a alert - cmd to the message. Params: Alert Code, optional item, meta, source / target ... 
+      //adds a alert - cmd to the message. Params: Alert Code, optional item, meta, source / target ...
+      // alert = { data: alert-code, items: [{ target: targetURI, source: sourceURI, meta: { anchor: { last: TS, next: TS }, (data: optional)]* } 
 
-      //TODO: implement.
+      if (alert && alert.data) { //only alert.data really mandatory.
+        body.alerts.push(alert);
+      }
     },
 
     //only one syncCmd is currently supported. Will add every cmds here to this first syncCmd.
     addSyncCmd: function (cmd) {
       //adds add / replace /delete to the sync cmd of the message. 
-      //need to give type (add/replace/delete), and the item,
+      //need to give type (add/replace/delete), and the item.
+      //item = { cmd: { type: add/del/replace, item: { data: ".....", source: localId, meta: { type: text/calendar, format: b64 }}}} //format necessary if data is b64 encoded.
 
       if (cmd.type !== "add" && cmd.type !== "del" && cmd.type !== "replace") {
         throw ({ name: "Invalid Parameters", message: "type needs to be add, del or replace." });
       }
 
-      //TODO: items und meta irgendwie überlegen.
-      var obj = {
-          items: [cmd.item],
-          cmdId: getCmdId(),
-          meta: cmd.meta
-        };
+      var obj = { items: [cmd.item] };
 
-      body.sync[0][cmd.type].push_back(obj);
+      body.sync[0][cmd.type].push(obj);
+    },
+
+    //sets the sync source and target for the sync cmd. 
+    //this is necessary to initialize the sync cmd.
+    setSyncTargetSource: function (info) {
+      body.sync[0].target = info.target;
+      body.sync[0].source = info.source;
+    },
+
+    addPutDevInfo: function (DeviceInfo, datastores) {
+      var devInfo = [], i;
+      devInfo.push("\n\t\t\t\t<DevInf xmlns='syncml:devinf'>\n\t\t\t\t\t<VerDTD>1.2</VerDTD>\n");
+      devInfo.push("\t\t\t\t\t<Man>" + DeviceInfo.man + "</Man>\n");
+      devInfo.push("\t\t\t\t\t<Mod>" + DeviceInfo.mod + "</Mod>\n");
+      devInfo.push("\t\t\t\t\t<OEM>" + DeviceInfo.oem + "</OEM>\n");
+      devInfo.push("\t\t\t\t\t<FwV>" + DeviceInfo.fwv + "</FwV>\n");
+      devInfo.push("\t\t\t\t\t<SwV>" + DeviceInfo.swv + "</SwV>\n");
+      devInfo.push("\t\t\t\t\t<HwV>" + DeviceInfo.hwv + "</HwV>\n");
+      devInfo.push("\t\t\t\t\t<DevID>" + DeviceInfo.devID + "</DevID>\n");
+      devInfo.push("\t\t\t\t\t<DevTyp>" + DeviceInfo.devType + "</DevTyp>\n");
+      devInfo.push("\t\t\t\t\t<UTC/>\n"); //tell server to send in time UTC.
+      devInfo.push("\t\t\t\t\t<SupportNumberOfChanges/>\n"); //tell server that we support number of changes.
+
+      if (DeviceInfo.largeObjectSupport) {
+        devInfo.push("\t\t\t\t\t<SupportLargeObjs/>\n"); //tell server to support large objects.
+      }
+
+      //add info about local data stores.
+      for (i = 0; i < datastores.length; i += 1) {
+        devInfo.push("\t\t\t\t\t<DataStore>\n");
+        devInfo.push("\t\t\t\t\t\t<SourceRef>" + datastores[i].name + "</SourceRef>\n");
+        devInfo.push("\t\t\t\t\t\t<Rx-Pref>\n");
+        devInfo.push("\t\t\t\t\t\t\t<CTType>" + datastores[i].type + "</CTType>\n");
+        devInfo.push("\t\t\t\t\t\t\t<VerCT></VerCT>\n");
+        devInfo.push("\t\t\t\t\t\t</Rx-Pref>\n");
+        devInfo.push("\t\t\t\t\t\t<Tx-Pref>\n");
+        devInfo.push("\t\t\t\t\t\t\t<CTType>" + datastores[i].type + "</CTType>\n");
+        devInfo.push("\t\t\t\t\t\t\t<VerCT></VerCT>\n");
+        devInfo.push("\t\t\t\t\t\t</Tx-Pref>\n");
+        devInfo.push("\t\t\t\t\t\t<SyncCap>\n");
+        devInfo.push("\t\t\t\t\t\t\t<SyncType>1</SyncType>\n"); //two-way sync
+        devInfo.push("\t\t\t\t\t\t\t<SyncType>2</SyncType>\n"); //slow two-way sync
+        devInfo.push("\t\t\t\t\t\t\t<SyncType>3</SyncType>\n");
+        devInfo.push("\t\t\t\t\t\t\t<SyncType>4</SyncType>\n");
+        devInfo.push("\t\t\t\t\t\t\t<SyncType>5</SyncType>\n");
+        //devInfo.push("\t\t\t\t\t\t\t<SyncType>7</SyncType>\n"); //sever alerted sync TODO: have a look if we can support that. Does a server exist that does this?? Why is this 7 and not 6??
+        devInfo.push("\t\t\t\t\t\t</SyncCap>\n");
+        devInfo.push("\t\t\t\t\t</DataStore>\n\t\t\t\t</DevInf>\n\t\t\t\t");
+      }
+
+      m = [];
+      m.push("\t\t<Put>\n");
+      writeCmdId(body.putDevInfo, "\t\t\t");
+      addMetaToMsg({ type: "applicytion/vnd.syncml-devinf+xml" }, "\t\t\t");
+      addItemToMsg({ source: "./devinf12", data: devInfo.join("") }, "\t\t\t");
+      m.push("\t\t</Put>\n");
+      body.putDevInfo.string = m.join("");
     }
   };
 };

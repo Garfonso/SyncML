@@ -128,12 +128,11 @@ SyncSceneAssistant.prototype.startSync = function()
     log("Starting...");
     SyncML.initialize(account);
     log("syncer initialized.");
-    log("=== Trying to call checkCredentials.");
+    log("=== Trying to call sendSyncInitializationMsg.");
 
-    var checkCredCallback = function(result) { log("CheckCredentials came back: " + JSON.stringify(result)); this.locked = false; }.bind(this);
+    var checkCredCallback = function(result) { log("CheckCredentials came back: " + JSON.stringify(result)); this.locked = false; this.controller.get("btnStart").mojo.deactivate(); }.bind(this);
 
-    SyncML.checkCredentials(checkCredCallback);
-    log("CheckCred came back...");
+    SyncML.sendSyncInitializationMsg(checkCredCallback);
   //} catch (e) { log("Error: " + e.name + " what: " + e.message + " - " + e.stack); this.locked = false; }
 };
 
