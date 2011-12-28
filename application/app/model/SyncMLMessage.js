@@ -408,7 +408,7 @@ var syncMLMessage = function () {
       sourceRef: cmd.source,
       items: cmd.items,
       meta: cmd.meta,
-      data: "200" //set default 200 for all cmds. SyncML can then take single stati to change them.
+      data: cmd.failure ? "510" : "200" //set 200 = ok or to 510 = data sore failure for all cmds. 
     };
     for (k = 0; k < status.items.length; k += 1) {
       delete status.items[k].data; //delete data element of status-item, don't resend everything. 
@@ -610,7 +610,7 @@ var syncMLMessage = function () {
 
     //returns the complete message as XML
     buildMessage: function (sessionInfo) {
-      var msgRef, cmdRef, i;
+      var msgRef, cmdRef, i, j;
 
       //check parameters:
       if (typeof sessionInfo.sessionId !== 'number' || typeof sessionInfo.msgId !== 'number') {
@@ -665,6 +665,20 @@ var syncMLMessage = function () {
         addSyncToMsg(body.sync[i], "\t\t");
       }
 
+      //add maps:
+      for (i = 0; i < body.maps.length; i += 1) {
+        log("Adding maps...");
+        m.push("\t\t<Map>\n");
+        writeCmdId(body.maps[i], "\t\t\t");
+        addTargetSource(body.maps[i]);
+        for (j = 0; j < body.maps[i].mapItems.length; j += 1) {
+          m.push("\t\t\t<MapItem>\n");
+          addTargetSource(body.maps[i].mapItems[j], "\t\t\t\t");
+          m.push("\t\t\t</MapItem>\n");
+        }
+        m.push("\t\t</Map>\n");
+      }
+
       if (body.isFinal) {
         m.push("\t\t<Final></Final>\n");
       }
@@ -708,7 +722,7 @@ var syncMLMessage = function () {
     matchCommandsFromMessage: function (cmds) {
       //matches the statuses in the current message to the commands in the old message 
       //and returns a set of commands that failed.
-      var obody = cmds.getBody(), i, j, msgRef = cmds.getHeader().msgId, result = [], cmdId;
+      var obody = cmds.getBody(), i, j, msgRef = cmds.getHeader().msgId, result = [], cmdId, syncStatus;
       if (!body.status[msgRef]) { //wrong message ref... ?
         return undefined;
       }
@@ -726,27 +740,46 @@ var syncMLMessage = function () {
         cmdId = obody.syncs[i].cmdId;
         if (body.status[msgRef][cmdId] && body.status[msgRef][cmdId].data !== "200") {
           result.push({cmd: obody.syncs[i], status: body.status[msgRef][cmdId]});
-        }
+          syncStatus = body.status[msgRef][cmdId];
+          syncStatus.addFail = 0; syncStatus.addGood = 0; syncStatus.delFail = 0; syncStatus.delGood = 0; syncStatus.repFail = 0; syncStatus.repGood = 0;
 
-        for (j = 0; j < obody.syncs[i].add.length(); j += 1) {
-          cmdId = obody.syncs[i].add[j].cmdId;
-          if (body.status[msgRef][cmdId] && body.status[msgRef][cmdId].data !== "200") {
-            result.push({cmd: obody.syncs[i].add[j], status: body.status[msgRef][cmdId]});
+          for (j = 0; j < obody.syncs[i].add.length(); j += 1) {
+            cmdId = obody.syncs[i].add[j].cmdId;
+            if (body.status[msgRef][cmdId] && body.status[msgRef][cmdId].data !== "200") {
+              result.push({cmd: obody.syncs[i].add[j], status: body.status[msgRef][cmdId]});
+              syncStatus.addFail += 1;
+            } else {
+              syncStatus.addGood += 1;
+            }
           }
-        }
 
-        for (j = 0; j < obody.syncs[i].del.length(); j += 1) {
-          cmdId = obody.syncs[i].del[j].cmdId;
-          if (body.status[msgRef][cmdId] && body.status[msgRef][cmdId].data !== "200") {
-            result.push({cmd: obody.syncs[i].del[j], status: body.status[msgRef][cmdId]});
+          for (j = 0; j < obody.syncs[i].del.length(); j += 1) {
+            cmdId = obody.syncs[i].del[j].cmdId;
+            if (body.status[msgRef][cmdId] && body.status[msgRef][cmdId].data !== "200") {
+              result.push({cmd: obody.syncs[i].del[j], status: body.status[msgRef][cmdId]});
+              syncStatus.delFail += 1;
+            } else {
+              syncStatus.delGood += 1;
+            }
           }
-        }
 
-        for (j = 0; j < obody.syncs[i].replace.length(); j += 1) {
-          cmdId = obody.syncs[i].replace[j].cmdId;
-          if (body.status[msgRef][cmdId] && body.status[msgRef][cmdId].data !== "200") {
-            result.push({cmd: obody.syncs[i].replace[j], status: body.status[msgRef][cmdId]});
+          for (j = 0; j < obody.syncs[i].replace.length(); j += 1) {
+            cmdId = obody.syncs[i].replace[j].cmdId;
+            if (body.status[msgRef][cmdId] &&
+                (body.status[msgRef][cmdId].data !== "200" ||
+                    body.status[msgRef][cmdId].data !== "201")) {
+              result.push({cmd: obody.syncs[i].replace[j], status: body.status[msgRef][cmdId]});
+              syncStatus.repFail += 1;
+            } else {
+              if (body.status[msgRef][cmdId].data === "200") {
+                syncStatus.repGood += 1;
+              } else if (body.status[msgRef][cmdId].data === "201") { //not replaced but added as new.
+                syncStatus.addGood += 1;
+              }
+            }
           }
+        } else {
+          log("Sync cmd was not in this status, will skip all other sync-cmd-parts for this sync cmd.");
         }
       }
 
@@ -870,6 +903,17 @@ var syncMLMessage = function () {
       addItemToMsg({ source: "./devinf12", data: devInfo.join("") }, "\t\t\t");
       m.push("\t\t</Put>\n");
       body.putDevInfo.string = m.join("");
+    },
+
+    //adds a mapping of local ids to global ids. Used as response of add commands.
+    //map = { source: "calendars/contacts", target: "calendars/contacts sync Path", 
+    //         mapItems: [ { target: "globaleId", source: "localeId" }, ... ]
+    //    }
+    addMap: function (map) {
+      if (!body.maps) {
+        body.maps = [];
+      }
+      body.maps.push(map);
     }
   };
 };
