@@ -34,7 +34,6 @@ SyncSceneAssistant.prototype.setup = function() {
 	eventCallbacks.eventsDeletedElement = this.controller.get("eventsDeleted");
 	eventCallbacks.eventsDeleteFailedElement = this.controller.get("eventsDeleteFailed");
 	//eventCallbacks.log = log.bind(this);
-	eventCallbacks.controller = this.controller;
 
 	/* use Mojo.View.render to render view templates and add them to the scene, if needed */
 	
@@ -118,21 +117,56 @@ SyncSceneAssistant.prototype.startSync = function()
 	account.saveConfig();
 	this.controller.get("btnStart").mojo.deactivate();*/
 	
-  if(this.locked){
+  if (this.locked) {
     log("Sync already running. Correct?");
     return;
   }
+  
+  /*var iCals = [
+               "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//eGroupWare//NONSGML eGroupWare Calendar 1.9.003//DE\r\nMETHOD:PUBLISH\r\nBEGIN:VEVENT\r\nCLASS:PUBLIC\r\nSUMMARY:Test-Termin\r\nDESCRIPTION:Test Beschreibung.\\n\\n...\\nblub\\näöüÜÄÖ\r\nLOCATION:Test-OrtÄÖÜ\r\nDTSTART:20111230T080000Z\r\nDTEND:20111230T090000Z\r\nORGANIZER;CN=\"SyncMLTest\r\n  User\";X-EGROUPWARE-UID=11:MAILTO:SyncMLTest@moses.redirectme.net\r\nRRULE:FREQ=DAILY;INTERVAL=3\r\nEXDATE;VALUE=DATE-TIME:20120105T080000Z,20120111T080000Z\r\nPRIORITY:5\r\nTRANSP:OPAQUE\r\nCATEGORIES:Mögliche Aktivitäten\r\nUID:calendar-2306-1021f558a5067cf68a9d362d4fc5d77d\r\nSEQUENCE:8\r\nCREATED:20110820T090645Z\r\nLAST-MODIFIED:20111230T111058Z\r\nDTSTAMP:20111230T111311Z\r\nEND:VEVENT\r\nEND:VCALENDAR",
+               "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//eGroupWare//NONSGML eGroupWare Calendar 1.9.003//DE\r\nMETHOD:PUBLISH\r\nBEGIN:VEVENT\r\nDTSTART;VALUE=DATE:20111231\r\nDTEND;VALUE=DATE:20120101\r\nCLASS:PUBLIC\r\nSUMMARY:Test-Ganztag\r\nLOCATION:Test-beschreibung\r\nORGANIZER;CN=\"SyncMLTest\r\n  User\";X-EGROUPWARE-UID=11:MAILTO:SyncMLTest@moses.redirectme.net\r\nPRIORITY:9\r\nTRANSP:TRANSPARENT\r\nUID:calendar-2307-1021f558a5067cf68a9d362d4fc5d77d\r\nCREATED:20111229T170256Z\r\nLAST-MODIFIED:20111229T170256Z\r\nDTSTAMP:20111230T111311Z\r\nEND:VEVENT\r\nEND:VCALENDAR",
+               "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//eGroupWare//NONSGML eGroupWare Calendar 1.9.003//DE\r\nMETHOD:PUBLISH\r\nBEGIN:VEVENT\r\nCLASS:PUBLIC\r\nSUMMARY:Test-Termin-Ausnahme\r\nDESCRIPTION:Test Beschreibung.\\n\\n...\\nblub\\näöüÜÄÖ\\nAusnahme\r\nLOCATION:Test-OrtÄÖÜ-Ausnahme-Ort\r\nDTSTART:20120106T090000Z\r\nDTEND:20120106T100000Z\r\nORGANIZER;CN=\"SyncMLTest\r\n  User\";X-EGROUPWARE-UID=11:MAILTO:SyncMLTest@moses.redirectme.net\r\nPRIORITY:5\r\nTRANSP:OPAQUE\r\nCATEGORIES:Mögliche Aktivitäten\r\nUID:calendar-2306-1021f558a5067cf68a9d362d4fc5d77d\r\nRECURRENCE-ID:20120105T080000Z\r\nSEQUENCE:6\r\nCREATED:20110820T090645Z\r\nLAST-MODIFIED:20111230T111045Z\r\nDTSTAMP:20111230T111311Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+               "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//eGroupWare//NONSGML eGroupWare Calendar 1.9.003//DE\r\nMETHOD:PUBLISH\r\nBEGIN:VEVENT\r\nCLASS:PUBLIC\r\nSUMMARY:Test-Termin\r\nDESCRIPTION:Test Beschreibung.\\n\\n...\\nblub\\näöüÜÄÖ-_.\\,.\\;:|<>{}[]()/\\\\^\\n\r\nLOCATION:Test-OrtÄÖÜ\r\nDTSTART:20121230T080000Z\r\nDTEND:20121230T090000Z\r\nATTENDEE;CN=NoGroup\r\n  Group;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;CUTYPE=GROUP;RSVP=TRUE;X-\r\n EGROUPWARE-UID=-3:\r\nATTENDEE;CN=SyncMLTest\r\n  User;ROLE=CHAIR;PARTSTAT=ACCEPTED;CUTYPE=INDIVIDUAL;EMAIL=SyncMLTest@moses\r\n .redirectme.net;X-EGROUPWARE-UID=11:MAILTO:SyncMLTest@moses.redirectme.net\r\nORGANIZER;CN=SyncMLTest\r\n  User;X-EGROUPWARE-UID=11:MAILTO:SyncMLTest@moses.redirectme.net\r\nRRULE:FREQ=DAILY;INTERVAL=3\r\nPRIORITY:5\r\nTRANSP:OPAQUE\r\nCATEGORIES:Mögliche Aktivitäten\r\nUID:calendar-2218-1021f558a5067cf68a9d362d4fc5d77d\r\nSEQUENCE:3\r\nCREATED:20110820T090645Z\r\nLAST-MODIFIED:20111229T005535Z\r\nDTSTAMP:20111229T014310Z\r\nBEGIN:VALARM\r\nTRIGGER;VALUE=DURATION;RELATED=START:-PT3H\r\nACTION:DISPLAY\r\nDESCRIPTION:Test-Termin\r\nEND:VALARM\r\nBEGIN:VALARM\r\nTRIGGER;VALUE=DATE-TIME:20121230T070000Z\r\nACTION:DISPLAY\r\nDESCRIPTION:TEST\r\nEND:VALARM\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+               ];
+  for (var i = 0; i < iCals.length; i += 1) {
+  //var i = 0;
+    log("Parsing iCal " + i);
+    var event = iCal.parseICal(iCals[i]);
+    log("Finished!");
+    log(JSON.stringify(event));
+    log("Reversing operation: ");
+    var content = iCal.generateICal(event);
+    log(content);
+  }
+  return;*/
   
   //try{
     this.lockded = true;
     log("Starting...");
     SyncML.initialize(account);
+    SyncML.setCalendarCallbacks(
+      {
+        //needs to get all calendar data and call callback with { update: [ all data here ] }, callback
+        getAllData: eventCallbacks.getAllEvents,
+        //needs to get only new calendar data and call callback with { update: [modified], add: [new], del: [deleted] }, callback
+        getNewData: eventCallbacks.getNewEvents,
+        //this will be called on refresh from server to delete all local data. Call callback with {}.
+        deleteAllData: eventCallbacks.deleteAllEvents,
+        //Param: {type: add, callback, globalId: ..., item: new item data }. call callback with {type: add, globalId: ..., localId: ... success: true/false }
+        newEntry: eventCallbacks.createEvent,
+        //Param: {type: update, callback, localId: ..., item: new data }. Call callback with { type: update, globalId: ..., localId: ... success: true/false }.
+        updateEntry: eventCallbacks.updateEvent,
+        //Param: { type: del, callback, localId: ... }. Call callback with { type: del, globalId: ..., localId: ... success: true/false }. 
+        delEntry: eventCallbacks.deleteEvent
+      }
+    );
     log("syncer initialized.");
     log("=== Trying to call sendSyncInitializationMsg.");
 
     var checkCredCallback = function(result) { log("CheckCredentials came back: " + JSON.stringify(result)); this.locked = false; this.controller.get("btnStart").mojo.deactivate(); }.bind(this);
 
-    SyncML.sendSyncInitializationMsg(checkCredCallback);
+    eventCallbacks.getAllEvents(checkCredCallback);
+    //SyncML.sendSyncInitializationMsg(checkCredCallback);
   //} catch (e) { log("Error: " + e.name + " what: " + e.message + " - " + e.stack); this.locked = false; }
 };
 

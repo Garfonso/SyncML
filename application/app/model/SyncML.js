@@ -63,6 +63,10 @@ var DeviceProperties = {
 // 8. For all Add commands build a map with mapitems where target is id on server and source is new id on device.
 // 9. Send this message.
 
+//function passing: sync => sendSyncInitializationMsg => parseInitResponse => getSyncData => (external methods to get data) => 
+//    continueSyncCalendar/Contacts => parseSyncResponse => itemActionCalendar/ContactsCallback => parseLastResponse => callback :)
+// one problem remains: make contacts/calendar nicer and more uniform.. :( make it much easier to add more datastores.
+
 var SyncML = (function () {
   "use strict";
   var sessionInfo, account = {}, lastMsg,
@@ -71,39 +75,44 @@ var SyncML = (function () {
   //otherwise it needs to be supplied to the called sync function!
   //data needs to be of form { data = whole data in vcard/ iCal string, localId = id on device } 
     calendar = {
-      //needs to get all calendar data and call continueSyncCalendar with { update: [ all data here ] }, callback
+      //needs to get all calendar data and call callback with { replace: [ all data here ] }, callback
       getAllData: function () { throw ({name: "LogicError", message: "Need to set calendar.getAllData callback to something."}); },
-      //needs to get only new calendar data and call continueSyncCalendar with { update: [modified], add: [new], del: [deleted] }, callback
+      //needs to get only new calendar data and call callback with { replace: [modified], add: [new], del: [deleted] }, callback
       getNewData: function () { throw ({name: "LogicError", message: "Need to set calendar.getNewData callback to something."}); },
+      //this will be called on refresh from server to delete all local data. Call callback with {}.
+      deleteAllData: function () { throw ({name: "LogicError", message: "Need to set calendar.deleteAllData callback to something."}); },
       //Param: {type: add, callback, globalId: ..., item: new item data }. call callback with {type: add, globalId: ..., localId: ... success: true/false }
       newEntry: function () { throw ({name: "LogicError", message: "Need to set calendar.newEntry callback to something."}); },
-      //Param: {type: update, callback, localId: ..., item: new data }. Call callback with { type: update, globalId: ..., localId: ... success: true/false }.
+      //Param: {type: replace, callback, localId: ..., item: new data }. Call callback with { type: replace, globalId: ..., localId: ... success: true/false }.
       updateEntry: function () { throw ({name: "LogicError", message: "Need to set calendar.updateEntry callback to something."}); },
       //Param: { type: del, callback, localId: ... }. Call callback with { type: del, globalId: ..., localId: ... success: true/false }. 
       delEntry: function () { throw ({name: "LogicError", message: "Need to set calendar.delEntry callback to something."}); },
       //status variables:
       add: 0,
       del: 0,
-      update: 0,
+      replace: 0,
       mapping: []
     },
     contacts = { //same as in calendar. TODO: will we really implement continueSyncContacts?
-      //needs to get all calendar data and call continueSyncContacts with { update: [ all data here ] }, callback
+      //needs to get all calendar data and call continueSyncContacts with { replace: [ all data here ] }, callback
       getAllData: function () { throw ({name: "LogicError", message: "Need to set contacts.getAllData callback to something."}); },
-      //needs to get only new contacts data and call continueSyncContacts with { update: [modified], add: [new], del: [deleted] }, callback
+      //needs to get only new contacts data and call continueSyncContacts with { replace: [modified], add: [new], del: [deleted] }, callback
       getNewData: function () { throw ({name: "LogicError", message: "Need to set contacts.getNewData callback to something."}); },
+      //this will be called on refresh from server to delete all local data. Call continueSyncCalendar.
+      deleteAllData: function () { throw ({name: "LogicError", message: "Need to set calendar.deleteAllData callback to something."}); },
       //Param: {type: add, callback, globalId: ..., item: new item data }. call callback with {type: add, globalId: ..., localId: ... success: true/false }
       newEntry: function () { throw ({name: "LogicError", message: "Need to set contacts.newEntry callback to something."}); },
-      //Param: {type: update, callback, localId: ..., item: new data }. Call callback with { type: update, localId: ... success: true/false }.
+      //Param: {type: replace, callback, localId: ..., item: new data }. Call callback with { type: replace, localId: ... success: true/false }.
       updateEntry: function () { throw ({name: "LogicError", message: "Need to set contacts.updateEntry callback to something."}); },
       //Param: { type: del, callback, localId: ... }. Call callback with { type: del, localId: ... success: true/false }. 
       delEntry: function () { throw ({name: "LogicError", message: "Need to set contacts.delEntry callback to something."}); },
       //status variables:
       add: 0,
       del: 0,
-      update: 0,
+      replace: 0,
       mapping: []
     },
+    secondTry = false,
     resultCallback;
 
   //private members & methods:
@@ -122,47 +131,19 @@ var SyncML = (function () {
 
   //sends a message to the server.
   function sendToServer(text, callback) {
-    log("Callback: " + callback + " - " + JSON.stringify(callback));
+    //log("Callback: " + callback + " - " + JSON.stringify(callback));
     log("Sending to " + sessionInfo.url);
     return new Ajax.Request(sessionInfo.url, {
-      //success and failure don't seem to be called... why the hell??? Stupid thing. :(
-      //callback log("Got: " + transport.responseText);
-      onFailure : function () { log("Request failed"); },
+      onFailure : function (error) { log("Request failed"); log(JSON.stringify(error)); },
       onSuccess : function (transport) { log("Request succeeded"); callback(transport); },
-      onComplete : function () { log("Request completed"); },
+      //onComplete : function () { log("Request completed"); },
       postBody : text,
       method : 'post',
       contentType : 'application/vnd.syncml+xml'
     });
   }
 
-  //this will try to get all changes from the device.
-  //TODO: this most probably won't work if calendar and contacts are enabled, because two asynchronous functions are called and not synchronized again. 
-  //need to handle that where I build the next message to the server.
-  function getSyncData(callback) {
-    if (account.syncCalendar) {
-      if (account.syncCalendarMethod === "slow" ||
-            account.syncCalendarMethod === "refresh-from-client") {
-        calendar.getAllData(callback);
-      }
-      if (account.syncCalendarMethod === "two-way" ||
-            account.syncCalendarMethod === "one-way-from-client") {
-        calendar.getNewData(callback);
-      }
-    }
-    if (account.syncContacts) {
-      if (account.syncContactsMethod === "slow" ||
-            account.syncContactsMethod === "refresh-from-client") {
-        contacts.getAllData(callback);
-      }
-      if (account.syncContactsMethod === "two-way" ||
-            account.syncContactsMethod === "one-way-from-client") {
-        contacts.getNewData(callback);
-      }
-    }
-  }
-
-  function parseLastResponse(callback, transport) {
+  function parseLastResponse(transport) {
     var msg, failed, i;
     log("Got: ");
     log(transport.responseText);
@@ -170,42 +151,65 @@ var SyncML = (function () {
     msg = syncMLMessage();
     log("trying to parse msg...");
     msg.buildMessageFromResponse(transport.responseText);
-    log("msg parsed...");
+    log("last response parsed.");
     failed = msg.matchCommandsFromMessage(lastMsg);
-    if (failed) {
+    if (failed && failed.length > 0) {
       log("Have " + failed.length + " failed commands: ");
       for (i = 0; i < failed.length; i += 1) {
         log(JSON.stringify(failed[i]));
       }
-      callback(false);
+      resultCallback(false);
     } else {
       //sync finished successful! :)
-      callback(true);
+      resultCallback(true);
     }
   }
 
   function itemActionCalendarCallback(result) {
     var item, message, content;
-    if (result.success) {
+    if (result && result.success) {
+      log("item action success");
       calendar[result.type] -= 1;
       if (result.type === "add") {
-        item = lastMsg.getBody().sync[result.globalId.sync][result.type][result.globalId.cmd].items[result.glboalId.item];
+        //log("Sync: " + JSON.stringify(lastMsg.getBody().sync[0]));
+        //log("lastMsg: " + JSON.stringify(lastMsg));
+        //log("lastMsg.body: " + JSON.stringify(lastMsg.getBody()));
+        log("Result: " + JSON.stringify(result.globalId));
+        log("sync.length: " + lastMsg.getBody().sync.length);
+        log("sync[" + result.globalId.sync + "]: " + lastMsg.getBody().sync[result.globalId.sync]);
+        log("sync[" + result.globalId.sync + "][" + result.type + "].length: " + lastMsg.getBody().sync[result.globalId.sync][result.type].length);
+        log("sync[" + result.globalId.sync + "][" + result.type + "][" + result.globalId.cmd + "]: " + lastMsg.getBody().sync[result.globalId.sync][result.type][result.globalId.cmd]);
+        item = lastMsg.getBody().sync[result.globalId.sync][result.type][result.globalId.cmd].items[result.globalId.item];
         calendar.mapping.push({source: result.localId, target: item.source});
       }
-    } else if (result.success === false) {
-      if (result.type === "update") {
-        result.type = "replace";
-      }
+    } else if (result && result.success === false) {
+      log("item action failure");
+      log("Result: " + JSON.stringify(result.globalId));
+      log("sync.length: " + lastMsg.getBody().sync.length);
+      log("sync[" + result.globalId.sync + "]: " + lastMsg.getBody().sync[result.globalId.sync]);
+      log("sync[" + result.globalId.sync + "][" + result.type + "].length: " + lastMsg.getBody().sync[result.globalId.sync][result.type].length);
+      log("sync[" + result.globalId.sync + "][" + result.type + "][" + result.globalId.cmd + "]: " + lastMsg.getBody().sync[result.globalId.sync][result.type][result.globalId.cmd]);
       lastMsg.getBody().sync[result.globalId.sync][result.type][result.globalId.cmd].failure = true; //remember that this was a failure. Fail the whole command if any item fails.
     }
 
-    if (calendar.add + calendar.del + calendar.update === 0) { //all callbacks finished:
+    log("Last message? " + calendar.add + " + " + calendar.del + " + " + calendar.replace);
+    if (calendar.add + calendar.del + calendar.replace === 0) { //all callbacks finished:
+      log("Yes, last message.");
       message = syncMLMessage();
       message.addStatuses(lastMsg); //will handly  failures, also. *phew*. => status finished.
+      log("added statusses to last msg.");
       message.addMap({source: "calendar", target: account.syncCalendarPath, mapItems: calendar.mapping });
+      log("added map to last msg.");
+      if (!message.hasStatus() && calendar.mapping.length === 0) {
+        log("message is empty => add alert 222");
+        message.addAlert({ data: "222", items: [ { source: "calendar", target: account.syncCalendarPath } ] });
+        log("add alert ok");
+      }
 
-      content = message.buildMessage();
-      sendToServer(content, parseLastResponse.bind(null, resultCallback));
+      log("Build message.");
+      content = message.buildMessage({sessionId: sessionInfo.sessionId, msgId: getMsgId(), target: account.url, source: DeviceProperties.id});
+      log("ok.");
+      sendToServer(content, parseLastResponse);
       lastMsg = message;
     }
   }
@@ -215,90 +219,289 @@ var SyncML = (function () {
   //in the end a new message containing mapings from local to global ids for new items 
   //needs to be generated and send.
   //remark: we don't check item type anywhere.. this would be the right place.
-  function parseSyncResponse(callback, transport) {
-    var msg, failed, i, j, k, sync;
+  function parseSyncResponse(transport) {
+    var msg, failed, i, j, k, sync, content;
     log("Got: ");
     log(transport.responseText);
 
     msg = syncMLMessage();
     log("trying to parse msg...");
     msg.buildMessageFromResponse(transport.responseText);
-    log("msg parsed...");
+    log("sync response parsed.");
+    log("Sync message had sync: " + JSON.stringify(lastMsg.getBody().sync));
     failed = msg.matchCommandsFromMessage(lastMsg);
-    if (failed) {
+    if (failed && failed.length > 0) {
       log("Have " + failed.length + " failed commands: ");
       for (i = 0; i < failed.length; i += 1) {
         log(JSON.stringify(failed[i]));
       }
-      callback(false);
+      resultCallback(false);
     } else {
-      //status 201 to replace means "added as new".
+      if (!msg.getBody().sync || msg.getBody().sync.length === 0) {
+        log("Did not receive a sync cmd.");
+        if (!secondTry) {
+          log("Try a get next msg command.");
+          lastMsg = msg;
+          msg = syncMLMessage();
+          msg.addStatuses(lastMsg);
+          msg.addAlert({ data: "222", items: [ { source: "contacts", target: account.syncContactsPath } ] });
+          content = msg.buildMessage({sessionId: sessionInfo.sessionId, msgId: getMsgId(), target: account.url, source: DeviceProperties.id});
+          sendToServer(content, parseSyncResponse);
+          lastMsg = msg;
+          return;
+        } else {
+          log("Already had second try, something failed.");
+          resultCallback(false);
+          return;
+        }
+      }
+      secondTry = false;
+
       //server will answer with sync-command(s) that contains server changes:
-      for (i = 0; i < msg.getBody().sync.length; i += 1) {
+      for (i = 0; msg.getBody().sync && i < msg.getBody().sync.length; i += 1) {
         log("Processing sync " + (i + 1) + " of " + msg.getBody().sync.length + " syncs.");
         sync = msg.getBody().sync[i];
 
-        for (j = 0; j < sync.add.length; j += 1) {
+        for (j = 0; sync.add && j < sync.add.length; j += 1) {
           for (k = 0; k < sync.add[j].items.length; k += 1) {
+            calendar.add += 1;
             calendar.newEntry(
               {
                 type: "add",
                 callback: itemActionCalendarCallback,
-                globalId: {sync: i, item: k, cmd: j, cmdId: sync.replace[j].cmdId }, //abuse cmdId to get globalId later and find status better later. :)
+                globalId: {sync: i, item: k, cmd: j, cmdId: sync.add[j].cmdId }, //abuse cmdId to get globalId later and find status better later. :)
                 item: sync.add[j].items[k].format === "b64" ? window.atob(sync.add[j].items[k].data) : sync.add[j].items[k].data
               }
             );
+            log("Ok");
           }
         }
-        for (j = 0; j < sync.del.length; j += 1) {
+        for (j = 0; sync.del && j < sync.del.length; j += 1) {
           for (k = 0; k < sync.del[j].items.length; k += 1) {
+            calendar.del += 1;
             calendar.delEntry(
               {
                 type: "del",
                 callback: itemActionCalendarCallback,
-                globalId: {sync: i, item: k, cmd: j, cmdId: sync.replace[j].cmdId }, //abuse cmdId to get globalId later and find status better later. :)
+                globalId: {sync: i, item: k, cmd: j, cmdId: sync.del[j].cmdId }, //abuse cmdId to get globalId later and find status better later. :)
                 localId: sync.del[j].item[k].source,
                 item: sync.add[j].items[k].format === "b64" ? window.atob(sync.add[j].items[k].data) : sync.add[j].items[k].data //most probably undefined for delete.
               }
             );
+            log("Ok.");
           }
         }
-        for (j = 0; j < sync.replace.length; j += 1) {
+        for (j = 0; sync.replace && j < sync.replace.length; j += 1) {
           for (k = 0; k < sync.replace[j].items.length; k += 1) {
+            calendar.replace += 1;
             calendar.updateEntry(
               {
-                type: "update",
+                type: "replace",
                 callback: itemActionCalendarCallback,
                 globalId: {sync: i, item: k, cmd: j, cmdId: sync.replace[j].cmdId }, //abuse cmdId to get globalId later and find status better later. :)
                 localId: sync.replace[j].item[k].source,
                 item: sync.add[j].items[k].format === "b64" ? window.atob(sync.add[j].items[k].data) : sync.add[j].items[k].data
               }
             );
+            log("Ok");
           }
         }
       }
-      resultCallback = callback; //won't carry this all the way... I'm lazy. :)
       lastMsg = msg; //save msg for later reference.
-      itemActionCalendarCallback(); //in case there was no action to be done, continue with sync by calling itemActionCalendarCallback.
+      log("parsing of sync response finished");
+      itemActionCalendarCallback({}); //in case there was no action to be done, continue with sync by calling itemActionCalendarCallback.
     }
   }
 
-  function parseInitResponse(callback, transport) {
-    var msg, failed, i, alert;
+  function mContinueSyncCalendar(data) {
+    var msg = syncMLMessage(), i, content;
+    if (data.add) {
+      for (i = 0; i < data.add.length; i += 1) {
+        msg.addSyncCmd({
+          type: "add",
+          item: {
+            data: data.add[i].data,
+            source: data.add[i].localId,
+            meta: {
+              type: "text/calendar"
+              //format: "b64" //do we want b64? First try without, maybe.. easier to debug.
+            }
+          }
+        });
+      }
+    }
+    if (data.del) {
+      for (i = 0; i < data.del.length; i += 1) {
+        msg.addSyncCmd({
+          type: "del",
+          item: {
+            //data: data.del[i].data, //data not necessary for delete.
+            source: data.del[i].localId,
+            meta: {
+              type: "text/calendar"
+              //format: "b64" //do we want b64? First try without, maybe.. easier to debug.
+            }
+          }
+        });
+      }
+    }
+    if (data.replace) {
+      for (i = 0; i < data.replace.length; i += 1) {
+        msg.addSyncCmd({
+          type: "replace",
+          item: {
+            data: data.replace[i].data,
+            source: data.replace[i].localId,
+            meta: {
+              type: "text/calendar"
+              //format: "b64" //do we want b64? First try without, maybe.. easier to debug.
+            }
+          }
+        });
+      }
+    }
+
+    msg.addStatuses(lastMsg); //should only be like one sync-alert.
+    //we need to send sync command to initialize sync, even if we don't have data.
+    //initialize target / source for sync cmd.
+    msg.setSyncTargetSource({ source: "calendar", target: account.syncCalendarPath });
+
+    content = msg.buildMessage({sessionId: sessionInfo.sessionId, msgId: getMsgId(), target: account.url, source: DeviceProperties.id});
+    log("Sending to server: " + content);
+    sendToServer(content, parseSyncResponse);
+    lastMsg = msg;
+  }
+
+  function mContinueSyncContacts(data) {
+    var msg = syncMLMessage(), i, content;
+    if (data.add) {
+      for (i = 0; i < data.add.length; i += 1) {
+        msg.addSyncCmd({
+          type: "add",
+          item: {
+            data: data.add[i].data,
+            source: data.add[i].localId,
+            meta: {
+              type: "text/vcard"
+              //format: "b64" //do we want b64? First try without, maybe.. easier to debug.
+            }
+          }
+        });
+      }
+    }
+    if (data.del) {
+      for (i = 0; i < data.del.length; i += 1) {
+        msg.addSyncCmd({
+          type: "del",
+          item: {
+            //data: data.del[i].data, //data not necessary for delete.
+            source: data.del[i].localId,
+            meta: {
+              type: "text/vcard"
+              //format: "b64" //do we want b64? First try without, maybe.. easier to debug.
+            }
+          }
+        });
+      }
+    }
+    if (data.replace) {
+      for (i = 0; i < data.replace.length; i += 1) {
+        msg.addSyncCmd({
+          type: "replace",
+          item: {
+            data: data.replace[i].data,
+            source: data.replace[i].localId,
+            meta: {
+              type: "text/vcard"
+              //format: "b64" //do we want b64? First try without, maybe.. easier to debug.
+            }
+          }
+        });
+      }
+    }
+
+    msg.addStatuses(lastMsg); //should only be like one sync-alert.
+    //if we don't have any data, add alert with "next-message" code.
+    if ((!data.add || data.add.length === 0) && (!data.del || data.del.length === 0) && (!data.replace || data.replace.length === 0)) {
+      msg.addAlert({ data: "222", items: [ { source: "contacts", target: account.syncContactsPath } ] });
+    }
+    content = msg.buildMessage({sessionId: sessionInfo.sessionId, msgId: getMsgId(), target: account.url, source: DeviceProperties.id});
+    log("Sending to server: " + content);
+    sendToServer(content, parseSyncResponse);
+    lastMsg = msg;
+  }
+
+  //this will try to get all changes from the device.
+  //TODO: this most probably won't work if calendar and contacts are enabled, because two asynchronous functions are called and not synchronized again. 
+  //need to handle that where I build the next message to the server.
+  function getSyncData() {
+    if (account.syncCalendar) {
+      if (account.syncCalendarMethod === "slow" ||
+            account.syncCalendarMethod === "refresh-from-client") {
+        log("Getting all calendar data, because of slow sync or refresh from client.");
+        calendar.getAllData(mContinueSyncCalendar);
+      }
+      if (account.syncCalendarMethod === "two-way" ||
+            account.syncCalendarMethod === "one-way-from-client") {
+        log("Getting new calendar data, because of two-way sync or one way from client.");
+        calendar.getNewData(mContinueSyncCalendar);
+      }
+      if (account.syncCalendarMethod === "refresh-from-server") {
+        log("Deleting all calendar data, because of refresh from server.");
+        calendar.deleteAllData(mContinueSyncCalendar);
+      }
+      if (account.syncCalendarMethod === "one-way-from-server") {
+        log("Don't get any calendar data, because of one way from server sync.");
+        mContinueSyncCalendar({});
+      }
+    }
+    if (account.syncContacts) {
+      if (account.syncContactsMethod === "slow" ||
+            account.syncContactsMethod === "refresh-from-client") {
+        contacts.getAllData(mContinueSyncContacts);
+      }
+      if (account.syncContactsMethod === "two-way" ||
+            account.syncContactsMethod === "one-way-from-client") {
+        contacts.getNewData(mContinueSyncContacts);
+      }
+      if (account.syncContactsMethod === "refresh-from-server") {
+        contacts.deleteAllData(mContinueSyncContacts);
+      }
+      if (account.syncContactsMethod === "one-way-from-server") {
+        mContinueSyncContacts({});
+      }
+    }
+  }
+
+  function parseInitResponse(transport) {
+    var msg, failed, numProblems = 0, i, alert, needRefresh = false;
     log("Got: ");
     log(transport.responseText);
 
     msg = syncMLMessage();
     log("trying to parse msg...");
     msg.buildMessageFromResponse(transport.responseText);
-    log("msg parsed...");
+    log("initial response parsed.");
     failed = msg.matchCommandsFromMessage(lastMsg);
-    if (failed) {
+    if (failed && failed.length > 0) {
+      numProblems = failed.length;
       log("Have " + failed.length + " failed commands: ");
       for (i = 0; i < failed.length; i += 1) {
         log(JSON.stringify(failed[i]));
+        //TODO: this does not really work for more than one source, right??
+        if (failed[i].status.cmdRef === lastMsg.getBody().alerts[0].cmdId) { //got response to cmdRef.
+          if (failed[i].status.data === "508") { //server requires refresh.
+            log("No problem, server just wants a refresh.");
+            needRefresh = true;
+            numProblems -= 1;
+          }
+        }
       }
-      callback(false);
+    }
+    if (numProblems) {
+      log(numProblems + " real problems left... break.");
+      resultCallback(false);
+      return;
     } else {
       if (msg.getHeader().respURI) {
         sessionInfo.url = msg.getHeader().respURI;
@@ -308,22 +511,41 @@ var SyncML = (function () {
       //TODO: maybe some other server will already send a sync cmd with data here?? See if that happens...
       for (i = 0; i < msg.getBody().alerts.length; i += 1) {
         alert = msg.getBody().alerts[i];
-        if (alert.target === "calendar") {
-          if (alert.data !== SyncMLModes[account.syncCalendarMethod]) {
+        log("Alert: " + JSON.stringify(alert));
+        if (alert.items && alert.items[0] && alert.items[0].target === "calendar") {
+          if (alert.data) {
+            log("Got syncCalendarMethod: " + alert.data);
             account.syncCalendarMethod = SyncMLAlertCodes[alert.data];
+            needRefresh = false;
+          }
+          if (alert.items && alert.items[0] && alert.items[0].meta && alert.items[0].meta.anchor && alert.items[0].meta.anchor.next) {
+            log("Got next: " + alert.items[0].meta.anchor.next + " and have own next: " + account.syncCalendarNext);
+            account.syncCalendarNext = alert.items[0].meta.anchor.next;
+          }
+          if (alert.items && alert.items[0] && alert.items[0].meta && alert.items[0].meta.anchor && alert.items[0].meta.anchor.last) {
+            log("Got last: " + alert.items[0].meta.anchor.last + " and have own last: " + account.syncCalendarLast);
+            account.syncCalendarLast = alert.items[0].meta.anchor.last;
+            //TODO: need to set this next/last for account object in database...
           }
         }
-        if (alert.target === "contacts") {
-          if (alert.data !== SyncMLModes[account.syncContactsMethod]) {
+        if (alert.items && alert.items[0] && alert.items[0].target === "contacts") {
+          if (alert.data) {
             account.syncContactsMethod = SyncMLAlertCodes[alert.data];
           }
         }
       }
-      getSyncData(callback);
+      if (needRefresh) {
+        log("Server told us that we need to refresh, but did not send a alert for that... fail. :(");
+        resultCallback(false);
+        return;
+      }
+      log("Call getSyncData()");
+      lastMsg = msg;
+      getSyncData();
     }
   }
 
-  function parseCredResponse(callback, transport) {
+  function parseCredResponse(transport) {
     var responseMsg, status;
 
     log("Got response: " + transport.responseText);
@@ -333,10 +555,10 @@ var SyncML = (function () {
     status = responseMsg.getBody().status[sessionInfo.msgId]["0"].data; //status of last msg and header => allways 0. 
     if (status === "212" || status === "200") {
       log("Good credentials.");
-      callback(true);
+      resultCallback(true);
     } else {
       log("Wrong credentials?, status data: " + status);
-      callback(false);
+      resultCallback(false);
     }
   }
 
@@ -344,10 +566,11 @@ var SyncML = (function () {
 	return {
 	  initialize: function (inAccount) {
 	    sessionInfo.sessionId = new Date().getTime();
-	    sessionInfo.msgId = 1;
+	    sessionInfo.msgId = 0;
 	    sessionInfo.error = null;
 	    sessionInfo.url = inAccount.url; //initialize with global url, might change later.
 	    account = inAccount; //TODO: is this still a reference?
+	    secondTry = false;
 
 	    if (!DeviceProperties.devID) {
 	      throw ({name: "MissingInformation", message: "Error: Need to fill DeviceProperties.devId before syncML can start."});
@@ -363,11 +586,12 @@ var SyncML = (function () {
 		  var content, msg = syncMLMessage(); //TODO: ist das richtig so??? :(
 		  msg.addCredentials(account); //cool, will find username and password field. :)
 		  msg.setFinal(true);
+		  resultCallback = callback;
 
 		  content = msg.buildMessage({sessionId: sessionInfo.sessionId, msgId: getMsgId(), target: account.url, source: DeviceProperties.id});
 
 			log("Sending to server: " + content);
-			sendToServer(content, parseCredResponse.bind(this, callback)); //.bind(this,callback)); //TODO: do we need this bind? Can we pass that parameter nicer?
+			sendToServer(content, parseCredResponse);
 			lastMsg = msg;
 		},
 
@@ -375,6 +599,7 @@ var SyncML = (function () {
 		  var msg = syncMLMessage(), datastores = [], content;
 			msg.addCredentials(account);
 			msg.setFinal(true);
+			resultCallback = callback;
 
 			if (account.syncCalendar) {
 			  account.syncCalendarLast = account.syncCalendarNext;
@@ -408,7 +633,7 @@ var SyncML = (function () {
 
 		  content = msg.buildMessage({sessionId: sessionInfo.sessionId, msgId: getMsgId(), target: account.url, source: DeviceProperties.id});
 			log("Sending to server: " + content);
-      sendToServer(content, parseInitResponse.bind(this, callback));
+      sendToServer(content, parseInitResponse);
       lastMsg = msg;
 		},
 
@@ -417,7 +642,7 @@ var SyncML = (function () {
 		  calendar = callbacks;
 		  calendar.add = 0;
 		  calendar.del = 0;
-		  calendar.update = 0;
+		  calendar.replace = 0;
 		  calendar.mapping = [];
 		},
 
@@ -426,118 +651,12 @@ var SyncML = (function () {
 		  contacts = callbacks;
 		  contacts.add = 0;
 		  contacts.del = 0;
-		  contacts.update = 0;
+		  contacts.replace = 0;
 		  contacts.mapping = [];
 		},
 
-		continueSyncCalendar: function (data, callback) {
-		  var msg = syncMLMessage(), i, content;
-		  if (data.add) {
-		    for (i = 0; i < data.add.length; i += 1) {
-		      msg.addSyncCmd({
-		        type: "add",
-		        item: {
-		          data: data.add[i].data,
-		          source: data.add[i].localId,
-		          meta: {
-		            type: "text/calendar"
-		            //format: "b64" //do we want b64? First try without, maybe.. easier to debug.
-		          }
-		        }
-		      });
-		    }
-		  }
-      if (data.del) {
-        for (i = 0; i < data.del.length; i += 1) {
-          msg.addSyncCmd({
-            type: "del",
-            item: {
-              //data: data.del[i].data, //data not necessary for delete.
-              source: data.del[i].localId,
-              meta: {
-                type: "text/calendar"
-                //format: "b64" //do we want b64? First try without, maybe.. easier to debug.
-              }
-            }
-          });
-        }
-      }
-      if (data.update) {
-        for (i = 0; i < data.update.length; i += 1) {
-          msg.addSyncCmd({
-            type: "replace",
-            item: {
-              data: data.update[i].data,
-              source: data.update[i].localId,
-              meta: {
-                type: "text/calendar"
-                //format: "b64" //do we want b64? First try without, maybe.. easier to debug.
-              }
-            }
-          });
-        }
-      }
+		continueSyncCalendar: mContinueSyncCalendar,
 
-      msg.addStatuses(lastMsg); //should only be like one sync-alert.
-      content = msg.buildMessage({sessionId: sessionInfo.sessionId, msgId: getMsgId(), target: account.url, source: DeviceProperties.id});
-      log("Sending to server: " + content);
-      sendToServer(content, parseSyncResponse.bind(this, callback));
-      lastMsg = msg;
-		},
-
-		continueSyncContacts: function (data, callback) {
-      var msg = syncMLMessage(), i, content;
-      if (data.add) {
-        for (i = 0; i < data.add.length; i += 1) {
-          msg.addSyncCmd({
-            type: "add",
-            item: {
-              data: data.add[i].data,
-              source: data.add[i].localId,
-              meta: {
-                type: "text/vcard"
-                //format: "b64" //do we want b64? First try without, maybe.. easier to debug.
-              }
-            }
-          });
-        }
-      }
-      if (data.del) {
-        for (i = 0; i < data.del.length; i += 1) {
-          msg.addSyncCmd({
-            type: "del",
-            item: {
-              //data: data.del[i].data, //data not necessary for delete.
-              source: data.del[i].localId,
-              meta: {
-                type: "text/vcard"
-                //format: "b64" //do we want b64? First try without, maybe.. easier to debug.
-              }
-            }
-          });
-        }
-      }
-      if (data.update) {
-        for (i = 0; i < data.update.length; i += 1) {
-          msg.addSyncCmd({
-            type: "replace",
-            item: {
-              data: data.update[i].data,
-              source: data.update[i].localId,
-              meta: {
-                type: "text/vcard"
-                //format: "b64" //do we want b64? First try without, maybe.. easier to debug.
-              }
-            }
-          });
-        }
-      }
-
-      msg.addStatuses(lastMsg); //should only be like one sync-alert.
-      content = msg.buildMessage({sessionId: sessionInfo.sessionId, msgId: getMsgId(), target: account.url, source: DeviceProperties.id});
-      log("Sending to server: " + content);
-      sendToServer(content, parseSyncResponse.bind(this, callback));
-      lastMsg = msg;
-		}
+		continueSyncContacts: mContinueSyncContacts
 	};
 }());

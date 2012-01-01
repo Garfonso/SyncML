@@ -64,8 +64,6 @@ var syncMLMessage = function () {
   function writeCmdId(command, prefix) {
     var cmdId = getCmdId();
     command.cmdId = cmdId;
-    log("Write cmd called from " + JSON.stringify(command));
-    log("CmdId is now " + cmdId);
     writeNodeValue("CmdID", cmdId, prefix);
   }
 
@@ -149,6 +147,8 @@ var syncMLMessage = function () {
       }
       child = child.nextSibling;
     }
+
+    return meta;
   }
 
   //helper function to parse header values into this message:
@@ -406,7 +406,7 @@ var syncMLMessage = function () {
       cmdName: name,
       targetRef: cmd.target,
       sourceRef: cmd.source,
-      items: cmd.items,
+      items: cmd.items || [],
       meta: cmd.meta,
       data: cmd.failure ? "510" : "200" //set 200 = ok or to 510 = data sore failure for all cmds. 
     };
@@ -444,7 +444,7 @@ var syncMLMessage = function () {
       default:
         log("WARNING: readAddReplace does not understand " + child.nodeName + ", yet. Value ignored. " + printNode(node));
       }
-      child = node.nextSibling;
+      child = child.nextSibling;
     }
     if (!obj.cmdId) {
       throw ({name: "SyntaxError", message: "add/replace command needs cmdId, none found: " + printNode(node)});
@@ -461,7 +461,7 @@ var syncMLMessage = function () {
   //helper function to add sync to the msg:
   function addSyncToMsg(sync, prefix) {
     var i, nprefix;
-    if (sync.add.length === 0 && sync.del.length === 0 && sync.replace.length === 0) {
+    if (!sync.target && !sync.source) { // sync.add.length === 0 && sync.del.length === 0 && sync.replace.length === 0) {
       log("Not adding empty sync.");
       return;
     }
@@ -487,32 +487,42 @@ var syncMLMessage = function () {
       addSyncCmdToMsg(sync.replace[i], nprefix + "\t");
       m.push(nprefix); m.push("</Replace>\n");
     }
+    m.push(prefix); m.push("</Sync>\n");
   }
 
   //helper function to parse sync:
   function readSync(node) {
     var child, obj, sync = {add: [], del: [], replace: []};
 
-    child = node.firstChid;
+    child = node.firstChild;
     while (child) {
       log("sync-child: " + child.nodeName);
       switch (child.nodeName) {
       case "Add":
         obj = readAddReplace(child);
         if (obj) {
+          log("Add an add.");
           sync.add.push(obj);
+        } else {
+          log("Skipped add: " + JSON.stringify(obj));
         }
         break;
       case "Replace":
         obj = readAddReplace(child);
         if (obj) {
+          log("Add an replace.");
           sync.replace.push(obj);
+        } else {
+          log("Skipped replace: " + JSON.stringify(obj));
         }
         break;
       case "Delete":
         obj = readDelete(child);
         if (obj) {
+          log("Add an delete.");
           sync.del.push(obj);
+        } else {
+          log("Skipped delete: " + JSON.stringify(obj));
         }
         break;
       case "CmdID":
@@ -532,7 +542,7 @@ var syncMLMessage = function () {
         break;
       }
 
-      child = node.nextSibling;
+      child = child.nextSibling;
     }
 
     return sync;
@@ -613,6 +623,9 @@ var syncMLMessage = function () {
       var msgRef, cmdRef, i, j;
 
       //check parameters:
+      if (!sessionInfo) {
+        throw ({name: "InvalidParameters", message: "You need to specify sessionInfo as parameter."});
+      }
       if (typeof sessionInfo.sessionId !== 'number' || typeof sessionInfo.msgId !== 'number') {
         throw ({name: "InvalidParamters", message: "You need to specify sessionId and msgId as number-members of sessionInfo parameter." + JSON.stringify(sessionInfo) });
       }
@@ -620,17 +633,23 @@ var syncMLMessage = function () {
         throw ({name: "InvalidParamters", message: "You need to specify target and source as string-members of sessionInfo parameter." + JSON.stringify(sessionInfo) });
       }
 
+      //fill own header:
+      header.msgId = sessionInfo.msgId;
+      header.sessionId = sessionInfo.sessionId;
+      header.target = sessionInfo.target;
+      header.source = sessionInfo.source;
+
       m = [];
       m.push("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
       m.push("<SyncML>\n");
 
       //sync hdr:
       m.push("\t<SyncHdr><VerDTD>1.2</VerDTD><VerProto>SyncML/1.2</VerProto>\n"); //init header
-      writeNodeValue("SessionID", sessionInfo.sessionId, "\t\t");
-      writeNodeValue("MsgID", sessionInfo.msgId, "\t\t");
-      addTargetSource(sessionInfo, "\t\t"); //source and target paths. Source = on device, target = on server.
+      writeNodeValue("SessionID", header.sessionId, "\t\t");
+      writeNodeValue("MsgID", header.msgId, "\t\t");
+      addTargetSource(header, "\t\t"); //source and target paths. Source = on device, target = on server.
       //add optional credentials:
-      addCredentialsToHeader(sessionInfo);
+      addCredentialsToHeader();
       m.push("\t</SyncHdr>\n");
 
       //body:
@@ -666,17 +685,19 @@ var syncMLMessage = function () {
       }
 
       //add maps:
-      for (i = 0; i < body.maps.length; i += 1) {
-        log("Adding maps...");
-        m.push("\t\t<Map>\n");
-        writeCmdId(body.maps[i], "\t\t\t");
-        addTargetSource(body.maps[i]);
-        for (j = 0; j < body.maps[i].mapItems.length; j += 1) {
-          m.push("\t\t\t<MapItem>\n");
-          addTargetSource(body.maps[i].mapItems[j], "\t\t\t\t");
-          m.push("\t\t\t</MapItem>\n");
+      if (body.maps) {
+        for (i = 0; i < body.maps.length; i += 1) {
+          log("Adding maps...");
+          m.push("\t\t<Map>\n");
+          writeCmdId(body.maps[i], "\t\t\t");
+          addTargetSource(body.maps[i]);
+          for (j = 0; j < body.maps[i].mapItems.length; j += 1) {
+            m.push("\t\t\t<MapItem>\n");
+            addTargetSource(body.maps[i].mapItems[j], "\t\t\t\t");
+            m.push("\t\t\t</MapItem>\n");
+          }
+          m.push("\t\t</Map>\n");
         }
-        m.push("\t\t</Map>\n");
       }
 
       if (body.isFinal) {
@@ -724,69 +745,82 @@ var syncMLMessage = function () {
       //and returns a set of commands that failed.
       var obody = cmds.getBody(), i, j, msgRef = cmds.getHeader().msgId, result = [], cmdId, syncStatus;
       if (!body.status[msgRef]) { //wrong message ref... ?
+        log("Wrong msgRef.");
         return undefined;
       }
 
       //process alerts:
-      for (i = 0; i < obody.alerts.length(); i += 1) {
-        cmdId = obody.alerts[i].cmdId;
-        if (body.status[msgRef][cmdId] && body.status[msgRef][cmdId].data !== "200") {
-          result.push({cmd: obody.alerts[i], status: body.status[msgRef][cmdId]});
+      log("Alerts.");
+      if (obody.alerts) {
+        for (i = 0; i < obody.alerts.length; i += 1) {
+          cmdId = obody.alerts[i].cmdId;
+          if (body.status[msgRef][cmdId] && body.status[msgRef][cmdId].data !== "200") {
+            result.push({cmd: obody.alerts[i], status: body.status[msgRef][cmdId]});
+          }
         }
       }
 
       //process sync commands:
-      for (i = 0; i < obody.syncs.length(); i += 1) {
-        cmdId = obody.syncs[i].cmdId;
-        if (body.status[msgRef][cmdId] && body.status[msgRef][cmdId].data !== "200") {
-          result.push({cmd: obody.syncs[i], status: body.status[msgRef][cmdId]});
-          syncStatus = body.status[msgRef][cmdId];
-          syncStatus.addFail = 0; syncStatus.addGood = 0; syncStatus.delFail = 0; syncStatus.delGood = 0; syncStatus.repFail = 0; syncStatus.repGood = 0;
+      log("Syncs.");
+      if (obody.syncs) {
+        for (i = 0; i < obody.syncs.length; i += 1) {
+          log(i);
+          cmdId = obody.syncs[i].cmdId;
+          log("cmdId: " + cmdId);
+          if (body.status[msgRef][cmdId] && body.status[msgRef][cmdId].data !== "200") {
+            log("Sync status: " + body.status[msgRef][cmdId].data);
+            result.push({cmd: obody.syncs[i], status: body.status[msgRef][cmdId]});
+            syncStatus = body.status[msgRef][cmdId];
+            syncStatus.addFail = 0; syncStatus.addGood = 0; syncStatus.delFail = 0; syncStatus.delGood = 0; syncStatus.repFail = 0; syncStatus.repGood = 0;
 
-          for (j = 0; j < obody.syncs[i].add.length(); j += 1) {
-            cmdId = obody.syncs[i].add[j].cmdId;
-            if (body.status[msgRef][cmdId] && body.status[msgRef][cmdId].data !== "200") {
-              result.push({cmd: obody.syncs[i].add[j], status: body.status[msgRef][cmdId]});
-              syncStatus.addFail += 1;
-            } else {
-              syncStatus.addGood += 1;
-            }
-          }
-
-          for (j = 0; j < obody.syncs[i].del.length(); j += 1) {
-            cmdId = obody.syncs[i].del[j].cmdId;
-            if (body.status[msgRef][cmdId] && body.status[msgRef][cmdId].data !== "200") {
-              result.push({cmd: obody.syncs[i].del[j], status: body.status[msgRef][cmdId]});
-              syncStatus.delFail += 1;
-            } else {
-              syncStatus.delGood += 1;
-            }
-          }
-
-          for (j = 0; j < obody.syncs[i].replace.length(); j += 1) {
-            cmdId = obody.syncs[i].replace[j].cmdId;
-            if (body.status[msgRef][cmdId] &&
-                (body.status[msgRef][cmdId].data !== "200" ||
-                    body.status[msgRef][cmdId].data !== "201")) {
-              result.push({cmd: obody.syncs[i].replace[j], status: body.status[msgRef][cmdId]});
-              syncStatus.repFail += 1;
-            } else {
-              if (body.status[msgRef][cmdId].data === "200") {
-                syncStatus.repGood += 1;
-              } else if (body.status[msgRef][cmdId].data === "201") { //not replaced but added as new.
+            for (j = 0; j < obody.syncs[i].add.length; j += 1) {
+              cmdId = obody.syncs[i].add[j].cmdId;
+              if (body.status[msgRef][cmdId] && body.status[msgRef][cmdId].data !== "200") {
+                result.push({cmd: obody.syncs[i].add[j], status: body.status[msgRef][cmdId]});
+                syncStatus.addFail += 1;
+              } else {
                 syncStatus.addGood += 1;
               }
             }
+
+            for (j = 0; j < obody.syncs[i].del.length; j += 1) {
+              cmdId = obody.syncs[i].del[j].cmdId;
+              if (body.status[msgRef][cmdId] && body.status[msgRef][cmdId].data !== "200") {
+                result.push({cmd: obody.syncs[i].del[j], status: body.status[msgRef][cmdId]});
+                syncStatus.delFail += 1;
+              } else {
+                syncStatus.delGood += 1;
+              }
+            }
+
+            for (j = 0; j < obody.syncs[i].replace.length; j += 1) {
+              cmdId = obody.syncs[i].replace[j].cmdId;
+              if (body.status[msgRef][cmdId] &&
+                  (body.status[msgRef][cmdId].data !== "200" ||
+                   body.status[msgRef][cmdId].data !== "201")) {
+                result.push({cmd: obody.syncs[i].replace[j], status: body.status[msgRef][cmdId]});
+                syncStatus.repFail += 1;
+              } else {
+                if (body.status[msgRef][cmdId].data === "200") {
+                  syncStatus.repGood += 1;
+                } else if (body.status[msgRef][cmdId].data === "201") { //not replaced but added as new.
+                  syncStatus.addGood += 1;
+                }
+              }
+            }
+          } else {
+            log("Sync cmd was not in this status, will skip all other sync-cmd-parts for this sync cmd.");
           }
-        } else {
-          log("Sync cmd was not in this status, will skip all other sync-cmd-parts for this sync cmd.");
         }
       }
 
-      if (obody.putDevInfo.cmdId && body.status[msgRef][obody.putDevInfo.cmdId] && body.status[msgRef][obody.putDevInfo.cmdId] !== "200") {
+      log("putDevInfo");
+      if (obody.putDevInfo && obody.putDevInfo.cmdId && body.status[msgRef][obody.putDevInfo.cmdId] && body.status[msgRef][obody.putDevInfo.cmdId].data !== "200") {
+        log("Status of putDevInfoCmd: " + body.status[msgRef][obody.putDevInfo.cmdId]);
         result.push({cmd: obody.putDevInfo, status: body.status[msgRef][obody.putDevInfo.cmdId]});
       }
 
+      log("Match commands finished.");
       return result;
     },
 
@@ -802,24 +836,33 @@ var syncMLMessage = function () {
       }
 
       //process alerts:
-      for (i = 0; i < obody.alerts.length(); i += 1) {
-        mAddSingleStatus(obody.alerts[i], "Alert", msgRef);
+      if (obody.alerts) {
+        for (i = 0; i < obody.alerts.length; i += 1) {
+          mAddSingleStatus(obody.alerts[i], "Alert", msgRef);
+        }
       }
 
       //process sync commands:
-      for (i = 0; i < obody.syncs.length(); i += 1) {
-        mAddSingleStatus(obody.syncs[i], "Sync", msgRef);
+      if (obody.sync) {
+        for (i = 0; i < obody.sync.length; i += 1) {
+          //only add status if there is anything in this sync.
+          if ((obody.sync[i].add && obody.sync[i].add.length !== 0) ||
+              (obody.sync[i].del && obody.sync[i].del.length !== 0) ||
+              (obody.sync[i].replace && obody.sync[i].replace.length !== 0)) {
+            mAddSingleStatus(obody.sync[i], "Sync", msgRef);
 
-        for (j = 0; j < obody.syncs[i].add.length(); j += 1) {
-          mAddSingleStatus(obody.syncs[i].add[j], "Add", msgRef);
-        }
+            for (j = 0; j < obody.sync[i].add.length; j += 1) {
+              mAddSingleStatus(obody.sync[i].add[j], "Add", msgRef);
+            }
 
-        for (j = 0; j < obody.syncs[i].del.length(); j += 1) {
-          mAddSingleStatus(obody.syncs[i].del[j], "Delete", msgRef);
-        }
+            for (j = 0; j < obody.sync[i].del.length; j += 1) {
+              mAddSingleStatus(obody.sync[i].del[j], "Delete", msgRef);
+            }
 
-        for (j = 0; j < obody.syncs[i].replace.length(); j += 1) {
-          mAddSingleStatus(obody.syncs[i].del[j], "Replace", msgRef);
+            for (j = 0; j < obody.sync[i].replace.length; j += 1) {
+              mAddSingleStatus(obody.sync[i].del[j], "Replace", msgRef);
+            }
+          }
         }
       }
     },
@@ -910,10 +953,30 @@ var syncMLMessage = function () {
     //         mapItems: [ { target: "globaleId", source: "localeId" }, ... ]
     //    }
     addMap: function (map) {
-      if (!body.maps) {
-        body.maps = [];
+      if (map && map.mapItems && map.mapItems.length > 0) {
+        if (!body.maps) {
+          body.maps = [];
+        }
+        body.maps.push(map);
       }
-      body.maps.push(map);
+    },
+
+    //returns true if there is a status cmd in this message.
+    hasStatus: function () {
+      var msgRef, cmdRef;
+      //first add status responses:
+      for (msgRef in body.status) {
+        if (body.status.hasOwnProperty(msgRef)) {
+          log("Adding status...");
+          for (cmdRef in body.status[msgRef]) {
+            if (body.status[msgRef].hasOwnProperty(cmdRef)) {
+              return true;
+            }
+          }
+        }
+      }
+      return false;
     }
-  };
+
+  }; //end of public interface.
 };
