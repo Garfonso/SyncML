@@ -1,0 +1,18 @@
+SyncML on webOs 2.x
+
+This is an implementation of a SyncML client in JavaScript together with an iCal parser to allow webOs to sync a calendar with a SyncML server. Currently this is only tested with eGroupware 1.8 (and 1.9svn). You should now what you are doing if you test this. Be sure to have a decent backup for your data!
+The sync of contacts is to be added later. Maybe also more datastore types. You could theoretically use SyncML to sync any type of data, also possibly just in one direction. This could be used for a synergy integrated multimedia sync. 
+
+The synergy integration is not done yet, but the JavaScript SyncML Client and iCal parser work. So synergy integration is just a formal thing now... I'll be workin on that, next. 
+
+My list of Todo’s
+
+    Build synergy integration
+    Build service for that
+    Rebuild App to use the service (for easier debugging)
+    Test the service
+    Modify account management  and sync management for better integration of calendar and contacts to add more datastores
+    Implement contacts sync (will require new or extended parser)
+    Modify app to view service logs and allow to send them per E-Mail
+    Optimize old eventCallback structure to be more database optimized and collect all adds, updates and deletes to do them in one batch.
+    Try to respect server max msg size by only adding like 10 objects to a message (currently sends all in one message and has reached like 20kb which is way over the server advertised limit of 10kb. Luckily that does not matter much to the server, as it seems).
