@@ -227,14 +227,14 @@ var SyncML = (function () {
       }
       resultCallback({success: false});
     } else {
-      if (!msg.getBody().sync || msg.getBody().sync.length === 0) {
+      if ((!msg.getBody().sync || msg.getBody().sync.length === 0) && account.syncCalendarMethod !== "one-way-from-client" && account.syncCalendarMethod !== "refresh-from-client") {
         log("Did not receive a sync cmd.");
         if (!secondTry) {
           log("Try a get next msg command.");
           lastMsg = msg;
           msg = syncMLMessage();
           msg.addStatuses(lastMsg);
-          msg.addAlert({ data: "222", items: [ { source: "contacts", target: account.syncContactsPath } ] });
+          msg.addAlert({ data: "222", items: [ { source: "calendar", target: account.syncCalendarPath } ] });
           content = msg.buildMessage({sessionId: sessionInfo.sessionId, msgId: getMsgId(), target: account.url, source: DeviceProperties.id});
           sendToServer(content, parseSyncResponse);
           lastMsg = msg;
@@ -273,7 +273,7 @@ var SyncML = (function () {
                 type: "del",
                 callback: itemActionCalendarCallback,
                 globalId: {sync: i, item: k, cmd: j, cmdId: sync.del[j].cmdId }, //abuse cmdId to get globalId later and find status better later. :)
-                localId: sync.del[j].items[k].source
+                localId: sync.del[j].items[k].target
                 //item: sync.del[j].items[k].format === "b64" ? window.atob(sync.del[j].items[k].data) : sync.del[j].items[k].data //most probably undefined for delete.
               }
             );
@@ -287,7 +287,7 @@ var SyncML = (function () {
                 type: "replace",
                 callback: itemActionCalendarCallback,
                 globalId: {sync: i, item: k, cmd: j, cmdId: sync.replace[j].cmdId }, //abuse cmdId to get globalId later and find status better later. :)
-                localId: sync.replace[j].items[k].source,
+                localId: sync.replace[j].items[k].target,
                 item: sync.replace[j].items[k].format === "b64" ? window.atob(sync.replace[j].items[k].data) : sync.replace[j].items[k].data
               }
             );
@@ -450,7 +450,7 @@ var SyncML = (function () {
       }
       if (account.syncCalendarMethod === "one-way-from-server") {
         log("Don't get any calendar data, because of one way from server sync.");
-        mContinueSyncCalendar({});
+        mContinueSyncCalendar({success: true});
       }
     }
     if (account.syncContacts) {
@@ -466,7 +466,7 @@ var SyncML = (function () {
         contacts.deleteAllData(mContinueSyncContacts);
       }
       if (account.syncContactsMethod === "one-way-from-server") {
-        mContinueSyncContacts({});
+        mContinueSyncContacts({success: true});
       }
     }
   }

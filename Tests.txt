@@ -1,0 +1,43 @@
+Test Matrix:
+
+iCal Tests:
+Von Server zu Gerät
++ nach Zeitumstellung
++ nach zwei Zeitumstellungen
++ Ganztag eintägig
++ Ganztag mehrtägig
++ Alarm eintägig
++ Alarm mehrtägig (gucken ob die Stunde Zeitverschiebung weggeht, wenn auch in GMT+1, wie Server!)
++ Ausnahme in WDH (scheint zu klappen)
+
+Von Gerät zu Server
++ Alle Felder (problem: Server quoted nicht. Ich selber quote, aber wenn server etwas schickt, was das XML kaputt macht => putt. :()
++ Neue Attendees (geht nicht?)
++ eintägig => Zeit
++ nach einer/zwei Zeitumstellungen
++ Alarm eintägig
++ Alarm mehrtägig
++ Wiederholungen
++ Ausnahme in WDH von Gerät auf Server (Ausnahmen werden nicht als solche gefunden. Keine Ahnung, was der da noch haben will => egroupware mailing liste fragen)
++ Ganztägig eintägig
++ Ganztägig mehrtägig
+
+Sync Tests:
++ ok: Refresh from Server
++ ok: Two-Way Sync ohne Veränderungen
++ Two-Way Sync mit Veränderungen auf Server
++ Two-Way Sync mit Veränderungen auf Client
++ Two-Way Sync mit Veränderungen auf beiden Seiten
++ Two-Way Sync mit Konflikt => server sticks to his "server wins" setting.
++ Sync failure... irgendwie... hm. => Problem: Server irgnoriert das ein wenig... im Client jetzt so gemacht, dass bei jedem Failure ein Slow sync gemacht wird.
++ Slow sync
++ Slow sync mit Veränderungen => edits und deletes gehen verloren... :(
++ Slow sync mit Konflikt => da änderungen bei slow irgendwie ignoriert werden, wird auch ein konflikt ignoriert...
++ Slow sync mit gelöscht auf Server (rein aus interesse, kommt das dann vom client wieder? ;)) => alles gelöschte kommt wieder.
++ One-Way from server
++ One-Way from device
++ Refresh from Client (??) => letzter Test. :)
+
+Mit eigenem Handy:
+- Alarm mehrtägig server/device => bleibt die Stunde zeitversetzt? Werden es zwei?
+- Steffi zu Nutzern hinzufügen. Merkt Server das es ein nutzer ist? (Vorher: E-Mail von Steffi im Server rausfinden / anspassen).

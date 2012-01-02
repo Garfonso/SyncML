@@ -151,7 +151,7 @@ var eventCallbacks = (function () {
       } else {
         e = [iCal.parseICal(input.item)];
       }
-      log("Event: " + e[0].subject);
+      log("Event: " + e[0].subject + " mit id: " + input.localId);
       e[0]._id = input.localId;
       e[0].calendarId = account.webOsCalendarId; //need to set this to tell webOs in which calendar this event should be, undefined else. TODO: don't rely on global account object here. :(
       e[0].accountId = account.webOsAccountId;
@@ -189,6 +189,7 @@ var eventCallbacks = (function () {
           var r = future.result;
           if (r.returnValue === true) {
             eventUpdated += 1;
+            log("Update: " + JSON.stringify(future.result));
             if (this.eventsUpdatedElement) {
               this.eventsUpdatedElement.innerHTML = eventUpdated;
             }
@@ -232,7 +233,7 @@ var eventCallbacks = (function () {
 		 * @param {Object} eventid
 		 */
 		deleteEvent: function (input) {
-		  log("Delete event called.");
+		  log("Delete event called with id: " + input.localId);
 			try {
 				var ids = [input.localId];
 				//delete with purge=true.

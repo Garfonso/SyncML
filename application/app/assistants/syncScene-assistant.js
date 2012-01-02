@@ -201,6 +201,7 @@ SyncSceneAssistant.prototype.startSync = function()
         account = result.account; //write modified account into db. :)
         this.finished(true, false);
       } else {
+        if (account.syncCalendarMethod !== "one-way-from-server" && account.syncCalendarMethod !== "one-way-from-client")
         account.syncCalendarMethod = "slow";
       }
       this.locked = false; 
@@ -219,7 +220,8 @@ SyncSceneAssistant.prototype.finished = function(calOk,conOk)
 		if (calOk === true)
 		{
 			log("Calendar sync worked.");
-			eventCallbacks.finishSync(true);
+      //keep changes for next two-way.
+      eventCallbacks.finishSync(account.syncCalendarMethod !== "slow");
 			if (account.syncCalendarMethod === "slow" || account.syncCalendarMethod.indexOf("refresh") !== -1) {
         account.syncCalendarMethod = "two-way";
       }
