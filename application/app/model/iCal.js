@@ -79,7 +79,7 @@ var iCal = (function () {
 //      tzId           : "",
 //      url            : ""
 //  }, 
-  var dayToNum = { "SU": 0, "MO": 1, "TU": 2, "MI": 3, "TH": 4, "FR": 5, "SA": 6, "0": 0, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6},
+  var dayToNum = { "SU": 0, "MO": 1, "TU": 2, "MI": 3, "TH": 4, "FR": 5, "SA": 6, "0": 0, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6 },
     numToDay = { "0": "SU", "1": "MO", "2": "TU", "3": "MI", "4": "TH", "5": "FR", "6": "SA", "SU": "SU", "MO": "MO", "TU": "TU", "MI": "MI", "TH": "TH", "FR": "FR", "SA": "SA" },
     DATETIME = /^(\d{4})(\d\d)(\d\d)T(\d\d)(\d\d)(\d\d)(Z?)$/,
     DATE = /^(\d{4})(\d\d)(\d\d)$/,
@@ -100,6 +100,11 @@ var iCal = (function () {
     string = string.replace(/\\;/gi, ';');
     string = string.replace(/\\n/gi, '\n');
     string = string.replace(/\\r/gi, '\r');
+    string = string.replace(/&amp;/gi, "&");
+    string = string.replace(/&lt;/gi, "<");
+    string = string.replace(/&gt;/gi, ">");
+    string = string.replace(/&quot;/gi, "\"");
+    string = string.replace(/&apos;/gi, "'");
     return string;
   }
 
@@ -112,6 +117,11 @@ var iCal = (function () {
     string = string.replace(/;/gi, "\\;");
     string = string.replace(/\n/gi, "\\n");
     string = string.replace(/\r/gi, "\\r");
+    string = string.replace(/&/gi, "&amp;");
+    string = string.replace(/</gi, "&lt;");
+    string = string.replace(/>/gi, "&gt;");
+    string = string.replace(/"/gi, "&quot;");
+    string = string.replace(/'/gi, "&apos;");
     return string;
   }
 
@@ -137,15 +147,15 @@ var iCal = (function () {
   function webOsTimeToICal(time, allDay) {
     var t = "", date;
     date = new Date(time);
-    if (!allDay) {
+    if (allDay) {
+      //repair time zone offset confusion, look at commet at top of file => DON'T TAKE UTC here!
+      t = date.getFullYear() + (date.getMonth() + 1 < 10 ? "0" : "") + (date.getMonth() + 1) + (date.getDate() < 10 ? "0" : "") + date.getDate();
+    } else {
       t = date.getUTCFullYear() + (date.getUTCMonth() + 1 < 10 ? "0" : "") + (date.getUTCMonth() + 1) + (date.getUTCDate() < 10 ? "0" : "") + date.getUTCDate();
       t += "T" + (date.getUTCHours() < 10 ? "0" : "") + date.getUTCHours();
       t += (date.getUTCMinutes() < 10 ? "0" : "") + date.getUTCMinutes();
       t += (date.getUTCSeconds() < 10 ? "0" : "") + date.getUTCSeconds();
       t += "Z"; //to declare that this is UTC. Maybe that helps a bit.
-    } else {
-      //repair time zone offset confusion, look at commet at top of file:
-      t = date.getFullYear() + (date.getMonth() + 1 < 10 ? "0" : "") + (date.getMonth() + 1) + (date.getDate() < 10 ? "0" : "") + date.getDate();
     }
     return t;
   }
@@ -165,15 +175,22 @@ var iCal = (function () {
   //days are only specified for wkst. But the samples from palm, which say that BYSETPOS is not defined (but it's used in their own 
   //samples to explain the rrule object ????) use days for BYDAY... 
   function parseRULEofRRULE(key, value) {
-    var days, i, rule = { ruleType: key, ruleValue: []};
+    var days, day, i, rule = { ruleType: key, ruleValue: []};
     days = value.split(",");
-    for (i = 0; i < days.lenght; i += 1) {
-      if (key === "BYDAY") {
-        rule.ruleValue.push({day: dayToNum[days[i]]});
+    for (i = 0; i < days.length; i += 1) {
+      if (days[i].length >= 3) {
+        day = days[i].substr(days[i].length - 2); //extract day of week
+        day = dayToNum[day];
+        if (day) { //really was a day, as it seems. :)
+          rule.ruleValue.push({day: day, ord: days[i].substring(0, days[i].length - 2)});
+        } else {
+          rule.ruleValue.push({ord: days[i]});
+        }
       } else {
         rule.ruleValue.push({ord: days[i]});
       }
     }
+    return rule;
   }
 
   function buildRRULE(rr) {
@@ -186,7 +203,7 @@ var iCal = (function () {
       text += "COUNT=" + rr.count + ";";
     }
     if (rr.until) {
-      text += "UNTIL=" + rr.until + ";";
+      text += "UNTIL=" + webOsTimeToICal(rr.until) + ";";
     }
     if (rr.wkst) {
       text += "WKST=" + numToDay(rr.wkst) + ";";
@@ -198,11 +215,15 @@ var iCal = (function () {
         if (j !== 0) {
           text += ",";
         }
-        if (day.day) {
-          text += numToDay(day.day);
-        }
         if (day.ord) {
           text += day.ord;
+        }
+        if (day.day) {
+          if (rr.rules[i].ruleType === "BYDAY") {
+            text += numToDay[day.day];
+          } else {
+            text += day.day;
+          }
         }
       }
       text += ";";
@@ -283,6 +304,7 @@ var iCal = (function () {
         //docs say webos wants "DATETIME" not "DATE-TIME" like iCal... :(
         alarm.alarmTrigger.valueType = "DATETIME";
       }
+      //log("Parsed trigger " + lObj.line + " to " + JSON.stringify(alarm.alarmTrigger));
     } else if (lObj.key === "END") {
       if (lObj.value !== "VALARM") {
         throw ({name: "SyntaxError", message: "BEGIN:VALARM was not followed by END:VALARM. Something is very wrong here."});
@@ -295,17 +317,31 @@ var iCal = (function () {
   }
 
   function buildALARM(alarm, text) {
-    var i, field;
+    var i, field, translation;
+    translation = {
+      "action" : "ACTION",
+      //alarmTrigger will be handled extra,
+      "attach" : "ATTACH",
+      "description" : "DESCRIPTION",
+      "duration" : "DURATION",
+      "repeat" : "REPEAT",
+      "trigger": "TRIGGER",
+      "summary" : "SUMMARY"
+    };
     for (i = 0; i < alarm.length; i += 1) {
       text.push("BEGIN:VALARM");
       for (field in alarm[i]) {
         if (alarm[i].hasOwnProperty(field)) {
           if (field === "alarmTrigger") { //use webos fields to allow edit on device.
-            text.push("TRIGGER" +
-                (alarm[i].alarmTrigger.valueType === "DATETIME" ? ";VALUE=DATE-TIME" : ";VALUE=DURATION") + //only other mode supported by webOs is DURATION which is the default. 
-                ":" + alarm[i].alarmTrigger.value);
-          } else if (field !== "trigger") { //ignore trigger field.
-            text.push(field.toUpperCase() + ":" + alarm[i][field]); //just copy most values.
+            if (!alarm.trigger) {
+              text.push("TRIGGER" +
+                  (alarm[i].alarmTrigger.valueType === "DATETIME" ? ";VALUE=DATE-TIME" : ";VALUE=DURATION") + //only other mode supported by webOs is DURATION which is the default. 
+                  ":" + alarm[i].alarmTrigger.value);
+            } else {
+              log("Skipped manual trigger for trigger from server.");
+            }
+          } else if (translation[field]) { //ignore trigger field and other unkown things..
+            text.push(translation[field] + ":" + alarm[i][field]); //just copy most values.
           }
         }
       }
@@ -360,17 +396,17 @@ var iCal = (function () {
     for (i in translation) {
       if (translation.hasOwnProperty(i)) {
         if (lObj.parameters[i]) {
-          if (i === "cn") {
+          /*if (i === "cn") {
             lObj.parameters.cn = lObj.parameters.cn.replace(/"/g, ""); //remove " from the name if there are some.
-          }
+          }*/
           attendee[translation[i]] = lObj.parameters[i];
         }
       }
     }
-    if (!attendee.email) {
+    //if (!attendee.email) {
       //webos calendar requires email field, but some send nothing for groups.
-      attendee.email = "group-placeholder@invalid.invalid";
-    }
+      //attendee.email = "group-placeholder@invalid.invalid";
+    //}
     attendees.push(attendee);
     return attendees;
   }
@@ -391,15 +427,12 @@ var iCal = (function () {
       "language": "LANGUAGE",
       "sentBy": "SENT-BY"
     };
-    if (attendee.email === "group-placeholder@invalid.invalid") {
-      delete attendee.email; //remove fake mail
-    }
+    //if (attendee.email === "group-placeholder@invalid.invalid") {
+   //  delete attendee.email; //remove fake mail
+    //}
     for (field in translation) {
       if (translation.hasOwnProperty(field)) {
         if (attendee[field]) {
-          if (field === "commonName") {
-            attendee.commonName = "\"" + attendee.commonName + "\"";
-          }
           text += ";" + translation[field] + "=" + attendee[field];
         }
       }
@@ -461,8 +494,6 @@ var iCal = (function () {
       if (lObj.key === "DTSTART") { //decide from DTSTART if event is allDay. AllDay has no time, only date.
         event.allDay = timeObj.allDayCue;
       }
-    } else if (lObj.key === "VERSION" || lObj.key === "PRODID" || lObj.key === "METHOD" || lObj.key === "END") {
-      log("Intentionally ignoring key of type " + lObj.key + ". Line ignored: " + lObj.line);
     } else { //one of the more complex cases.
       switch (lObj.key) {
       case "ATTACH": //I still don't get why this is an array?
@@ -497,7 +528,9 @@ var iCal = (function () {
         event.rrule = parseRRULE(lObj.value);
         break;
       default:
-        log("My translation from iCal to webOs event does not understand " + lObj.key + " yet. Will skip line " + lObj.line);
+        if (lObj.key !== "VERSION" && lObj.key !== "PRODID" && lObj.key !== "METHOD" && lObj.key !== "END") {
+          log("My translation from iCal to webOs event does not understand " + lObj.key + " yet. Will skip line " + lObj.line);
+        }
         break;
       }
     }
@@ -508,20 +541,20 @@ var iCal = (function () {
     var i, j, revent, ts,  thisTS;
     //try to fill "parent id" and parentdtstamp for exceptions to recurring dates. 
     if (event.exdates && event.exdates.length > 0) {
-      log("Event has exdates: " + JSON.stringify(event.exdates) + " remembering it as recurring.");
+      //log("Event has exdates: " + JSON.stringify(event.exdates) + " remembering it as recurring.");
       event.recurringId = recurringEvents.length; //save index for recurring event to add ids later.
       recurringEvents.push(event);
     }
 
     //this will only work, if parent was processed before... :(
     if (event.recurrenceId) {
-      thisTS = webOsTimeToICal(event.recurrenceId);
+      thisTS = event.recurrenceId; //from webOs-docs recurrenceId is DATETIME not webOs-timestamp.
       for (i = 0; i < recurringEvents.length; i += 1) {
         revent = recurringEvents[i];
-        log("Checking if event is exception for " + JSON.stringify(revent.exdates));
+        //log("Checking if event is exception for " + JSON.stringify(revent.exdates));
         for (j = 0; j < revent.exdates.length; j += 1) {
           ts = revent.exdates[j];
-          log("Matching TS: " + ts + " = " + thisTS);
+          //log("Matching TS: " + ts + " = " + thisTS);
           if (ts === thisTS) {
             event.parentDtstart = revent.dtstart;
             event.parentId = revent._id;
@@ -543,12 +576,68 @@ var iCal = (function () {
     return event;
   }
 
+  function applyHacks(event, ical) { //TODO: read product from id to have an idea which hacks to apply.. or similar.
+    var i, val, start, date, diff;
+
+    //webOs does not support DATE-TIME as alarm trigger. Try to calculate a relative alarm from that...
+    //issue: this does not work, if server and device are in different timezones. Then the offset from 
+    //server to GMT still exists... hm.
+    for (i = 0; event.alarm && i < event.alarm.length; i += 1) {
+      if (event.alarm[i].alarmTrigger.valueType === "DATETIME" || event.alarm[i].alarmTrigger.valueType === "DATE-TIME") {
+        val = iCalTimeToWebOsTime(event.alarm[i].alarmTrigger.value).ts;
+        //log("Value: " + event.alarm[i].alarmTrigger.value);
+        //log("Val: " + val);
+        start = event.dtstart;
+        //log("start: " + start);
+        date = new Date(start);
+        //log("Date: " + date);
+        diff = (val - start) / 60000; //now minutes.
+        //log("Diff is " + diff);
+        if (event.allDay) {
+          diff += date.getTimezoneOffset(); //remedy allday hack.
+          //log("localized: " + diff);
+        }
+        if (diff < 0) {
+          val = "-PT";
+          diff *= -1;
+        } else {
+          val = "PT";
+        }
+        if (diff % 1440 === 0) { //we have days. :)
+          val += diff / 1440 + "D";
+        } else if (diff % 60 === 0) {
+          val += diff / 60 + "H";
+        } else {
+          val += diff + "M";
+        }
+        //log("Val is: " + val);
+        event.alarm[i].alarmTrigger.value = val;
+        event.alarm[i].alarmTrigger.valueType = "DURATION";
+      }
+    }
+
+    //allday events that span more than one day get one day to long in webOs.
+    //webOs itself defines allDay events from 0:00 on the first day to 23:59 on the last day. 
+    //so substracting one second should repair this issue (hopefully :().
+    if (event.allDay) { //86400000 = one day.
+      event.dtend -= 1000;
+    }
+    return event;
+  }
+
+  function removeHacks(event) {
+    if (event.allDay) {
+      event.dtend += 1000;
+    }
+    return event;
+  }
+
   return {
     parseICal: function (ical) {
-      var lines, lines2, line, j, i, lObj, event = { tzId: "UTC", alarm: []}, alarm;
-      ical = ical.replace(/\r\n /g, ""); //remove line breaks in key:value pairs.
-      ical = ical.replace(/\n /g, ""); //remove line breaks in key:value pairs.
-      lines = ical.split("\r\n"); //now every line contains a key:value pair => split them. somehow the \r seems to get lost somewhere?? is this always the case?
+      var proc, lines, lines2, line, j, i, lObj, event = { tzId: "UTC", alarm: []}, alarm;
+      proc = ical.replace(/\r\n /g, ""); //remove line breaks in key:value pairs.
+      proc = proc.replace(/\n /g, ""); //remove line breaks in key:value pairs.
+      lines = proc.split("\r\n"); //now every line contains a key:value pair => split them. somehow the \r seems to get lost somewhere?? is this always the case?
       for (i = 0; i < lines.length; i += 1) {
         lines2 = lines[i].split("\n");
         for (j = 0; j < lines2.length; j += 1) {
@@ -570,6 +659,7 @@ var iCal = (function () {
       }
 
       event = tryToFillParentId(event);
+      event = applyHacks(event, ical);
       return event;
     },
 
@@ -589,7 +679,7 @@ var iCal = (function () {
         "requestStatus"       :   "STATUS",
         "resources"           :   "RESOURCES",
         "sequence"            :   "SEQUENCE",
-        "transp"              :   "TRANSP",
+        //"transp"              :   "TRANSP", //intentionally skip this to let server decide...
         "tzId"                :   "TZID",
         "url"                 :   "URL",
         "recurrenceId"        :   "RECURRENCE-ID",
@@ -602,15 +692,19 @@ var iCal = (function () {
         "subject"           :   "SUMMARY"
       };
       transTime = {
-        "dtstamp"           :   "DTSTAMP",
+        //"dtstamp"           :   "DTSTAMP",
+        //"created"           :   "CREATED",
+        //"lastModified"      :   "LAST-MODIFIED",
         "dtstart"           :   "DTSTART",
-        "dtend"             :   "DTEND",
-        "created"           :   "CREATED",
-        "lastModified"      :   "LAST-MODIFIED"
+        "dtend"             :   "DTEND"
       };
+      if (event._del === true) {
+        return "";
+      }
+      event = removeHacks(event);
       text.push("BEGIN:VCALENDAR");
       text.push("VERSION:2.0");
-      text.push("PRODID:MOBO SYNCML 0.0.2");
+      text.push("PRODID:MOBO.SYNCML.0.0.3");
       text.push("METHOD:PUBLISH");
       text.push("BEGIN:VEVENT");
       for (field in event) {
@@ -625,8 +719,6 @@ var iCal = (function () {
               allDay = false;
             }
             text.push(transTime[field] + (allDay ? ";VALUE=DATE:" : ":") + webOsTimeToICal(event[field], allDay));
-          } else if (field === "allDay") {
-            log("Ignored field " + field + " with value " + JSON.stringify(event[field]));
           } else { //more complex fields.
             switch (field) {
             case "attach":
@@ -647,15 +739,45 @@ var iCal = (function () {
               }
               break;
             case "rrule":
-              text.push(buildRRULE(event.rrule));
+              if (event.rrule) {
+                text.push(buildRRULE(event.rrule));
+              }
               break;
             default:
-              log("Unknown field " + field + " in event object with value " + JSON.stringify(event[field]));
+              if (field !== "_id" && field !== "_kind" && field !== "_rev" && field !== "parentId" && field !== "allDay" &&
+                  field !== "eventDisplayRevset" && field !== "parentDtstart" && field !== "calendarId" && field !== "transp" && field !== "accountId" &&
+                  field !== "dtstamp" && field !== "created" && field !== "lastModified") {
+                log("Unknown field " + field + " in event object with value " + JSON.stringify(event[field]));
+              }
               break;
             }
           }
         }
       } //field loop
+
+      /*text.push("DTSTART" + (event.allDay ? ";VALUE=DATE:" : ":") + webOsTimeToICal(event.dtstart, event.allDay));
+      text.push("DTEND" + (event.allDay ? ";VALUE=DATE:" : ":") + webOsTimeToICal(event.dtend, event.allDay));
+      if (event.subject) {
+        text.push("SUMMARY:" + quote(event.subject));
+      }
+      if (event.note) {
+        text.push("DESCRIPTION:" + quote(event.note));
+      }
+      if (event.location) {
+        text.push("LOCATION:" + quote(event.location));
+      }
+      if (event.categories) {
+        text.push("CATEGORIES:" + event.categories);
+      }
+      if (event.rrule) {
+        text.push(buildRRULE(event.rrule));
+      }
+      if (event.exdates) {
+        text.push("EXDATE;VALUE=DATE-TIME:" + event.exdates.join(","));
+      }
+      if (event.transp) {
+        text.push("TRANSP:" + event.transp);
+      }*/
       text.push("END:VEVENT");
       text.push("END:VCALENDAR");
 
@@ -670,7 +792,7 @@ var iCal = (function () {
           line = text[i];
         }
       }
-      return text.join("\r\n");
+      return text.join("\r\n") + "\r\n";
     }
   }; //end of public interface
 }());

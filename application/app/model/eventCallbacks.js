@@ -1,5 +1,5 @@
 //JSLint options:
-/*global DB, log, iCal, account */ //PROBLEM: get rid of global account shomehow..
+/*global DB, log, iCal, account, setTimeout */ //PROBLEM: get rid of global account shomehow..
 /*jslint indent: 2 */
 
 var eventCallbacks = (function () {
@@ -22,14 +22,14 @@ var eventCallbacks = (function () {
             input.result = r.results;
             input.success = true;
           } else {
-            log("Error in getAllEventIds: " + JSON.stringify(future.exception));
+            log("Error in getAllEvents: " + JSON.stringify(future.exception));
             input.success = false;
           }
           input.callback(input);
         }
       );
     } catch (exception) {
-      log("Exception in getAllEventIds: " + exception + " - " + JSON.stringify(exception));
+      log("Exception in getAllEvents: " + exception + " - " + JSON.stringify(exception));
       input.success = false;
       input.callback(input);
     }
@@ -42,11 +42,12 @@ var eventCallbacks = (function () {
       for (i = 0; i < input.result.length; i += 1) {
         try {
           result = input.result[i];
-          log("Got event: " + JSON.stringify(result));
-          obj = { localId: result._id, data: iCal.generateICal(result) };
+          //log("Got event: " + JSON.stringify(result));
           if (result._del === true) {
+            obj = { localId: result._id, uid: result.uId};
             del.push(obj);
           } else {
+            obj = { localId: result._id, data: iCal.generateICal(result), uid: result.uId};
             update.push(obj);
           }
         } catch (e) {
@@ -54,7 +55,160 @@ var eventCallbacks = (function () {
         }
       }
     }
-    input.callback2({add: [], del: del, update: update}); //still can't distinguish between new and changed items.
+    input.callback2({add: [], del: del, replace: update, success: input.success}); //still can't distinguish between new and changed items.
+  }
+
+  function createEvent(input) {
+    log("createEvent called");
+    try {
+      var e, recId;
+      if (input.event) {
+        e = [input.event];
+      } else {
+        e = [iCal.parseICal(input.item)];
+      }
+      log("Event: " + e[0].subject);
+      e[0].calendarId = account.webOsCalendarId; //need to set this to tell webOs in which calendar this event should be, undefined else. TODO: don't rely on global account object here. :(
+      e[0].accountId = account.webOsAccountId;
+
+      //try to find parentIds for children.
+      if (e[0].recurringId || e[0].recurringId === 0) {
+        recId = e[0].recurringId;
+        recurringEventIds[recId] = { counter: 0};
+        delete e[0].recurringId;
+      }
+      if (e[0].parentLocalId || e[0].parentLocalId === 0) {
+        recId = e[0].parentLocalId;
+        if (!recurringEventIds[recId] || !recurringEventIds[recId].id) {
+          if (!recurringEventIds[recId]) {
+            recurringEventIds[recId] = { counter: 0};
+          }
+          if (recurringEventIds[recId].counter < 30) {
+            log("Got no parentId, yet. Wait a little if parent get's processed.");
+            input.event = e[0];
+            setTimeout(createEvent.bind(null, input), 100);
+            return;
+          } else {
+            log("Waited long enough for parent... won't come. :(");
+          }
+        } else {
+          log("Got parentId " + recurringEventIds[recId].id + " for " + e[0].subject);
+          delete e[0].parentLocalId;
+          e[0].parentId = recurringEventIds[recId].id;
+        }
+      }
+
+      //continue adding of event.
+      e[0]._kind = "info.mobo.syncml.calendarevent:1";
+      //log("Got Event: " + JSON.stringify(e[0]));
+      DB.put(e).then(
+        function (future) {
+          var r = future.result;
+          if (r.returnValue === true) {
+            eventAdded += 1;
+            if (this.eventsAddedElement) {
+              this.eventsAddedElement.innerHTML = eventAdded;
+            }
+            e[0]._id = r.results[0].id;
+            input.localId = r.results[0].id;
+            input.success = true;
+            if (recId || recId === 0) {
+              if (!recurringEventIds[recId]) {
+                recurringEventIds[recId] = { counter: 0, id: e[0]._id };
+              } else {
+                recurringEventIds[recId].id = e[0]._id;
+              }
+            }
+          } else {
+            eventAddFailed += 1;
+            if (this.eventsAddFailedElement) {
+              this.eventsAddFailedElement.innerHTML = eventAddFailed;
+            }
+            try {
+              log("Callback not successfull: " + JSON.stringify(future.exception.error) + ". at - " + input.item + " = " + JSON.stringify(e));
+            } catch (exception) {
+              log("Callback not successfull: " + JSON.stringify(future.exception));
+            }
+            input.success = false;
+          }
+          input.callback(input);
+        }
+      );
+    } catch (exception) {
+      log("Exception in createEvent: " + exception + " - " + input.item);
+      log(JSON.stringify(exception));
+      input.success = false;
+      input.callback(input);
+    }
+  }
+
+  function updateEvent(input) {
+    log("Update event called");
+    try {
+      var e, recId;
+      if (input.event) {
+        e = [input.event];
+      } else {
+        e = [iCal.parseICal(input.item)];
+      }
+      log("Event: " + e[0].subject);
+      e[0]._id = input.localId;
+      e[0].calendarId = account.webOsCalendarId; //need to set this to tell webOs in which calendar this event should be, undefined else. TODO: don't rely on global account object here. :(
+      e[0].accountId = account.webOsAccountId;
+
+      //try to find parentIds for children. 
+      if (e[0].recurringId) {
+        recurringEventIds[e[0].recurringId] = e[0]._id; //have id already, just set it here. :)
+        delete e[0].recurringId;
+      }
+      if (e[0].parentLocalId || e[0].parentLocalId === 0) {
+        recId = e[0].parentLocalId;
+        if (!recurringEventIds[recId] || !recurringEventIds[recId].id) {
+          if (!recurringEventIds[recId]) {
+            recurringEventIds[recId] = { counter: 0};
+          }
+          if (recurringEventIds[recId].counter < 30) {
+            input.event = e[0];
+            log("Got no parentId, yet. Wait a little if parent get's processed.");
+            setTimeout(updateEvent.bind(null, input), 100);
+            return;
+          } else {
+            log("Waited long enough for parent... won't come. :(");
+          }
+        } else {
+          log("Got parentId " + recurringEventIds[recId].id + " for " + e[0].subject);
+          delete e[0].parentLocalId;
+          e[0].parentId = recurringEventIds[recId].id;
+        }
+      }
+
+      //continue update.
+      e[0]._kind = "info.mobo.syncml.calendarevent:1";
+      DB.merge(e).then(
+        function (future) {
+          var r = future.result;
+          if (r.returnValue === true) {
+            eventUpdated += 1;
+            if (this.eventsUpdatedElement) {
+              this.eventsUpdatedElement.innerHTML = eventUpdated;
+            }
+            input.success = true;
+          } else {
+            eventUpdateFailed += 1;
+            if (this.eventsUpdateFailedElement) {
+              this.eventsUpdateFailedElement.innerHTML = eventUpdateFailed;
+            }
+            log("Callback not successfull: " + future.exception.errorText + "(" + future.exception.errorCode + "). :(" + input.item + JSON.stringify(e));
+            input.success = false;
+          }
+          input.callback(input);
+        }
+      );
+    } catch (exception) {
+      log("Exception in UpdateEvent: " + exception + " - " + JSON.stringify(exception) + " at " + input.item + " with ID " + input.localId);
+      input.success = false;
+      input.callback(input);
+    }
   }
 
   //will return public interface:
@@ -63,79 +217,7 @@ var eventCallbacks = (function () {
 		 * Creates event, called from c++ part. Parameter is the iCal item data string.
 		 * @param {Object} event
 		 */
-		createEvent: function (input) {
-		  log("createEvent called");
-			try {
-				var e = [iCal.parseICal(input.item)], recId, i, child;
-
-				//try to find parentIds for children.
-        if (e[0].recurringId || e[0].recurringId === 0) {
-          recId = e[0].recurringId;
-          recurringEventIds[recId] = { counter: 0};
-          delete e[0].recurringId;
-        }
-        if (e[0].parentLocalId || e[0].parentLocalId === 0) {
-          recId = e[0].parentLocalId;
-          if (!recurringEventIds[recId] || !recurringEventIds[recId].id) {
-            if (!recurringEventIds[recId]) {
-              recurringEventIds[recId] = { counter: 0};
-            }
-            if (recurringEventIds[recId].counter < 30) {
-              log("Got no parentId, yet. Wait a little if parent get's processed.");
-              setTimeout(createEvent.bind(this,input),100); 
-            } else {
-              log("Waited long enough for parent... won't come. :(");
-            }
-          } else {
-            log("Got parentId " + recurringEventIds[recId].id + " for " + e[0].subject);
-            delete e[0].parentLocalId;
-            e[0].parentId = recurringEventIds[recId].id;
-          }
-        }
-
-        //continue adding of event.
-				e[0]._kind = "info.mobo.syncml.calendarevent:1";
-				//log("Got Event: " + JSON.stringify(e[0]));
-				DB.put(e).then(
-				  function (future) {
-				    var r = future.result;
-				    if (r.returnValue === true) {
-				      eventAdded += 1;
-	            if (this.eventsAddedElement) {
-	              this.eventsAddedElement.innerHTML = eventAdded;
-	            }
-	            e[0]._id = r.results[0].id;
-	            input.localId = r.results[0].id;
-	            input.success = true;
-	            if (recId || recId === 0) {
-	              if (!recurringEventIds[recId]) {
-	                recurringEventIds[recId] = { counter: 0, id: input.localId };
-	              } else {
-	                recurringEventIds[recId].id = input.localId;
-	              }
-	            }
-				    } else {
-				      eventAddFailed += 1;
-				      if (this.eventsAddFailedElement) {
-				        this.eventsAddFailedElement.innerHTML = eventAddFailed;
-				      }
-	            try {
-	              log("Callback not successfull: " + JSON.stringify(future.exception.error) + ". at - " + input.item + " = " + JSON.stringify(e));
-	            } catch (exception) {
-	              log("Callback not successfull: " + JSON.stringify(future.exception));
-	            }
-	            input.success = false;
-				    }
-				    input.callback(input);
-				  }.bind(this)
-				);
-			} catch (exception) {
-				log("Exception in createEvent: " + exception + " - " + input.item);
-				log(JSON.stringify(exception));
-        input.success = false;
-        input.callback(input);
-			}
-		},
+		createEvent: createEvent,
 
 		/**
 		 * Updates an event. Parameters are the iCal item data string and the eventId.
@@ -143,64 +225,7 @@ var eventCallbacks = (function () {
 		 * @param {Object} event
 		 * @param {Object} eventId
 		 */
-		updateEvent: function (input) {
-		  log("Update event called.");
-			try {
-				var e = [iCal.parseICal(input.item)];
-				e[0]._id = input.localId; 
-
-        //try to find parentIds for children. 
-        if (e[0].recurringId) {
-          recurringEventIds[e[0].recurringId] = input.localId; //have id already, just set it here. :)
-          delete e[0].recurringId;
-        }
-        if (e[0].parentLocalId || e[0].parentLocalId === 0) {
-          recId = e[0].parentLocalId;
-          if (!recurringEventIds[recId] || !recurringEventIds[recId].id) {
-            if (!recurringEventIds[recId]) {
-              recurringEventIds[recId] = { counter: 0};
-            }
-            if (recurringEventIds[recId].counter < 30) {
-              log("Got no parentId, yet. Wait a little if parent get's processed.");
-              setTimeout(createEvent.bind(this,input),100); 
-            } else {
-              log("Waited long enough for parent... won't come. :(");
-            }
-          } else {
-            log("Got parentId " + recurringEventIds[recId].id + " for " + e[0].subject);
-            delete e[0].parentLocalId;
-            e[0].parentId = recurringEventIds[recId].id;
-          }
-        }
-
-        //continue update.
-				e[0]._kind = "info.mobo.syncml.calendarevent:1";
-				DB.merge(e).then(
-				  function (future) {
-				    var r = future.result;
-				    if (r.returnValue === true) {
-		          eventUpdated += 1;
-		          if (this.eventsUpdatedElement) {
-		            this.eventsUpdatedElement.innerHTML = eventUpdated;
-		          }
-		          input.success = true;
-				    } else {
-				      eventUpdateFailed += 1;
-				      if (this.eventsUpdateFailedElement) {
-				        this.eventsUpdateFailedElement.innerHTML = eventUpdateFailed;
-				      }
-				      log("Callback not successfull: " + future.exception.errorText + "(" + future.exception.errorCode + "). :(" + input.item + JSON.stringify(e));
-				      input.success = false;
-				    }
-				    input.callback(input);
-				  }
-				);
-			} catch (exception) {
-				log("Exception in UpdateEvent: " + exception + " - " + JSON.stringify(exception) + " at " + input.item + " with ID " + input.localId);
-				input.success = false;
-        input.callback(input);
-			}
-		},
+		updateEvent: updateEvent,
 
 		/**
 		 * Deteles event with eventId. Called from c++.
@@ -249,17 +274,18 @@ var eventCallbacks = (function () {
           function (future) {
             var r = future.result;
             if (r.returnValue === true) {
-              log("Successfully deleted all elements: " + JSON.stringify(future));
+              log("Successfully deleted all elements.");
+              callback({success: true});
             } else {
-              log("Error in deleteAllEvents: " + future.exception.errorText + "( " + future.exception.errorCode + ") = " + JSON.stringify(future));
+              log("Error in deleteAllEvents: " + future.exception.errorText + "( " + future.exception.errorCode + ")");
+              callback({success: false});
             }
-            callback({});
           }
         );
 			} catch (exception) {
 				log("Exception in deleteAllEvents: " + exception + " - " + JSON.stringify(exception));
 				//something went wrong, continue sync:
-				callback({});
+				callback({success: false});
 			}
 		},
 

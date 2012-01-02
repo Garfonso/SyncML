@@ -91,7 +91,7 @@ var syncMLMessage = function () {
   function readTargetSource(node) {
     var child = node.firstChild;
     while (child) {
-      log("Target/Source-child: " + child.nodeName);
+      //log("Target/Source-child: " + child.nodeName);
       switch (child.nodeName) {
       case "LocURI":
         return child.firstChild.nodeValue;
@@ -106,7 +106,7 @@ var syncMLMessage = function () {
     var child, anchor = {};
     child = node.firstChild;
     while (child) {
-      log("Anchor-child: " + child.nodeName);
+      //log("Anchor-child: " + child.nodeName);
       switch (child.nodeName) {
       case "Last":
         anchor.last = child.firstChild.nodeValue;
@@ -127,7 +127,7 @@ var syncMLMessage = function () {
     var child, meta = {};
     child = node.firstChild;
     while (child) {
-      log("meta-child: " + child.nodeName);
+      //log("meta-child: " + child.nodeName);
       switch (child.nodeName) {
       case "Anchor":
         meta.anchor = readAnchor(child);
@@ -140,6 +140,9 @@ var syncMLMessage = function () {
         break;
       case "MaxMsgSize":
         meta.maxMsgSize = child.firstChild.nodeValue;
+        break;
+      case "Size":
+        meta.size = child.firstChild.nodeValue;
         break;
       default:
         log("WARNIG: readMeta does not understand " + child.nodeName + ", yet. Value ignored. " + printNode(node));
@@ -156,7 +159,7 @@ var syncMLMessage = function () {
     var header = {}, child;
     child = hdr.firstChild;
     while (child) {
-      log("header-child: " + child.nodeName);
+      //log("header-child: " + child.nodeName);
       switch (child.nodeName) {
       case "SessionID":
         header.sessionId = child.firstChild.nodeValue;
@@ -201,10 +204,10 @@ var syncMLMessage = function () {
     var nprefix = prefix + "\t";
     if (meta.anchor) {
       m.push(nprefix); m.push("<Anchor xmlns='syncml:metinf'>\n");
-      if (meta.last) {
-        writeNodeValue("Last", meta.anchor.last, nprefix + "\t", true);
+      if (meta.anchor.last) {
+        writeNodeValue("Last", meta.anchor.last, nprefix + "\t", false);
       }
-      writeNodeValue("Next", meta.anchor.next, nprefix + "\t", true);
+      writeNodeValue("Next", meta.anchor.next, nprefix + "\t", false);
       m.push(nprefix); m.push("</Anchor>\n");
     }
     if (meta.format) {
@@ -216,6 +219,9 @@ var syncMLMessage = function () {
     if (meta.maxMsgSize) {
       writeNodeValue("MaxMsgSize", meta.maxMsgSize, nprefix, true);
     }
+    if (meta.size) {
+      writeNodeValue("Size", meta.size, nprefix, true);
+    }
     m.push(prefix); m.push("</Meta>\n");
   }
 
@@ -226,10 +232,10 @@ var syncMLMessage = function () {
     //may have: Target, Source, Meta, Data. Not supported by me: SourceParent, TargetPartent :)
     child = node.firstChild;
     while (child) {
-      log("item-child: " + child.nodeName);
+      //log("item-child: " + child.nodeName);
       switch (child.nodeName) {
       case "Data":
-        item.data = child.firstChild.nodeValue;
+        item.data = child.firstChild ? child.firstChild.nodeValue : "";
         break;
       case "Source":
         item.source = readTargetSource(child);
@@ -260,7 +266,7 @@ var syncMLMessage = function () {
       addMetaToMsg(item.meta, nprefix);
     }
     if (item.data) {
-      writeNodeValue("Data", item.data, nprefix);
+      writeNodeValue("Data", item.data, "");
     }
     m.push(prefix); m.push("</Item>\n");
   }
@@ -270,7 +276,7 @@ var syncMLMessage = function () {
     var alert = {}, child;
     child = node.firstChild;
     while (child) {
-      log("alert-child: " + child.nodeName);
+      //log("alert-child: " + child.nodeName);
       switch (child.nodeName) {
       case "CmdID":
         alert.cmdId = child.firstChild.nodeValue;
@@ -322,7 +328,7 @@ var syncMLMessage = function () {
     var status = { items: []}, child;
     child = node.firstChild;
     while (child) {
-      log("status-child: " + child.nodeName);
+      //log("status-child: " + child.nodeName);
       switch (child.nodeName) {
       case "CmdID":
         status.cmdId = child.firstChild.nodeValue;
@@ -430,7 +436,7 @@ var syncMLMessage = function () {
     var obj = { items: []}, child;
     child = node.firstChild;
     while (child) {
-      log("add/replace/delete-child: " + child.nodeName);
+      //log("add/replace/delete-child: " + child.nodeName);
       switch (child.nodeName) {
       case "CmdID":
         obj.cmdId = child.firstChild.nodeValue;
@@ -462,7 +468,7 @@ var syncMLMessage = function () {
   function addSyncToMsg(sync, prefix) {
     var i, nprefix;
     if (!sync.target && !sync.source) { // sync.add.length === 0 && sync.del.length === 0 && sync.replace.length === 0) {
-      log("Not adding empty sync.");
+      //log("Not adding empty sync.");
       return;
     }
     m.push(prefix); m.push("<Sync>\n");
@@ -496,7 +502,7 @@ var syncMLMessage = function () {
 
     child = node.firstChild;
     while (child) {
-      log("sync-child: " + child.nodeName);
+      //log("sync-child: " + child.nodeName);
       switch (child.nodeName) {
       case "Add":
         obj = readAddReplace(child);
@@ -556,7 +562,7 @@ var syncMLMessage = function () {
     //parse all childs of the body:
     node = body.firstChild;
     while (node) {
-      log("body-child: " + node.nodeName);
+      //log("body-child: " + node.nodeName);
       switch (node.nodeName) {
       case "Alert":
         obj = readAlert(node);
@@ -601,6 +607,10 @@ var syncMLMessage = function () {
 
     getHeader: function () {
       return header;
+    },
+
+    isFinal: function () {
+      return body.isFinal;
     },
 
     //adds credential information to the header.
@@ -663,7 +673,7 @@ var syncMLMessage = function () {
       //first add status responses:
       for (msgRef in body.status) {
         if (body.status.hasOwnProperty(msgRef)) {
-          log("Adding status...");
+          //log("Adding status...");
           for (cmdRef in body.status[msgRef]) {
             if (body.status[msgRef].hasOwnProperty(cmdRef)) {
               addStatusToMsg(body.status[msgRef][cmdRef], "\t\t");
@@ -674,20 +684,20 @@ var syncMLMessage = function () {
 
       //add alerts: 
       for (i = 0; i < body.alerts.length; i += 1) {
-        log("Adding alert...");
+        //log("Adding alert...");
         addAlertToMsg(body.alerts[i], "\t\t");
       }
 
       //add syncCmd:
       for (i = 0; i < body.sync.length; i += 1) {
-        log("Adding sync...");
+        //log("Adding sync...");
         addSyncToMsg(body.sync[i], "\t\t");
       }
 
       //add maps:
       if (body.maps) {
         for (i = 0; i < body.maps.length; i += 1) {
-          log("Adding maps...");
+          //log("Adding maps...");
           m.push("\t\t<Map>\n");
           writeCmdId(body.maps[i], "\t\t\t");
           addTargetSource(body.maps[i]);
@@ -750,7 +760,7 @@ var syncMLMessage = function () {
       }
 
       //process alerts:
-      log("Alerts.");
+      //log("Alerts.");
       if (obody.alerts) {
         for (i = 0; i < obody.alerts.length; i += 1) {
           cmdId = obody.alerts[i].cmdId;
@@ -761,7 +771,7 @@ var syncMLMessage = function () {
       }
 
       //process sync commands:
-      log("Syncs.");
+      //log("Syncs.");
       if (obody.syncs) {
         for (i = 0; i < obody.syncs.length; i += 1) {
           log(i);
@@ -814,7 +824,7 @@ var syncMLMessage = function () {
         }
       }
 
-      log("putDevInfo");
+      //log("putDevInfo");
       if (obody.putDevInfo && obody.putDevInfo.cmdId && body.status[msgRef][obody.putDevInfo.cmdId] && body.status[msgRef][obody.putDevInfo.cmdId].data !== "200") {
         log("Status of putDevInfoCmd: " + body.status[msgRef][obody.putDevInfo.cmdId]);
         result.push({cmd: obody.putDevInfo, status: body.status[msgRef][obody.putDevInfo.cmdId]});
@@ -860,7 +870,7 @@ var syncMLMessage = function () {
             }
 
             for (j = 0; j < obody.sync[i].replace.length; j += 1) {
-              mAddSingleStatus(obody.sync[i].del[j], "Replace", msgRef);
+              mAddSingleStatus(obody.sync[i].replace[j], "Replace", msgRef);
             }
           }
         }
@@ -967,7 +977,6 @@ var syncMLMessage = function () {
       //first add status responses:
       for (msgRef in body.status) {
         if (body.status.hasOwnProperty(msgRef)) {
-          log("Adding status...");
           for (cmdRef in body.status[msgRef]) {
             if (body.status[msgRef].hasOwnProperty(cmdRef)) {
               return true;

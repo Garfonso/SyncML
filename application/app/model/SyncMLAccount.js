@@ -5,7 +5,7 @@
 var syncMLAccount = function () {
   "use strict";
   var version = 1;
-  
+
   return {
     //TODO: make those things private members!
     username: undefined,
@@ -17,12 +17,12 @@ var syncMLAccount = function () {
     syncContactsPath: undefined,
     syncContactsMethod: "slow",
     syncContactsNext: undefined,
-    syncContactsLast: undefined,
+    syncContactsServerNext: undefined,
     syncCalendar: false,
     syncCalendarPath: undefined,
     syncCalendarMethod: "slow",
     syncCalendarNext: undefined,
-    syncCalendarLast: undefined,
+    syncCalendarServerNext: undefined,
 
     webOsAccountId: undefined,
     webOsCalendarId: undefined,
@@ -40,7 +40,7 @@ var syncMLAccount = function () {
         acctObj = {"_kind": "info.mobo.syncml.store.accounts:1"};
         for (field in this) {
           if (this.hasOwnProperty(field) && typeof this[field] !== "function" && field !== "controller" && field !== "delete" && field !== "_rev" && field !== "deviceId") {
-            log("acctObj[" + field + "] = " + this[field]);
+            //log("acctObj[" + field + "] = " + this[field]);
             acctObj[field] = this[field];
           }
         }
@@ -91,7 +91,7 @@ var syncMLAccount = function () {
             log("Reading account from search result: ");
             for (field in result) {
               if (result.hasOwnProperty(field) && typeof result[field] !== "function" && field !== "_rev") {
-                log("result[" + field + "] = " + result[field]);
+                //log("result[" + field + "] = " + result[field]);
                 this[field] = result[field];
               }
             }

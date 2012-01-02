@@ -38,11 +38,11 @@ var SyncMLAlertCodes = {
 
 //some more or less static device infos.
 var DeviceProperties = {
-    man: "HP",
+    man: "MoboSync for WebOs",
     mod: Mojo.Environment.DeviceInfo.modelName,
-    oem: "HP",
+    oem: "MoboSync",
     fwv: "20.11.2011", //set firmware version to today.
-    swv: Mojo.Environment.DeviceInfo.platformVersion, //set to full platform version.. that could help to work out vcard interpretation issues.
+    swv: Mojo.Environment.DeviceInfo.platformVersion + " appv 0.0.2", //set to full platform version.. that could help to work out vcard interpretation issues.
     hwv: "20.11.2011", //set hardware version to today, too.. doesn't really care.
     devID: undefined, //fill that from the account!
     devType: "phone", //say phone here. Also the tablet is "similar to a phone".. ;)
@@ -113,7 +113,7 @@ var SyncML = (function () {
       mapping: []
     },
     secondTry = false,
-    resultCallback;
+    resultCallback, parseSyncResponse;
 
   //private members & methods:
   sessionInfo = {
@@ -131,8 +131,7 @@ var SyncML = (function () {
 
   //sends a message to the server.
   function sendToServer(text, callback) {
-    //log("Callback: " + callback + " - " + JSON.stringify(callback));
-    log("Sending to " + sessionInfo.url);
+    //log("Sending to " + sessionInfo.url);
     return new Ajax.Request(sessionInfo.url, {
       onFailure : function (error) { log("Request failed"); log(JSON.stringify(error)); },
       onSuccess : function (transport) { log("Request succeeded"); callback(transport); },
@@ -145,23 +144,24 @@ var SyncML = (function () {
 
   function parseLastResponse(transport) {
     var msg, failed, i;
-    log("Got: ");
-    log(transport.responseText);
+    //log("Got: ");
+    //log(transport.responseText);
 
     msg = syncMLMessage();
-    log("trying to parse msg...");
+    //log("trying to parse msg...");
     msg.buildMessageFromResponse(transport.responseText);
-    log("last response parsed.");
+    //log("last response parsed.");
     failed = msg.matchCommandsFromMessage(lastMsg);
     if (failed && failed.length > 0) {
       log("Have " + failed.length + " failed commands: ");
       for (i = 0; i < failed.length; i += 1) {
         log(JSON.stringify(failed[i]));
       }
-      resultCallback(false);
+      resultCallback({success: false});
     } else {
       //sync finished successful! :)
-      resultCallback(true);
+      log("All ok. Finished sync, call last callback.");
+      resultCallback({success: true, account: account }); //return account to update next / last sync. Mode might also be set by server. Nothing else should have changed.
     }
   }
 
@@ -174,42 +174,34 @@ var SyncML = (function () {
         //log("Sync: " + JSON.stringify(lastMsg.getBody().sync[0]));
         //log("lastMsg: " + JSON.stringify(lastMsg));
         //log("lastMsg.body: " + JSON.stringify(lastMsg.getBody()));
-        log("Result: " + JSON.stringify(result.globalId));
-        log("sync.length: " + lastMsg.getBody().sync.length);
-        log("sync[" + result.globalId.sync + "]: " + lastMsg.getBody().sync[result.globalId.sync]);
-        log("sync[" + result.globalId.sync + "][" + result.type + "].length: " + lastMsg.getBody().sync[result.globalId.sync][result.type].length);
-        log("sync[" + result.globalId.sync + "][" + result.type + "][" + result.globalId.cmd + "]: " + lastMsg.getBody().sync[result.globalId.sync][result.type][result.globalId.cmd]);
         item = lastMsg.getBody().sync[result.globalId.sync][result.type][result.globalId.cmd].items[result.globalId.item];
         calendar.mapping.push({source: result.localId, target: item.source});
+        log("Added id to mapping");
       }
     } else if (result && result.success === false) {
       log("item action failure");
-      log("Result: " + JSON.stringify(result.globalId));
-      log("sync.length: " + lastMsg.getBody().sync.length);
-      log("sync[" + result.globalId.sync + "]: " + lastMsg.getBody().sync[result.globalId.sync]);
-      log("sync[" + result.globalId.sync + "][" + result.type + "].length: " + lastMsg.getBody().sync[result.globalId.sync][result.type].length);
-      log("sync[" + result.globalId.sync + "][" + result.type + "][" + result.globalId.cmd + "]: " + lastMsg.getBody().sync[result.globalId.sync][result.type][result.globalId.cmd]);
       lastMsg.getBody().sync[result.globalId.sync][result.type][result.globalId.cmd].failure = true; //remember that this was a failure. Fail the whole command if any item fails.
+      log("noted failure for status cmd.");
     }
 
-    log("Last message? " + calendar.add + " + " + calendar.del + " + " + calendar.replace);
     if (calendar.add + calendar.del + calendar.replace === 0) { //all callbacks finished:
-      log("Yes, last message.");
+      log("all change callbacks finished.");
       message = syncMLMessage();
       message.addStatuses(lastMsg); //will handly  failures, also. *phew*. => status finished.
-      log("added statusses to last msg.");
       message.addMap({source: "calendar", target: account.syncCalendarPath, mapItems: calendar.mapping });
-      log("added map to last msg.");
       if (!message.hasStatus() && calendar.mapping.length === 0) {
         log("message is empty => add alert 222");
         message.addAlert({ data: "222", items: [ { source: "calendar", target: account.syncCalendarPath } ] });
         log("add alert ok");
       }
 
-      log("Build message.");
       content = message.buildMessage({sessionId: sessionInfo.sessionId, msgId: getMsgId(), target: account.url, source: DeviceProperties.id});
-      log("ok.");
-      sendToServer(content, parseLastResponse);
+      if (lastMsg.isFinal()) {
+        sendToServer(content, parseLastResponse);
+      } else {
+        log("Not final message. there will be more.");
+        sendToServer(content, parseSyncResponse); //continue sync.
+      }
       lastMsg = message;
     }
   }
@@ -219,23 +211,21 @@ var SyncML = (function () {
   //in the end a new message containing mapings from local to global ids for new items 
   //needs to be generated and send.
   //remark: we don't check item type anywhere.. this would be the right place.
-  function parseSyncResponse(transport) {
+  parseSyncResponse = function (transport) {
     var msg, failed, i, j, k, sync, content;
-    log("Got: ");
-    log(transport.responseText);
+    //log("Got: ");
+    //log(transport.responseText);
 
     msg = syncMLMessage();
-    log("trying to parse msg...");
     msg.buildMessageFromResponse(transport.responseText);
-    log("sync response parsed.");
-    log("Sync message had sync: " + JSON.stringify(lastMsg.getBody().sync));
+    //log("Sync message had sync: " + JSON.stringify(lastMsg.getBody().sync));
     failed = msg.matchCommandsFromMessage(lastMsg);
     if (failed && failed.length > 0) {
       log("Have " + failed.length + " failed commands: ");
       for (i = 0; i < failed.length; i += 1) {
         log(JSON.stringify(failed[i]));
       }
-      resultCallback(false);
+      resultCallback({success: false});
     } else {
       if (!msg.getBody().sync || msg.getBody().sync.length === 0) {
         log("Did not receive a sync cmd.");
@@ -251,7 +241,7 @@ var SyncML = (function () {
           return;
         } else {
           log("Already had second try, something failed.");
-          resultCallback(false);
+          resultCallback({success: false});
           return;
         }
       }
@@ -273,7 +263,6 @@ var SyncML = (function () {
                 item: sync.add[j].items[k].format === "b64" ? window.atob(sync.add[j].items[k].data) : sync.add[j].items[k].data
               }
             );
-            log("Ok");
           }
         }
         for (j = 0; sync.del && j < sync.del.length; j += 1) {
@@ -284,11 +273,10 @@ var SyncML = (function () {
                 type: "del",
                 callback: itemActionCalendarCallback,
                 globalId: {sync: i, item: k, cmd: j, cmdId: sync.del[j].cmdId }, //abuse cmdId to get globalId later and find status better later. :)
-                localId: sync.del[j].item[k].source,
-                item: sync.add[j].items[k].format === "b64" ? window.atob(sync.add[j].items[k].data) : sync.add[j].items[k].data //most probably undefined for delete.
+                localId: sync.del[j].items[k].source
+                //item: sync.del[j].items[k].format === "b64" ? window.atob(sync.del[j].items[k].data) : sync.del[j].items[k].data //most probably undefined for delete.
               }
             );
-            log("Ok.");
           }
         }
         for (j = 0; sync.replace && j < sync.replace.length; j += 1) {
@@ -299,22 +287,25 @@ var SyncML = (function () {
                 type: "replace",
                 callback: itemActionCalendarCallback,
                 globalId: {sync: i, item: k, cmd: j, cmdId: sync.replace[j].cmdId }, //abuse cmdId to get globalId later and find status better later. :)
-                localId: sync.replace[j].item[k].source,
-                item: sync.add[j].items[k].format === "b64" ? window.atob(sync.add[j].items[k].data) : sync.add[j].items[k].data
+                localId: sync.replace[j].items[k].source,
+                item: sync.replace[j].items[k].format === "b64" ? window.atob(sync.replace[j].items[k].data) : sync.replace[j].items[k].data
               }
             );
-            log("Ok");
           }
         }
       }
+      log("Parsing of sync response finished.");
       lastMsg = msg; //save msg for later reference.
-      log("parsing of sync response finished");
       itemActionCalendarCallback({}); //in case there was no action to be done, continue with sync by calling itemActionCalendarCallback.
     }
-  }
+  };
 
   function mContinueSyncCalendar(data) {
     var msg = syncMLMessage(), i, content;
+    if (!data.success) {
+      resultCallback({success: false});
+      return;
+    }
     if (data.add) {
       for (i = 0; i < data.add.length; i += 1) {
         msg.addSyncCmd({
@@ -322,6 +313,7 @@ var SyncML = (function () {
           item: {
             data: data.add[i].data,
             source: data.add[i].localId,
+            target: data.add[i].uid,
             meta: {
               type: "text/calendar"
               //format: "b64" //do we want b64? First try without, maybe.. easier to debug.
@@ -337,6 +329,7 @@ var SyncML = (function () {
           item: {
             //data: data.del[i].data, //data not necessary for delete.
             source: data.del[i].localId,
+            target: data.del[i].uid,
             meta: {
               type: "text/calendar"
               //format: "b64" //do we want b64? First try without, maybe.. easier to debug.
@@ -352,8 +345,10 @@ var SyncML = (function () {
           item: {
             data: data.replace[i].data,
             source: data.replace[i].localId,
+            target: data.replace[i].uid,
             meta: {
               type: "text/calendar"
+              //size: data.replace[i].data.length
               //format: "b64" //do we want b64? First try without, maybe.. easier to debug.
             }
           }
@@ -367,7 +362,7 @@ var SyncML = (function () {
     msg.setSyncTargetSource({ source: "calendar", target: account.syncCalendarPath });
 
     content = msg.buildMessage({sessionId: sessionInfo.sessionId, msgId: getMsgId(), target: account.url, source: DeviceProperties.id});
-    log("Sending to server: " + content);
+    //log("Sending to server: " + content);
     sendToServer(content, parseSyncResponse);
     lastMsg = msg;
   }
@@ -381,6 +376,7 @@ var SyncML = (function () {
           item: {
             data: data.add[i].data,
             source: data.add[i].localId,
+            target: data.add[i].uid,
             meta: {
               type: "text/vcard"
               //format: "b64" //do we want b64? First try without, maybe.. easier to debug.
@@ -396,6 +392,7 @@ var SyncML = (function () {
           item: {
             //data: data.del[i].data, //data not necessary for delete.
             source: data.del[i].localId,
+            target: data.del[i].uid,
             meta: {
               type: "text/vcard"
               //format: "b64" //do we want b64? First try without, maybe.. easier to debug.
@@ -411,6 +408,7 @@ var SyncML = (function () {
           item: {
             data: data.replace[i].data,
             source: data.replace[i].localId,
+            target: data.replace[i].uid,
             meta: {
               type: "text/vcard"
               //format: "b64" //do we want b64? First try without, maybe.. easier to debug.
@@ -426,7 +424,7 @@ var SyncML = (function () {
       msg.addAlert({ data: "222", items: [ { source: "contacts", target: account.syncContactsPath } ] });
     }
     content = msg.buildMessage({sessionId: sessionInfo.sessionId, msgId: getMsgId(), target: account.url, source: DeviceProperties.id});
-    log("Sending to server: " + content);
+    //log("Sending to server: " + content);
     sendToServer(content, parseSyncResponse);
     lastMsg = msg;
   }
@@ -475,32 +473,31 @@ var SyncML = (function () {
 
   function parseInitResponse(transport) {
     var msg, failed, numProblems = 0, i, alert, needRefresh = false;
-    log("Got: ");
-    log(transport.responseText);
+    //log("Got: ");
+    //log(transport.responseText);
 
     msg = syncMLMessage();
-    log("trying to parse msg...");
+    //log("trying to parse msg...");
     msg.buildMessageFromResponse(transport.responseText);
-    log("initial response parsed.");
+    //log("initial response parsed.");
     failed = msg.matchCommandsFromMessage(lastMsg);
     if (failed && failed.length > 0) {
       numProblems = failed.length;
       log("Have " + failed.length + " failed commands: ");
       for (i = 0; i < failed.length; i += 1) {
         log(JSON.stringify(failed[i]));
+        if (failed[i].status.cmdName === "Alert" && failed[i].status.data === "508") { //server requires refresh.
         //TODO: this does not really work for more than one source, right??
-        if (failed[i].status.cmdRef === lastMsg.getBody().alerts[0].cmdId) { //got response to cmdRef.
-          if (failed[i].status.data === "508") { //server requires refresh.
-            log("No problem, server just wants a refresh.");
-            needRefresh = true;
-            numProblems -= 1;
-          }
+        //if (failed[i].status.cmdRef === lastMsg.getBody().alerts[0].cmdId) { //got response to cmdRef.
+          log("No problem, server just wants a refresh.");
+          needRefresh = true;
+          numProblems -= 1;
         }
       }
     }
     if (numProblems) {
       log(numProblems + " real problems left... break.");
-      resultCallback(false);
+      resultCallback({success: false});
       return;
     } else {
       if (msg.getHeader().respURI) {
@@ -511,21 +508,20 @@ var SyncML = (function () {
       //TODO: maybe some other server will already send a sync cmd with data here?? See if that happens...
       for (i = 0; i < msg.getBody().alerts.length; i += 1) {
         alert = msg.getBody().alerts[i];
-        log("Alert: " + JSON.stringify(alert));
+        //log("Alert: " + JSON.stringify(alert));
         if (alert.items && alert.items[0] && alert.items[0].target === "calendar") {
           if (alert.data) {
             log("Got syncCalendarMethod: " + alert.data);
             account.syncCalendarMethod = SyncMLAlertCodes[alert.data];
             needRefresh = false;
           }
-          if (alert.items && alert.items[0] && alert.items[0].meta && alert.items[0].meta.anchor && alert.items[0].meta.anchor.next) {
-            log("Got next: " + alert.items[0].meta.anchor.next + " and have own next: " + account.syncCalendarNext);
-            account.syncCalendarNext = alert.items[0].meta.anchor.next;
-          }
           if (alert.items && alert.items[0] && alert.items[0].meta && alert.items[0].meta.anchor && alert.items[0].meta.anchor.last) {
-            log("Got last: " + alert.items[0].meta.anchor.last + " and have own last: " + account.syncCalendarLast);
-            account.syncCalendarLast = alert.items[0].meta.anchor.last;
-            //TODO: need to set this next/last for account object in database...
+            log("Got server-last: " + alert.items[0].meta.anchor.last + " and have own server-last: " + account.syncCalendarServerNext);
+            //account.syncCalendarServerNext = alert.items[0].meta.anchor.last;
+          }
+          if (alert.items && alert.items[0] && alert.items[0].meta && alert.items[0].meta.anchor && alert.items[0].meta.anchor.next) {
+            log("Got next: " + alert.items[0].meta.anchor.next + " for server, save.");
+            account.syncCalendarServerNext = alert.items[0].meta.anchor.next;
           }
         }
         if (alert.items && alert.items[0] && alert.items[0].target === "contacts") {
@@ -536,10 +532,10 @@ var SyncML = (function () {
       }
       if (needRefresh) {
         log("Server told us that we need to refresh, but did not send a alert for that... fail. :(");
-        resultCallback(false);
+        resultCallback({success: false});
         return;
       }
-      log("Call getSyncData()");
+      //log("Call getSyncData()");
       lastMsg = msg;
       getSyncData();
     }
@@ -548,7 +544,7 @@ var SyncML = (function () {
   function parseCredResponse(transport) {
     var responseMsg, status;
 
-    log("Got response: " + transport.responseText);
+    //log("Got response: " + transport.responseText);
 
     responseMsg = syncMLMessage();
     responseMsg.buildMessageFromResponse(transport.responseText);
@@ -558,7 +554,7 @@ var SyncML = (function () {
       resultCallback(true);
     } else {
       log("Wrong credentials?, status data: " + status);
-      resultCallback(false);
+      resultCallback({success: false});
     }
   }
 
@@ -575,7 +571,7 @@ var SyncML = (function () {
 	    if (!DeviceProperties.devID) {
 	      throw ({name: "MissingInformation", message: "Error: Need to fill DeviceProperties.devId before syncML can start."});
 	    } else {
-	      DeviceProperties.id = DeviceProperties.man + DeviceProperties.mod + DeviceProperties.devID;
+	      DeviceProperties.id = DeviceProperties.devID;
 	      log("Will be known to server as " + DeviceProperties.id);
 	    }
 	  },
@@ -590,7 +586,7 @@ var SyncML = (function () {
 
 		  content = msg.buildMessage({sessionId: sessionInfo.sessionId, msgId: getMsgId(), target: account.url, source: DeviceProperties.id});
 
-			log("Sending to server: " + content);
+			//log("Sending to server: " + content);
 			sendToServer(content, parseCredResponse);
 			lastMsg = msg;
 		},
@@ -603,7 +599,7 @@ var SyncML = (function () {
 
 			if (account.syncCalendar) {
 			  account.syncCalendarLast = account.syncCalendarNext;
-			  account.syncCalendarNext = new Date().getTime();
+			  account.syncCalendarNext = (new Date().getTime() / 1000).toFixed();
 			  msg.addAlert({
 			    data: SyncMLModes[account.syncCalendarMethod],
 			    items: [{
@@ -632,7 +628,7 @@ var SyncML = (function () {
 		  msg.addPutDevInfo(DeviceProperties, datastores);
 
 		  content = msg.buildMessage({sessionId: sessionInfo.sessionId, msgId: getMsgId(), target: account.url, source: DeviceProperties.id});
-			log("Sending to server: " + content);
+			//log("Sending to server: " + content);
       sendToServer(content, parseInitResponse);
       lastMsg = msg;
 		},

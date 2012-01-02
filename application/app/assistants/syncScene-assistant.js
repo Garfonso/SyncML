@@ -84,39 +84,7 @@ SyncSceneAssistant.prototype.checkAccount = function()
 };
 
 SyncSceneAssistant.prototype.startSync = function()
-{
-/*	this.controller.get("btnStart").mojo.activate();
-	syncSource = new SyncSource({
-			name: 'calendar',
-			type: 'text/calendar',
-			encoding: 'none',
-			remoteUri: account.syncCalendarPath,
-			syncMode: modes[account.syncCalendarMethod],
-			lastAnchor: 0
-	});
-	syncSource.logCallback = log.bind(this);
-	log("==== Creating SyncManager");
-	syncManager = new SyncManager(account.url, account.username, account.password, account.deviceId);
-	log("==== Created SyncManager");
-	syncManager.setLogCallback(log.bind(this));
-	syncManager.setErrorCallback(log.bind(this));
-	log("==== Calling syncManager.sync");
-	syncManager.sync(syncSource,modes[account.syncCalendarMethod],false);
-	log("==== syncManager.sync returned!");*/
-	
-	//this needs to happen in finished.
-	/*
-	if (account.syncCalendar) {
-		eventCallbacks.finishSync(true);
-	}
-	if (account.syncContacts) {
-		if (account.syncContactsMethod === "slow" || account.syncContactsMethod.indexOf("refresh") !== -1) {
-			account.syncContactsMethod = "two-way";
-		}
-	}
-	account.saveConfig();
-	this.controller.get("btnStart").mojo.deactivate();*/
-	
+{	
   if (this.locked) {
     log("Sync already running. Correct?");
     return;
@@ -139,6 +107,68 @@ SyncSceneAssistant.prototype.startSync = function()
     log(content);
   }
   return;*/
+  
+  /*var events = [
+                { 
+                  calendarId: account.webOsCalendarId,
+                  _kind: "info.mobo.syncml.calendarevent:1", //go into right calendar.
+                  subject: "allday-test-1",
+                  dtstart: 1325462400000,
+                  dtend: 1325462400000,
+                  allDay: true
+                },
+                { 
+                  calendarId: account.webOsCalendarId,
+                  _kind: "info.mobo.syncml.calendarevent:1", //go into right calendar.
+                  subject: "allday-test-2",
+                  dtstart: 1325462400000,
+                  dtend: 1325548800000,
+                  allDay: true
+                },
+                { 
+                  calendarId: account.webOsCalendarId,
+                  _kind: "info.mobo.syncml.calendarevent:1", //go into right calendar.
+                  subject: "allday-test-3",
+                  dtstart: 1325462400000,
+                  dtend: 1325548799000,
+                  allDay: true
+                }
+                ];
+  
+  DB.put(events).then(
+    function (future) {
+      var r = future.result;
+      if (r.returnValue === true) {
+        eventAdded += 1;
+        if (this.eventsAddedElement) {
+          this.eventsAddedElement.innerHTML = eventAdded;
+        }
+        e[0]._id = r.results[0].id;
+        input.localId = r.results[0].id;
+        input.success = true;
+        if (recId || recId === 0) {
+          if (!recurringEventIds[recId]) {
+            recurringEventIds[recId] = { counter: 0, id: e[0]._id };
+          } else {
+            recurringEventIds[recId].id = e[0]._id;
+          }
+        }
+      } else {
+        eventAddFailed += 1;
+        if (this.eventsAddFailedElement) {
+          this.eventsAddFailedElement.innerHTML = eventAddFailed;
+        }
+        try {
+          log("Callback not successfull: " + JSON.stringify(future.exception.error) + ". at - " + input.item + " = " + JSON.stringify(e));
+        } catch (exception) {
+          log("Callback not successfull: " + JSON.stringify(future.exception));
+        }
+        input.success = false;
+      }
+      input.callback(input);
+    }
+  );*/
+ 
   
   //try{
     this.lockded = true;
@@ -163,10 +193,22 @@ SyncSceneAssistant.prototype.startSync = function()
     log("syncer initialized.");
     log("=== Trying to call sendSyncInitializationMsg.");
 
-    var checkCredCallback = function(result) { log("CheckCredentials came back: " + JSON.stringify(result)); this.locked = false; this.controller.get("btnStart").mojo.deactivate(); }.bind(this);
+    var checkCredCallback = function(result) { 
+      log("CheckCredentials came back.");
+      log("result: " + (result ? result.success : "failure?"));
+      //log(JSON.stringify(result));
+      if (result.success && result.account) {
+        account = result.account; //write modified account into db. :)
+        this.finished(true, false);
+      } else {
+        account.syncCalendarMethod = "slow";
+      }
+      this.locked = false; 
+      this.controller.get("btnStart").mojo.deactivate(); 
+    }.bind(this);
 
-    eventCallbacks.getAllEvents(checkCredCallback);
-    //SyncML.sendSyncInitializationMsg(checkCredCallback);
+    //eventCallbacks.getAllEvents(checkCredCallback);
+    SyncML.sendSyncInitializationMsg(checkCredCallback);
   //} catch (e) { log("Error: " + e.name + " what: " + e.message + " - " + e.stack); this.locked = false; }
 };
 
@@ -174,10 +216,13 @@ SyncSceneAssistant.prototype.finished = function(calOk,conOk)
 {
 	if(account.syncCalendar)
 	{
-		if(calOk === "ok")
+		if (calOk === true)
 		{
 			log("Calendar sync worked.");
 			eventCallbacks.finishSync(true);
+			if (account.syncCalendarMethod === "slow" || account.syncCalendarMethod.indexOf("refresh") !== -1) {
+        account.syncCalendarMethod = "two-way";
+      }
 		}
 		else
 		{
@@ -187,7 +232,7 @@ SyncSceneAssistant.prototype.finished = function(calOk,conOk)
 	}
 	if(account.syncContacts)
 	{
-		if(conOk === "ok")
+		if (conOk === true)
 		{
 			log("Contacts sync worked.");
 			//TODO: call doneWithChanges!
