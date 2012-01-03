@@ -4,31 +4,31 @@
         "version": "1.0"
     }
 },
-{ 
-	"library": {
-		"name": "calendar.io",
-		"version": "1.0"
-	}
+{"source": "srv/lib/eventCallbacks.js"},
+{"source": "srv/lib/helpers.js"},
+{"source": "srv/lib/iCal.js"},
+{"source": "srv/lib/SyncMLMessage.js"},
+{"source": "srv/lib/SyncML.js"},
+{"source": "srv/lib/SyncMLAccount.js"},
+{
+	"source": "assitants/checkCredentialsAssistant.js"
 },
 {
-	"source": "assitants/oncapabilitieschangedassistant.js"
+	"source": "assistants/onCapabiltiesChangedAssistant.js"
 },
 {
-	"source": "assistants/validatorassistant.js"
+	"source": "assistants/onCreateAssistant.js"
 },
 {
-	"source": "assistants/oncreateassistant.js"
+	"source": "assistants/onCredentialsChangedAssistant.js"
 },
 {
-	"source": "assistants/ondeleteassistant.js"
+	"source": "assistants/onDeleteAssistant.js"
 },
 {
-	"source": "assistants/onenabledassistant.js"
+	"source": "assistants/onEnabledAssistant.js"
 },
 {
-	"source": "assistants/serviceassistant.js"
-},
-{
-	"source": "assistants/syncassistant.js"
+	"source": "assistants/syncAssistant.js"
 }
 ]

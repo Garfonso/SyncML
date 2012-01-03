@@ -5,7 +5,6 @@ var checkCredentialsAssistant = function(future) {};
 
 
 checkCredentialsAssistant.prototype.run = function(future) {  
-
      var args = this.controller.args;  
      console.log("Test Service: checkCredentials args =" + JSON.stringify(args));
 
