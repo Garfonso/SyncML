@@ -1,7 +1,7 @@
 [
 {
 	"type": "db.kind",
-	"object": "info.mobo.syncml.store.accounts:1",
+	"object": "info.mobo.syncml.account:1",
 	"caller": "info.mobo.syncml.client",
 	"operations": {
 		"read": "allow",
@@ -12,7 +12,7 @@
 },
 {
 	"type": "db.kind",
-	"object": "info.mobo.syncml.store.accounts:1",
+	"object": "info.mobo.syncml.account:1",
 	"caller": "info.mobo.syncml.service",
 	"operations": {
 		"read": "allow",

@@ -5,22 +5,34 @@
 		"loc_32x32": "images/icon32.png",
 		"loc_48x48": "images/icon48.png"
 	},
-	"hidden":false,
-	"readPermissions": ["info.mobo.syncml.*","com.palm.*"],
-	"writePermissions": ["info.mobo.syncml.*","com.palm.*"],
+	"hidden": false,
+	"config": {},
+	"validator": "palm://info.mobo.syncml.service/checkCredentials",
+  "readPermissions": ["info.mobo.syncml.*","com.palm.app.accounts"],
+  "writePermissions": ["info.mobo.syncml.*","com.palm.app.accounts"],
+  "onCapabiltiesChanged" : "palm://info.mobo.syncml.service/onCapabiltiesChanged",       
+  "onCredentialsChanged" : "palm://info.mobo.syncml.service/onCredentialsChanged",
+  "disableRemove": false, 
 	"capabilityProviders": [{
 		"capability": "CALENDAR",
-		"sync" : "palm://info.mobo.syncml.service/sync",
 		"id": "info.mobo.syncml.calendar",
+		"onCreate"  : "palm://info.mobo.syncml.service/onCreate",  
+    "onEnabled" : "palm://info.mobo.syncml.service/onEnabled", 
+    "onDelete"  : "palm://info.mobo.syncml.service/onDelete",
+    "sync"      : "palm://info.mobo.syncml.service/sync", 
 		"loc_name": "SyncML Calendar",
         "dbkinds": {  
                 "calendar": "info.mobo.syncml.calendar:1",
-				"calendarevent" : "info.mobo.syncml.calendarevent:1"
+				        "calendarevent" : "info.mobo.syncml.calendarevent:1"
         }
 	},
 	{
 		"capability": "CONTACTS",
 		"id": "info.mobo.syncml.contact",
+		"onCreate"  : "palm://info.mobo.syncml.service/onCreate",  
+    "onEnabled" : "palm://info.mobo.syncml.service/onEnabled", 
+    "onDelete"  : "palm://info.mobo.syncml.service/onDelete",
+    "sync"      : "palm://info.mobo.syncml.service/sync", 
 		"loc_name": "SyncML Contacts",
         "dbkinds": {  
                 "contact": "info.mobo.syncml.contact:1"

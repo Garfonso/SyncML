@@ -1,14 +1,56 @@
 {
 "id": "info.mobo.syncml.service",
 "description": "SyncML Client Service for synchronisation of calendar and contact data with generic syncml servers.",
+"engine": "node",
+"activityTimeout": 60,
 "services": [ {
     "name": "info.mobo.syncml.service",
     "description": "SyncML Client Service",
-	"assistant": "ServiceAssistant",
     "commands": [ 
+    {
+      "name": "checkCredentials",
+      "assistant": "checkCredentialsAssistant",
+      "public": true
+    },
+    {
+      "name": "onCapabiltiesChanged",
+      "assitant": "onCapabiltiesChangedAssistant",
+      "public": true
+    },
+    {
+      "name": "onCapabiltiesChanged",
+      "assitant": "onCapabiltiesChangedAssistant",
+      "public": true
+    },
+    {
+      "name": "onCapabiltiesChanged",
+      "assitant": "onCapabiltiesChangedAssistant",
+      "public": true
+    },
+    {
+      "name": "onCredentialsChanged",
+      "assitant": "onCredentialsChangedAssistant",
+      "public": true
+    },
+    {
+      "name": "onCreate",
+      "assitant": "onCreateAssistant",
+      "public": true
+    },
+    {
+      "name": "onEnabled",
+      "assitant": "onEnabledAssistant",
+      "public": true
+    },
+    {
+      "name": "onDelete",
+      "assitant": "onDeleteAssistant",
+      "public": true
+    },
 		{
 			"name": "sync",
-			"assistant": "SyncAssistant"
+			"assistant": "syncAssistant",
+			"public": true
 		}
 		]
 	}]
