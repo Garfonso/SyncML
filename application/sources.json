@@ -1,4 +1,5 @@
 [
+{ "source": "app/model/helper.js" },
  	{
  	  "source": "app/assistants/app-assistant.js"
  	},

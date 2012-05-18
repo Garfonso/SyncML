@@ -10,23 +10,32 @@ function WelcomeAssistant() {
 WelcomeAssistant.prototype.setup = function () {
   var configModel = {label: $L("Configure"), disabled: true};
   var startSyncModel = {label: $L("Start sync"), disabled: true};
-
-  var future = initialize(this.controller);
-  future.then(function(future) {
-    this.initialized = true;
-    configModel.disabled = false;
-    startSyncModel.disabled = false;
-    this.controller.modelChanged(configModel);
-    this.controller.modelChanged(startSyncModel);
-    this.refreshAccounts();
-    log("Ready to go.");
-  }.bind(this));
-	
+  
+  PalmCall.call("palm://info.mobo.syncml.client.service", "getAccounts", {}).then(this, function (f){
+    if (f.result.returnValue === true) {
+      log("Got accounts.");
+      accounts = f.result.accounts;
+      log("Now have " + accounts.length + " accounts.");
+      if (accounts.length > 0) {
+        currentAccount = 0;
+      }
+      this.initialized = true;
+      configModel.disabled = false;
+      startSyncModel.disabled = false;
+      this.controller.modelChanged(configModel);
+      this.controller.modelChanged(startSyncModel);
+      this.refreshAccounts();
+      log("Ready to go.");
+    } else {
+      log("Could not get accounts..." + JSON.stringify(f.result));
+    }
+  });
+  	
 	/* setup widgets here */
 	this.controller.setupWidget("btnConfig", {}, configModel);
 	this.controller.setupWidget("btnStartSync", {}, startSyncModel);
 
-	this.dropboxModel = {value: -1, choices: [ {label: $L("New"), value: -1}], disabled: false };
+	this.dropboxModel = {value: -1, choices: [ {label: $L("New"), value: -1}], disabled: true };
 	this.dropBox = this.controller.setupWidget("lsAccounts", {label: $L("Account")}, this.dropboxModel);
 	
 	/* add event handlers to listen to events from widgets */
@@ -50,24 +59,19 @@ WelcomeAssistant.prototype.refreshAccounts = function () {
   var oldValue = this.dropboxModel.value;
   this.dropboxModel.choices = [{label: $L("New"), value: -1}];
   var addToDropbox = function (result) {
-    log ("Got account...");
-    log (JSON.stringify(result));
     log("Got account: " + result.name + " = " + result.index);
     this.dropboxModel.choices.push({label: result.name, value: result.index});
     if (oldValue === -1) {
       oldValue = result.index;
     }
     this.dropboxModel.value = oldValue;
+    this.dropboxModel.disabled = false;
     this.controller.modelChanged(this.dropboxModel);
     log("added account");
   }.bind(this);
   
-  var account = SyncMLAccount.getAccount(0);
-  while (account) {
-    if (account.name && account.url) {
-      addToDropbox(account);
-    }
-    account = SyncMLAccount.getNextAccount();
+  for(var i = 0; i < accounts.length; i += 1) {
+    addToDropbox(accounts[i]);
   }
 };
 
@@ -82,7 +86,6 @@ WelcomeAssistant.prototype.activate = function (event) {
 WelcomeAssistant.prototype.deactivate = function (event) {
 	/* remove any event handlers you added in activate and do any other cleanup that should happen before
 	   this scene is popped or another scene is pushed on top */
-	  //saveConfig();
 };
 
 WelcomeAssistant.prototype.cleanup = function (event) {

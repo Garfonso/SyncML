@@ -112,6 +112,20 @@ var SyncMLAccount = (function () {
       }
       return {index: accounts.length};
     },
+    
+    getAccountByName: function(name) {
+      for (var i = 0; i  < accounts.length; i += 1) {
+        if (accounts[i].name === name) {
+          currentAccount = i;
+          return accounts[i];
+        }
+      }
+      return {index: accounts.length};
+    },
+
+    getAccounts: function() {
+      return accounts;
+    },
 
     //saves a modified version of the currenctly processed account:
     setAccount: function (account) {
@@ -423,6 +437,7 @@ var SyncMLAccount = (function () {
           }
           SyncMLAccount.setAccount(account);
         } else {
+          delete account.accountId;
           log("getAccountInfo failure: " + JSON.stringify(future.result));
         }
         if (callback) {

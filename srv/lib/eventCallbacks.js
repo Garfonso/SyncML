@@ -403,7 +403,7 @@ var eventCallbacks = (function () {
 			return resfuture;
 		},
 
-		startTrackingChanges: function (account) {
+		startTrackingChanges: function (account, outerFuture) {
 		  log("startTrackingChanges called.");
 			try {
 				log("Tracking changes for future updates.");
@@ -420,11 +420,13 @@ var eventCallbacks = (function () {
 		          if (account && account.datastores && account.datastores.calendar) {
 		            account.datastores.calendar.lastRev = revs.calendar;
 		            SyncMLAccount.setAccount(account);
-		            SyncMLAccount.saveConfig();
 	              log("Will sync all changes after rev " + revs.calendar);
 		          } else {
 		            log("Could not save new rev in account object... wrong parameters applied?");
 		          }
+		          var res = outerFuture.result;
+		          res.rev = true;
+		          outerFuture.result = res;
 				    } else {
 				      log("Error in startTrackingchanges: " + future.exception.errorText + "( " + future.exception.errorCode + ") = " + JSON.stringify(future.exception));
 				    }
@@ -432,13 +434,37 @@ var eventCallbacks = (function () {
 				);
 			} catch (exception) {
 				log("Exception in startTrackingChanges: " + exception + " - " + JSON.stringify(exception));
+        var res = outerFuture.result;
+        res.rev = true;
+        outerFuture.result = res;
 			}
 		},
 
-		finishSync: function (account, successful) {
-			var field, recEv;
+		finishSync: function (account, outerFuture) {
+			var field = "", recEv, updates = 0, innerFuture = new Future();
 		  try {
-		    function updateParentId(events, id) {
+		    var updateReturn = function () {
+		      updates -= 1;
+		      if (updates === 0) {
+		        //all updates finished.
+		        var res = innerFuture.result;
+		        res.updates = true;
+		        innerFuture.result = res;
+		      }
+		    };
+
+		    var finishFinished = function (f) {
+		      if (f.updates && f.rev) {
+		        var res = outerFuture.result;
+		        res.calendar = true;
+		        outerFuture.result = res;
+		      } else {
+		        log("eventCallbacks.finishSync not finished yet: " + JSON.stringify(f.result));
+		        setTimeout( function() { f.then(finishFinished); }, 500);
+		      }
+		    };
+		     
+		    var updateParentId = function(events, id) {
 		      var i;
 		      try {
   		      if (!id || !id.result || id.result.length === 0) {
@@ -449,7 +475,8 @@ var eventCallbacks = (function () {
   		      for (i = 0; i < events.length; i += 1) {
   		        events[i].parentId = id.result[0]._id;
   		        if (events[i]._id) { //prevent duplicate events here
-  	            updateEvent({ event: events[i] });
+  		          updates += 1;
+  	            updateEvent({ event: events[i], callback: updateReturn.bind(this) });
   		        } else {
   		          log("Event somehow had no id set... can't update. :(");
   		        }
@@ -458,7 +485,7 @@ var eventCallbacks = (function () {
             log("Error in updateParentId: ");
             log(JSON.stringify(e));
           }
-		    }
+		    };
 
 			  for (field in recurringEventIds) {
 			    if (recurringEventIds.hasOwnProperty(field)) {
@@ -472,16 +499,27 @@ var eventCallbacks = (function () {
 			      }
 			    }
 			  }
-				if (successful) {
-					eventCallbacks.startTrackingChanges(account);
-				}
+			  if (updates === 0) {
+          var res = innerFuture.result;
+          res.updates = true;
+          innerFuture.result = res;
+			  }
+  			eventCallbacks.startTrackingChanges(account, innerFuture);
 
+  			innerFuture.then(finishFinished);
+  			
         log("Did " + eventAdded + " adds, " + eventAddFailed + " adds failed.");
         log("Did " + eventUpdated + " updates, " + eventUpdateFailed + " updates failed.");
         log("Did " + eventDeleted + " deletes, " + eventDeleteFailed + " deletes failed.");
         log("Did " + account.datastores.calendar.addOwn + " adds on server");
         log("Did " + account.datastores.calendar.replaceOwn + " updates on server");
         log("Did " + account.datastores.calendar.delOwn + " deletes on server");
+        account.datastores.calendar.addFromServer = eventAdded;
+        account.datastores.calendar.addFromServerFail = eventAddFailed;
+        account.datastores.calendar.updateFromServer = eventUpdated;
+        account.datastores.calendar.updateFromServerFail = eventUpdateFailed;
+        account.datastores.calendar.deleteFromServer = eventDeleted;
+        account.datastores.calendar.deleteFromServerFail = eventDeleteFailed;
 				eventUpdated = 0;
 				eventUpdateFailed = 0;
 				eventAdded = 0;
