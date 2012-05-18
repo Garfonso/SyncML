@@ -1,0 +1,44 @@
+{
+    "name": "xmldom",
+    "version": "0.1.2",
+    "description": "A W3C Standard based DOMParser and XMLSerializer (DOM Level2 CORE). ",
+    "keywords": [
+      "javascript",
+      "XML",
+      "DOM",
+      "DOMParser",
+      "XMLSerializer"
+    ],
+    "maintainers": [{
+      "name": "jindw",
+      "email": "jindw@xidea.org",
+      "url": "http://www.xidea.org"
+    }],
+    "contributors": [
+    ],
+    "bugs": {
+        "email": "jindw@xidea.org",
+        "url": "http://code.google.com/p/lite/issues/list"
+    },
+    "licenses": [
+        {
+            "type": "LGPL",
+            "url": "http://www.gnu.org/licenses/lgpl.html"
+        }
+    ],
+    "repositories": [
+        {
+            "type": "git",
+            "url": "git://github.com/jindw/xmldom.git"
+        }
+    ],
+    "implements": [
+    ],
+    "dependencies": {
+    },
+    "engines" : { "node" : ">=0.1" },
+    "directories": {
+        "lib": "./"
+    },
+    "main": "./dom-parser.js"
+}

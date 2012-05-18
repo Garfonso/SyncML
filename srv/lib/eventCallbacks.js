@@ -1,35 +1,45 @@
 //JSLint options:
-/*global DB, log, iCal, account, setTimeout */ //PROBLEM: get rid of global account shomehow..
-/*jslint indent: 2 */
+/*global DB, log, iCal, SyncMLAccount */
+"use strict";
 
 var eventCallbacks = (function () {
-  "use strict";
-  var eventUpdated =  0,
+  var ids = {}, //should set accountId, calendarId and contactsId before use.
+    revs = { calendar: 0 }, //should be set before use.
+    eventUpdated =  0,
     eventUpdateFailed = 0,
     eventAdded =  0,
     eventAddFailed = 0,
     eventDeleted = 0,
     eventDeleteFailed = 0,
-    recurringEventIds = {};
+    recurringEventIds = {}; //saves child: event, parentId: parentId.
 
   function getEventsFromDB(input) {
     try {
       log("Getting events: " + JSON.stringify(input.query));
       DB.find(input.query, false, false).then(
         function (future) {
-          var r = future.result;
-          if (r.returnValue === true) {
-            input.result = r.results;
-            input.success = true;
-          } else {
-            log("Error in getAllEvents: " + JSON.stringify(future.exception));
+          try {
+            var r = future.result;
+            if (r.returnValue === true) {
+              input.result = r.results;
+              log("Got " + r.results.length + " events to send to server.");
+              input.success = true;
+            } else {
+              log("Error in getAllEvents: " + JSON.stringify(future.exception));
+              input.success = false;
+            }
+            input.callback(input);
+          } catch (e) {
+            log("Error in getEventsFromDB(Future): ");
+            log(JSON.stringify(e));
             input.success = false;
+            input.callback(input);
           }
-          input.callback(input);
         }
       );
     } catch (exception) {
-      log("Exception in getAllEvents: " + exception + " - " + JSON.stringify(exception));
+      log("Error in getEventsFromDB(Future): ");
+      log(JSON.stringify(exception));
       input.success = false;
       input.callback(input);
     }
@@ -37,177 +47,175 @@ var eventCallbacks = (function () {
 
   function createEventArray(input) {
     //format event array for syncml and call callback: 
-    var update = [], del = [], i, obj, result;
-    if (input.success === true) {
-      for (i = 0; i < input.result.length; i += 1) {
-        try {
-          result = input.result[i];
-          //log("Got event: " + JSON.stringify(result));
-          if (result._del === true) {
-            obj = { localId: result._id, uid: result.uId};
-            del.push(obj);
-          } else {
-            obj = { localId: result._id, data: iCal.generateICal(result), uid: result.uId};
-            update.push(obj);
-          }
-        } catch (e) {
-          log("Error while adding element " + i + " of " + input.result.length + ". Error: " + JSON.stringify(e));
-          //TODO: unnotified error condition.
+    var update = [], del = [], i, obj, result, callback, updates = 0;
+    callback = function (ical) {
+      try {
+        log(JSON.stringify(this));
+        this.data = ical;
+        update.push(this);
+        updates -= 1;
+        log("Remaining updates: " + updates);
+        if (updates === 0) {
+          input.callback2({add: [], del: del, replace: update, success: input.success}); //still can't distinguish between new and changed items.
         }
+      } catch (e) {
+        log("Error in createEventArray(callback): ");
+        log(JSON.stringify(e));
+        input.success = false;
+        input.callback(input);
       }
-    }
-    input.callback2({add: [], del: del, replace: update, success: input.success}); //still can't distinguish between new and changed items.
-  }
-
-  function createEvent(input) {
-    log("createEvent called");
+    };
     try {
-      var e, recId;
-      if (input.event) {
-        e = [input.event];
-      } else {
-        e = [iCal.parseICal(input.item)];
-      }
-      log("Event: " + e[0].subject);
-      e[0].calendarId = account.webOsCalendarId; //need to set this to tell webOs in which calendar this event should be, undefined else. TODO: don't rely on global account object here. :(
-      e[0].accountId = account.webOsAccountId;
-
-      //try to find parentIds for children.
-      if (e[0].recurringId || e[0].recurringId === 0) {
-        recId = e[0].recurringId;
-        recurringEventIds[recId] = { counter: 0};
-        delete e[0].recurringId;
-      }
-      if (e[0].parentLocalId || e[0].parentLocalId === 0) {
-        recId = e[0].parentLocalId;
-        if (!recurringEventIds[recId] || !recurringEventIds[recId].id) {
-          if (!recurringEventIds[recId]) {
-            recurringEventIds[recId] = { counter: 0};
+      if (input.success === true) {
+        for (i = 0; i < input.result.length; i += 1) {
+          try {
+            result = input.result[i];
+            //log("Got event: " + JSON.stringify(result));
+            if (result._del === true) {
+              obj = { localId: result._id, uid: result.uId};
+              del.push(obj);
+            } else {
+              obj = { localId: result._id, uid: result.uId};
+              updates += 1;
+              setTimeout(iCal.generateICal.bind(iCal, result, input.serverData, callback.bind(obj)), 100);
+            }
+          } catch (e) {
+            log("Error while adding element " + i + " of " + input.result.length + ". Error: " + JSON.stringify(e));
+            //TODO: unnotified error condition.
           }
-          if (recurringEventIds[recId].counter < 30) {
-            log("Got no parentId, yet. Wait a little if parent get's processed.");
-            input.event = e[0];
-            setTimeout(createEvent.bind(null, input), 100);
-            return;
-          } else {
-            log("Waited long enough for parent... won't come. :(");
-          }
-        } else {
-          log("Got parentId " + recurringEventIds[recId].id + " for " + e[0].subject);
-          delete e[0].parentLocalId;
-          e[0].parentId = recurringEventIds[recId].id;
         }
       }
-
-      //continue adding of event.
-      e[0]._kind = "info.mobo.syncml.calendarevent:1";
-      //log("Got Event: " + JSON.stringify(e[0]));
-      DB.put(e).then(
-        function (future) {
-          var r = future.result;
-          if (r.returnValue === true) {
-            eventAdded += 1;
-            if (this.eventsAddedElement) {
-              this.eventsAddedElement.innerHTML = eventAdded;
-            }
-            e[0]._id = r.results[0].id;
-            input.localId = r.results[0].id;
-            input.success = true;
-            if (recId || recId === 0) {
-              if (!recurringEventIds[recId]) {
-                recurringEventIds[recId] = { counter: 0, id: e[0]._id };
-              } else {
-                recurringEventIds[recId].id = e[0]._id;
-              }
-            }
-          } else {
-            eventAddFailed += 1;
-            if (this.eventsAddFailedElement) {
-              this.eventsAddFailedElement.innerHTML = eventAddFailed;
-            }
-            try {
-              log("Callback not successfull: " + JSON.stringify(future.exception.error) + ". at - " + input.item + " = " + JSON.stringify(e));
-            } catch (exception) {
-              log("Callback not successfull: " + JSON.stringify(future.exception));
-            }
-            input.success = false;
-          }
-          input.callback(input);
-        }
-      );
-    } catch (exception) {
-      log("Exception in createEvent: " + exception + " - " + input.item);
-      log(JSON.stringify(exception));
+      if (updates === 0) {//had no iCal conversions.
+        input.callback2({add: [], del: del, replace: update, success: input.success}); //still can't distinguish between new and changed items.
+      }
+    } catch (error) {
+      log("Error in getEventsFromDB(Future): ");
+      log(JSON.stringify(error));
       input.success = false;
       input.callback(input);
     }
   }
 
+  function clone(obj) {
+    var newObj = {};
+    newObj.id = obj.id;
+    newObj.recurringId = obj.recurringId;
+    newObj.child = obj.child;
+    return newObj;
+  }
+
   function updateEvent(input) {
     log("Update event called");
-    try {
-      var e, recId;
-      if (input.event) {
-        e = [input.event];
-      } else {
-        e = [iCal.parseICal(input.item)];
-      }
-      log("Event: " + e[0].subject + " mit id: " + input.localId);
-      e[0]._id = input.localId;
-      e[0].calendarId = account.webOsCalendarId; //need to set this to tell webOs in which calendar this event should be, undefined else. TODO: don't rely on global account object here. :(
-      e[0].accountId = account.webOsAccountId;
-
-      //try to find parentIds for children. 
-      if (e[0].recurringId) {
-        recurringEventIds[e[0].recurringId] = e[0]._id; //have id already, just set it here. :)
-        delete e[0].recurringId;
-      }
-      if (e[0].parentLocalId || e[0].parentLocalId === 0) {
-        recId = e[0].parentLocalId;
-        if (!recurringEventIds[recId] || !recurringEventIds[recId].id) {
+    var doUpdate = function (input, event) {
+      try {
+        var e = [event], recId = undefined, childId = undefined;
+        log("Event: " + e[0].subject + " with id: " + input.localId);
+        e[0]._id = input.localId;
+        e[0].calendarId = ids.calendarId; //need to set this to tell webOs in which calendar this event should be, undefined else. TODO: don't rely on global account object here. :(
+        e[0].accountId = ids.accountId;
+  
+        //try to find parentIds for children. 
+        if (e[0].recurringId) {
+          recId = e[0].recurringId;
           if (!recurringEventIds[recId]) {
-            recurringEventIds[recId] = { counter: 0};
+            recurringEventIds[recId] = {childs: []};
           }
-          if (recurringEventIds[recId].counter < 30) {
-            input.event = e[0];
-            log("Got no parentId, yet. Wait a little if parent get's processed.");
-            setTimeout(updateEvent.bind(null, input), 100);
-            return;
-          } else {
-            log("Waited long enough for parent... won't come. :(");
+          log("recurring event. id: " + recId);
+          if (e[0]._id) {
+            recurringEventIds[recId].id = e[0]._id; //have id already, just set it here. :)
+            delete e[0].recurringId;
+            recId = undefined;
           }
-        } else {
-          log("Got parentId " + recurringEventIds[recId].id + " for " + e[0].subject);
-          delete e[0].parentLocalId;
-          e[0].parentId = recurringEventIds[recId].id;
         }
-      }
-
-      //continue update.
-      e[0]._kind = "info.mobo.syncml.calendarevent:1";
-      DB.merge(e).then(
-        function (future) {
-          var r = future.result;
-          if (r.returnValue === true) {
-            eventUpdated += 1;
-            log("Update: " + JSON.stringify(future.result));
-            if (this.eventsUpdatedElement) {
-              this.eventsUpdatedElement.innerHTML = eventUpdated;
-            }
-            input.success = true;
-          } else {
-            eventUpdateFailed += 1;
-            if (this.eventsUpdateFailedElement) {
-              this.eventsUpdateFailedElement.innerHTML = eventUpdateFailed;
-            }
-            log("Callback not successfull: " + future.exception.errorText + "(" + future.exception.errorCode + "). :(" + input.item + JSON.stringify(e));
-            input.success = false;
+        if (e[0].parentLocalId || e[0].parentLocalId === 0) {
+          recId = e[0].parentLocalId;
+          if (!recurringEventIds[recId]) {
+            recurringEventIds[recId] = {childs: []};
           }
+          log("Is exception for " + recId);
+          if (recurringEventIds[recId].id) { //if we have parentId all is fine, go on. 
+            log("Got parentId " + recurringEventIds[recId] + " for " + e[0].subject);
+            delete e[0].parentLocalId; 
+            e[0].parentId = recurringEventIds[recId];
+          } else {
+            childId = recurringEventIds[recId].childs.length;
+            recurringEventIds[recId].childs.push(e[0]);
+          }
+        }
+  
+        //continue update.
+        e[0]._kind = "info.mobo.syncml.calendarevent:1";
+        DB.merge(e).then(clone({ recurringId: recId, id: e[0]._id, child: childId }), //try to prevent others from overwriting data for this object. :(
+          function (future) {
+            try {
+              var r = future.result;
+              if (r.returnValue === true) {
+                if (!this.id) {
+                  eventAdded += 1;
+                  if (this.eventsAddedElement) {
+                    this.eventsAddedElement.innerHTML = eventAdded;
+                  }
+                  if (this.recurringId >= 0) {
+                    if (this.childId >= 0) {
+                      recurringEventIds[this.recurringId].childs[this.childId]._id = r.results[0].id;
+                    } else {
+                      recurringEventIds[this.recurringId] = r.results[0].id;
+                    }
+                    log("Was recurring event with " + this.recurringId + ". Saved id: " + r.results[0].id);
+                  }
+                } else {
+                  eventUpdated += 1;
+                  if (this.eventsUpdatedElement) {
+                    this.eventsUpdatedElement.innerHTML = eventUpdated;
+                  }
+                }
+                input.localId = r.results[0].id;
+                input.success = true;
+              } else {
+                if (this.id) {
+                  eventAddFailed += 1;
+                  if (this.eventsAddFailedElement) {
+                    this.eventsAddFailedElement.innerHTML = eventAddFailed;
+                  }
+                } else {
+                  eventUpdateFailed += 1;
+                  if (this.eventsUpdateFailedElement) {
+                    this.eventsUpdateFailedElement.innerHTML = eventUpdateFailed;
+                  }
+                }
+                log("Callback not successfull: " + future.exception.errorText + "(" + future.exception.errorCode + "). :(" + input.item + JSON.stringify(this.id));
+                input.success = false;
+              }
+              if (input.callback) {
+                input.callback(input);
+              }
+            } catch (e) {
+              log("Error in updateEvent(Future): ");
+              log(JSON.stringify(e));
+              input.success = false;
+              input.callback(input);
+            }
+          });
+      } catch (exception) {
+        log("Exception in UpdateEvent(doUpdate): " + exception + " - " + JSON.stringify(exception) + " at " + input.item + " with ID " + input.localId);
+        input.success = false;
+        if (input.callback) {
           input.callback(input);
         }
-      );
-    } catch (exception) {
-      log("Exception in UpdateEvent: " + exception + " - " + JSON.stringify(exception) + " at " + input.item + " with ID " + input.localId);
+      }
+    };
+
+    //convert event:
+    try {
+      if (input.event) {
+        doUpdate(input, input.event); //short cut.
+      } else {
+        log("Calling callback");
+        iCal.parseICal(input.item, input.serverData, doUpdate.bind(this, input)); //remember input.
+      }
+    } catch (e) {
+      log("Error in updateEvent(main): ");
+      log(JSON.stringify(e));
       input.success = false;
       input.callback(input);
     }
@@ -219,11 +227,13 @@ var eventCallbacks = (function () {
 		 * Creates event, called from c++ part. Parameter is the iCal item data string.
 		 * @param {Object} event
 		 */
-		createEvent: createEvent,
+		createEvent: function (input) {
+	    //log("createEvent called, be mean and call updateEvent. Without id set result will be the same anyway.");
+	    updateEvent(input);
+	  },
 
 		/**
 		 * Updates an event. Parameters are the iCal item data string and the eventId.
-		 * Called from c++.
 		 * @param {Object} event
 		 * @param {Object} eventId
 		 */
@@ -240,22 +250,29 @@ var eventCallbacks = (function () {
 				//delete with purge=true.
 				DB.del(ids, true).then(
 				  function (future) {
-				    var r = future.result;
-				    if (r.returnValue === true) {
-              eventDeleted += 1;
-              if (this.eventsDeletedElement) {
-                this.eventsDeletedElement.innerHTML = eventDeleted;
-              }
-              input.success = true;
-				    } else {
-				      eventDeleteFailed += 1;
-				      if (this.eventsDeleteFailedElement) {
-				        this.eventsDeleteFailedElement.innerHTML = eventDeleteFailed;
-				      }
-				      log("Callback not successfull: " + future.exception.errorText + "(" + future.exception.errorCode + " for eventId: " + input.localId + "). :(");
-				      input.success = false;
-				    }
-				    input.callback(input);
+				    try {
+  				    var r = future.result;
+  				    if (r.returnValue === true) {
+                eventDeleted += 1;
+                if (this.eventsDeletedElement) {
+                  this.eventsDeletedElement.innerHTML = eventDeleted;
+                }
+                input.success = true;
+  				    } else {
+  				      eventDeleteFailed += 1;
+  				      if (this.eventsDeleteFailedElement) {
+  				        this.eventsDeleteFailedElement.innerHTML = eventDeleteFailed;
+  				      }
+  				      log("Callback not successfull: " + future.exception.errorText + "(" + future.exception.errorCode + " for eventId: " + input.localId + "). :(");
+  				      input.success = false;
+  				    }
+  				    input.callback(input);
+				    } catch (e) {
+	            log("Error in deleteEvent(Future): ");
+	            log(JSON.stringify(e));
+	            input.success = false;
+	            input.callback(input);
+	          }
 				  }
 				);
 			} catch (exception) {
@@ -268,122 +285,146 @@ var eventCallbacks = (function () {
 		/**
 		 * Deletes all events by a call to palm database service.
 		 */
-		deleteAllEvents: function (callback) {
+		deleteAllEvents: function (input) {
 		  log("DeleteAll events called.");
       try {
         //delete with purge=true.
-        DB.del({from: "info.mobo.syncml.calendarevent:1" }, true).then(
+        DB.del({from: "info.mobo.syncml.calendarevent:1", where: [{prop: "accountId", op: "=", val: ids.accountId}] }, true).then(
           function (future) {
             var r = future.result;
             if (r.returnValue === true) {
               log("Successfully deleted all elements.");
-              callback({success: true});
+              input.callback({success: true});
             } else {
               log("Error in deleteAllEvents: " + future.exception.errorText + "( " + future.exception.errorCode + ")");
-              callback({success: false});
+              input.callback({success: false});
             }
           }
         );
 			} catch (exception) {
 				log("Exception in deleteAllEvents: " + exception + " - " + JSON.stringify(exception));
 				//something went wrong, continue sync:
-				callback({success: false});
+				input.callback({success: false});
 			}
 		},
 
-		getNewEvents: function (callback) {
+		getNewEvents: function (input) {
 		  log("Get new events called.");
 		  getEventsFromDB(
 		    {
 		      callback: createEventArray,
-		      callback2: callback,
+		      callback2: input.callback,
+		      serverData: input.serverData,
 		      query: {
 		        from: "info.mobo.syncml.calendarevent:1",
-		        where: [ { prop: "_rev", op: ">", val: account.webOsCalendarRev } ],
+		        where: [ { prop: "_rev", op: ">", val: revs.calendar }, {prop: "accountId", op: "=", val: ids.accountId} ],
 		        incDel: true
 		      }
 		    }
 		  );
 		},
 
-		getAllEvents: function (callback) {
+		getAllEvents: function (input) {
 		  log("Get all events called.");
-		  getEventsFromDB({callback: createEventArray, callback2: callback, query: {from: "info.mobo.syncml.calendarevent:1"} }); //this query should just get all events.
+		  getEventsFromDB({callback: createEventArray, callback2: input.callback, serverData: input.serverData, query: {from: "info.mobo.syncml.calendarevent:1", 
+		    where: [{prop: "accountId", op: "=", val: ids.accountId}]} }); //this query should just get all events.
 		},
 
-		checkCalendar: function () {
-		  var query, calendar, obs;
-			query = { from: "info.mobo.syncml.calendar:1", where: [ { prop: "accountId", op: "=", val: account.webOsAccountId } ] };
+		checkCalendar: function (account) {
+		  var query, calendar, obs, resfuture = new Future({returnValue: false});
+			query = { from: "info.mobo.syncml.calendar:1", where: [ { prop: "accountId", op: "=", val: account.accountId } ] };
 
-			log("Check calendar.");
-			if (account.syncCalendar) {
-				if (account.webOsCalendarId !== undefined) {
-					log("Have Calendar Id: " + account.webOsCalendarId);
-					DB.find(query, false, false).then(
+			//log("Check calendar.");
+			if (!account && !account.accountId) {
+			  //log("Did not get account! => failure.");
+			  return resfuture;
+			}
+			if (account.datastores.calendar) {
+				if (account.datastores.calendar.dbId !== undefined) {
+					//log("Have Calendar Id: " + account.datastores.calendar.dbId);
+				  resfuture = DB.find(query, false, false).then(
 					  function (future) {
 					    var result = future.result, results, i;
 					    if (result.returnValue === true) {
 					      results = result.results;
 					      for (i = 0; i < results.length; i += 1) {
-					        if (results[i]._id === account.webOsCalendarId) {
+					        if (results[i]._id === account.datastores.calendar.dbId) {
 					          log("Found calendar, everything ok.. :)");
+					          future.result = {returnValue: true};
 					          return;
 					        }
 					      }
 					      //if we reached this point, calendar was not found..
-					      log("Calendar not found.. :(");
-					      account.webOsCalendarId = undefined;
-					      this.checkCalendar();
+					      //log("Calendar not found.. :(");
+					      account.datastores.calendar.dbId = undefined;
+					      eventCallbacks.checkCalendar(account).then(function (f) {
+					        //transfer result to outer future.
+					        resfuture = f.result;
+					      });
 					    }
 					  }
 					);
 				} else {
-					log("Need to create calendar account.");
+					//log("Need to create calendar account.");
 
 					calendar = {
 						"_kind": "info.mobo.syncml.calendar:1",
-						"accountId": account.webOsAccountId,
+						"accountId": account.accountId,
 						"color": "purple",
 						"excludeFromAll": false,
 						"isReadOnly": false,
-						"name": account.name + " Calendar",
+						"name": (account.name || "SyncML") + " Calendar",
 						"syncSource": "info.mobo.syncml"
 					};
 					obs = [calendar];
 
-					DB.put(obs).then(
+					resfuture = DB.put(obs).then(
 					  function (future) {
 					    if (future.result.returnValue === true) {
 					      log("Created calendar: " + JSON.stringify(future.result.results));
 					      if (future.result.results.length > 0) {
-					        account.webOsCalendarId = future.result.results[0].id;
-					        account.saveConfig();
+					        account.datastores.calendar.dbId = future.result.results[0].id;
+					        SyncMLAccount.setAccount(account);
+					        SyncMLAccount.saveConfig();
+					        future.result = {returnValue: true};
 					      } else {
 					        log("Error: Add returned no ID??");
+					        future.result = {returnValue: false};
 					      }
 					    } else {
 					      log("Could not add calendar: " + future.result.errorCode + " = " + future.result.errorMessage);
+					      future.result = {returnValue: false};
 					    }
 					  }
 					);
 				}
 			}
+			
+			return resfuture;
 		},
 
-		startTrackingChanges: function () {
+		startTrackingChanges: function (account) {
 		  log("startTrackingChanges called.");
 			try {
 				log("Tracking changes for future updates.");
-				DB.find({from: "info.mobo.syncml.calendarevent:1", select: ["_rev"]}).then(
+				DB.find({from: "info.mobo.syncml.calendarevent:1", where: [{prop: "accountId", op: "=", val: ids.accountId}], select: ["_rev"], incDel: true}).then(
 				  function (future) {
 				    var r = future.result, i;
 				    if (r.returnValue === true) {
+				      revs.calendar = 0; //this is necessary in case we got some to high rev from palm backup or whatever. 
 		          for (i = 0; i < r.results.length; i += 1) {
-		            if (r.results[i]._rev > account.webOsCalendarRev) {
-		              account.webOsCalendarRev = r.results[i]._rev;
+		            if (r.results[i]._rev > revs.calendar) {
+		              revs.calendar = r.results[i]._rev;
 		            }
 		          }
-		          log("Will sync all changes after rev " + account.webOsCalendarRev);
+		          if (account && account.datastores && account.datastores.calendar) {
+		            account.datastores.calendar.lastRev = revs.calendar;
+		            SyncMLAccount.setAccount(account);
+		            SyncMLAccount.saveConfig();
+	              log("Will sync all changes after rev " + revs.calendar);
+		          } else {
+		            log("Could not save new rev in account object... wrong parameters applied?");
+		          }
 				    } else {
 				      log("Error in startTrackingchanges: " + future.exception.errorText + "( " + future.exception.errorCode + ") = " + JSON.stringify(future.exception));
 				    }
@@ -394,12 +435,53 @@ var eventCallbacks = (function () {
 			}
 		},
 
-		finishSync: function (successful) {
-			try {
+		finishSync: function (account, successful) {
+			var field, recEv;
+		  try {
+		    function updateParentId(events, id) {
+		      var i;
+		      try {
+  		      if (!id || !id.result || id.result.length === 0) {
+  		        log("Got no ids, can't set parentIds. Most probably we don't have that event, or something went wrong during parsing...");
+  		      } else if (id.result.length > 1) {
+  		        log("Got " + id.result.length + " ids. Can't work with that... will take first id only.");
+  		      }
+  		      for (i = 0; i < events.length; i += 1) {
+  		        events[i].parentId = id.result[0]._id;
+  		        if (events[i]._id) { //prevent duplicate events here
+  	            updateEvent({ event: events[i] });
+  		        } else {
+  		          log("Event somehow had no id set... can't update. :(");
+  		        }
+  		      }
+		      } catch (e) {
+            log("Error in updateParentId: ");
+            log(JSON.stringify(e));
+          }
+		    }
+
+			  for (field in recurringEventIds) {
+			    if (recurringEventIds.hasOwnProperty(field)) {
+	          recEv = recurringEventIds[field]; 
+			      log("Processing recurring Event: " + field + " with parentId " + recEv.id + " and childs " + recEv.childs.length);
+			      if (!recEv.id) {
+			        //TODO: search parent...
+			        log("Parent not processed... can't update parentId. Search in DB not implemented, yet. :(");
+			      } else {
+			        updateParentId(recEv.childs, { result: [{"_id": recEv.id}]}); //construct same structure as event search would do, to ease processing.
+			      }
+			    }
+			  }
 				if (successful) {
-					this.startTrackingChanges();
+					eventCallbacks.startTrackingChanges(account);
 				}
 
+        log("Did " + eventAdded + " adds, " + eventAddFailed + " adds failed.");
+        log("Did " + eventUpdated + " updates, " + eventUpdateFailed + " updates failed.");
+        log("Did " + eventDeleted + " deletes, " + eventDeleteFailed + " deletes failed.");
+        log("Did " + account.datastores.calendar.addOwn + " adds on server");
+        log("Did " + account.datastores.calendar.replaceOwn + " updates on server");
+        log("Did " + account.datastores.calendar.delOwn + " deletes on server");
 				eventUpdated = 0;
 				eventUpdateFailed = 0;
 				eventAdded = 0;
@@ -409,6 +491,17 @@ var eventCallbacks = (function () {
 			} catch (exception) {
 				log("Exception in finishSync: " + exception + " - " + JSON.stringify(exception));
 			}
+		},
+
+		//set {accountId: , calendarId: , contactsId:}
+		setAccountAndDatastoreIds: function (accountIds) {
+		  ids = accountIds;
+		},
+
+		//set { calendar: rev, contacts: rev, .... }
+		setRevisions: function (revisions) {
+		  log("Got revisions: " + JSON.stringify(revisions));
+		  revs = revisions;
 		}
 	}; //end of public interface
 }()); //selfinvoke function

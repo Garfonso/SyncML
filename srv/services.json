@@ -1,57 +1,56 @@
 {
-"id": "info.mobo.syncml.service",
-"description": "SyncML Client Service for synchronisation of calendar and contact data with generic syncml servers.",
-"engine": "node",
-"activityTimeout": 60,
-"services": [ {
-    "name": "info.mobo.syncml.service",
-    "description": "SyncML Client Service",
-    "commands": [ 
-    {
-      "name": "checkCredentials",
-      "assistant": "checkCredentialsAssistant",
-      "public": true
-    },
-    {
-      "name": "onCapabiltiesChanged",
-      "assitant": "onCapabiltiesChangedAssistant",
-      "public": true
-    },
-    {
-      "name": "onCapabiltiesChanged",
-      "assitant": "onCapabiltiesChangedAssistant",
-      "public": true
-    },
-    {
-      "name": "onCapabiltiesChanged",
-      "assitant": "onCapabiltiesChangedAssistant",
-      "public": true
-    },
-    {
-      "name": "onCredentialsChanged",
-      "assitant": "onCredentialsChangedAssistant",
-      "public": true
-    },
-    {
-      "name": "onCreate",
-      "assitant": "onCreateAssistant",
-      "public": true
-    },
-    {
-      "name": "onEnabled",
-      "assitant": "onEnabledAssistant",
-      "public": true
-    },
-    {
-      "name": "onDelete",
-      "assitant": "onDeleteAssistant",
-      "public": true
-    },
-		{
-			"name": "sync",
-			"assistant": "syncAssistant",
-			"public": true
-		}
-		]
-	}]
+  "id": "info.mobo.syncml.client.service",
+  "description": "SyncML Client Service for synchronisation of calendar and contact data with generic syncml servers.",
+  "engine": "node",
+  "activityTimeout": "60",
+  "services": 
+    [ 
+      {
+        "name": "info.mobo.syncml.client.service",
+        "description": "SyncML Client Service",
+        "commands": 
+          [ 
+            {
+              "name": "checkCredentials",
+              "assistant": "checkCredentialsAssistant",
+              "public": true
+            },
+            {
+              "name": "onCredentialsChanged",
+              "assistant": "onCredentialsChangedAssistant",
+              "public": true
+            },
+            {
+              "name": "onCreate",
+              "assistant": "onCreateAssistant",
+              "public": true
+            },
+            {
+              "name": "onEnabled",
+              "assistant": "onEnabledAssistant",
+              "public": true
+            },
+            {
+              "name": "onDelete",
+              "assistant": "onDeleteAssistant",
+              "public": true
+            },
+            {
+              "name": "sync",
+              "assistant": "syncAssistant",
+              "public": true
+            },
+            {
+              "name": "getAccounts",
+              "assistant": "getAccountsAssistant",
+              "public": true
+            },
+            {
+              "name": "storeAccounts",
+              "assistant": "storeAccountsAssistant",
+              "public": true
+            }
+		      ]
+	    }
+	  ]
 }

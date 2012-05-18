@@ -5,8 +5,35 @@
 	<projects>
 	</projects>
 	<buildSpec>
+		<buildCommand>
+			<name>org.eclipse.wst.jsdt.core.javascriptValidator</name>
+			<arguments>
+			</arguments>
+		</buildCommand>
+		<buildCommand>
+			<name>com.rockstarapps.jslint.JsLintBuilder</name>
+			<arguments>
+				<dictionary>
+					<key>buildAll</key>
+					<value>false</value>
+				</dictionary>
+				<dictionary>
+					<key>external_defines</key>
+					<value></value>
+				</dictionary>
+				<dictionary>
+					<key>properties</key>
+					<value>params = {passfail: false,debug: false,undef: true,white: true,evil: false,nomen: false,browser: false,cap: false,eqeqeq: true,widget: false,on: false,plusplus: true,sidebar: false,fragment: false,bitwise: true,rhino: false,laxbreak: false,regexp: true,safe: false,forin: false,onevar: true,adsafe: false,sub: false,strict: false,css: false,newcap: true,maxerrors:10000,indent:2};</value>
+				</dictionary>
+				<dictionary>
+					<key>selection</key>
+					<value>application/app/lib/eventCallbacks.js&lt;--&gt;application/app/lib/helpers.js&lt;--&gt;application/app/lib/iCal.js&lt;--&gt;application/app/lib/SyncML.js&lt;--&gt;application/app/lib/SyncMLAccount.js&lt;--&gt;application/app/lib/SyncMLMessage.js&lt;--&gt;application/app/assistants/configSyncMLAccount-assistant.js&lt;--&gt;application/app/assistants/stage-assistant.js&lt;--&gt;application/app/assistants/syncScene-assistant.js&lt;--&gt;application/app/assistants/welcome-assistant.js&lt;--&gt;srv/assistants/checkCredentialsAssistant.js&lt;--&gt;srv/assistants/onCapabiltiesChangedAssistant.js&lt;--&gt;srv/assistants/onCreateAssistant.js&lt;--&gt;srv/assistants/onCredentialsChangedAssistant.js&lt;--&gt;srv/assistants/onDeleteAssistant.js&lt;--&gt;srv/assistants/onEnabledAssistant.js&lt;--&gt;srv/assistants/syncAssistant.js&lt;--&gt;srv/lib/svrHelpers.js&lt;--&gt;application/app/lib/itemCallbacks.js&lt;--&gt;application/app/lib/vCard.js&lt;--&gt;application/app/lib/contactsCallbacks.js&lt;--&gt;application/app/lib/keymanager.js</value>
+				</dictionary>
+			</arguments>
+		</buildCommand>
 	</buildSpec>
 	<natures>
 		<nature>com.palm.pdt.nature</nature>
+		<nature>org.eclipse.wst.jsdt.core.jsNature</nature>
 	</natures>
 </projectDescription>

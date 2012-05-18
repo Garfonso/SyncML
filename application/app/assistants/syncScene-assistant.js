@@ -1,3 +1,5 @@
+//JSLint options:
+/*global log, logGUI, Mojo, $L, eventCallbacks, SyncMLAccount, SyncML */
 function SyncSceneAssistant() {
 	/* this is the creator function for your scene assistant object. It will be passed all the 
 	   additional parameters (after the scene name) that were passed to pushScene. The reference
@@ -5,7 +7,7 @@ function SyncSceneAssistant() {
 	   that needs the scene controller should be done in the setup function below. */
 }
 
-SyncSceneAssistant.prototype.setup = function() {
+SyncSceneAssistant.prototype.setup = function () {
 	/* this function is for setup tasks that have to happen when the scene is first created */
 		
 //		var icalText = "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//eGroupWare//NONSGML eGroupWare Calendar 1.9.002//DE\nMETHOD:PUBLISH\nBEGIN:VTIMEZONE\nTZID:Europe/Berlin\nX-LIC-LOCATION:Europe/Berlin\nBEGIN:DAYLIGHT\n";
@@ -25,70 +27,75 @@ SyncSceneAssistant.prototype.setup = function() {
 //		this.log("iCal: " + makeICal(icalEvent));
 		//throw "blabla";
 	this.oldLog = log;
-	log = logGUI.bind(this,this.controller);
+	log = logGUI.bind(this, this.controller);
+	this.oldStatus = logStatus;
+	logStatus = logStatus.bind(this, this.controller);
 	
-	eventCallbacks.eventsUpdatedElement = this.controller.get("eventsUpdated");
-	eventCallbacks.eventsUpdateFailedElement = this.controller.get("eventsUpdateFailed");
-	eventCallbacks.eventsAddedElement = this.controller.get("eventsAdded");
-	eventCallbacks.eventsAddFailedElement = this.controller.get("eventsAddFailed");
-	eventCallbacks.eventsDeletedElement = this.controller.get("eventsDeleted");
-	eventCallbacks.eventsDeleteFailedElement = this.controller.get("eventsDeleteFailed");
-	//eventCallbacks.log = log.bind(this);
-
+	//setup menu with email log:
+  this.model = { visible: true, items: [ {label: $L("E-Mail Log"), command: "do-log-email" }] };
+  this.controller.setupWidget(Mojo.Menu.appMenu, { omitDefaultItems: true }, this.model);
+	
 	/* use Mojo.View.render to render view templates and add them to the scene, if needed */
 	
 	/* setup widgets here */
-	this.controller.setupWidget("btnStart", { type : Mojo.Widget.activityButton }, { label: $L("Start sync")});
+  var buttonModel = { disabled: true, label: $L("Start sync") };
+	this.controller.setupWidget("btnStart", { type : Mojo.Widget.activityButton }, buttonModel );
 	
 	/* add event handlers to listen to events from widgets */
-	Mojo.Event.listen(this.controller.get("btnStart"),Mojo.Event.tap,this.startSync.bind(this));	
-	
-	/*try {
-		cPlugin.setup(this.controller.get("webOsSyncMLPlugin"));
-		cPlugin.thePluginObject.updateStatus = SyncSceneAssistant.prototype.log.bind(this);
-		cPlugin.thePluginObject.finished = SyncSceneAssistant.prototype.finished.bind(this);
-	}
-	catch(e)
-	{
-		this.log("Error" + e + " - " + JSON.stringify(e));
-	}*/
-	
-	if(!DeviceProperties.devID) //TODO: make sure this get's in before sync and move it into service..
-	{
-		this.controller.serviceRequest('palm://com.palm.preferences/systemProperties', {
-			method:"Get",
-			parameters:{"key": "com.palm.properties.nduid" },
-			onSuccess: function(response){ DeviceProperties.devID = response["com.palm.properties.nduid"]; log("Got deviceId: " + DeviceProperties.devID); }
+	Mojo.Event.listen(this.controller.get("btnStart"), Mojo.Event.tap, this.startSync.bind(this));
+	var init = function () {
+	  log("Init-sync start");
+	  this.checkAccount().then(function (f) {
+	    if (f.result && f.result.returnValue) {
+        buttonModel.disabled = false;
+        this.initialized = true;
+        this.controller.modelChanged(buttonModel);
+        this.startSync();
+      }
+	  }.bind(this));
+	};
+	setTimeout(init.bind(this),100);
+};
+
+SyncSceneAssistant.prototype.checkAccount = function () {
+  var account = SyncMLAccount.getAccount(), future = new Future();
+	log("Check account");
+	if (account.accountId !== undefined) {
+		log("Have account Id: " + account.accountId);
+		SyncMLAccount.getAccountInfo(account, function (result) {
+		  if (result.account && result.account.accountId) {
+		    eventCallbacks.checkCalendar(result.account).then(function (f) {
+		      future.result = f.result;
+		    });
+		  } else {
+		    this.checkAccount().then(function (f) {
+		      future.result = f.result;
+		    }); //try to create account.
+		  }
+		});
+	} else {
+		log("Need to create account.");
+		SyncMLAccount.createAccount(account, function(acc) {
+		  eventCallbacks.checkCalendar(acc).then(function (f) {
+		    future.result = f.result;
+		  });
 		});
 	}
-	
-	this.checkAccount();
+	return future;
 };
 
-SyncSceneAssistant.prototype.checkAccount = function() 
-{
-	log("Check account");
-	if (account.webOsAccountId !== undefined) {
-		log("Have account Id: " + account.webOsAccountId);
-		account.getAccountInfo(function(){ eventCallbacks.checkCalendar();}, 
-		function(){
-			log("No account..");
-			account.webOsAccountId = undefined;
-			this.checkAccount();
-		}.bind(this));
-	}
-	else {
-		log("Need to create account.");
-		account.createAccount(function(){ eventCallbacks.checkCalendar();});
-	}
-};
-
-SyncSceneAssistant.prototype.startSync = function()
+SyncSceneAssistant.prototype.startSync = function ()
 {	
+  var account, checkCredCallback;
   if (this.locked) {
     log("Sync already running. Correct?");
     return;
   }
+  if (this.initialized !== true) {
+    log("Not yet initialized, please be patient or report error.");
+    return;
+  }
+  this.controller.get("btnStart").mojo.activate();
   
   /*var iCals = [
                "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//eGroupWare//NONSGML eGroupWare Calendar 1.9.003//DE\r\nMETHOD:PUBLISH\r\nBEGIN:VEVENT\r\nCLASS:PUBLIC\r\nSUMMARY:Test-Termin\r\nDESCRIPTION:Test Beschreibung.\\n\\n...\\nblub\\näöüÜÄÖ\r\nLOCATION:Test-OrtÄÖÜ\r\nDTSTART:20111230T080000Z\r\nDTEND:20111230T090000Z\r\nORGANIZER;CN=\"SyncMLTest\r\n  User\";X-EGROUPWARE-UID=11:MAILTO:SyncMLTest@moses.redirectme.net\r\nRRULE:FREQ=DAILY;INTERVAL=3\r\nEXDATE;VALUE=DATE-TIME:20120105T080000Z,20120111T080000Z\r\nPRIORITY:5\r\nTRANSP:OPAQUE\r\nCATEGORIES:Mögliche Aktivitäten\r\nUID:calendar-2306-1021f558a5067cf68a9d362d4fc5d77d\r\nSEQUENCE:8\r\nCREATED:20110820T090645Z\r\nLAST-MODIFIED:20111230T111058Z\r\nDTSTAMP:20111230T111311Z\r\nEND:VEVENT\r\nEND:VCALENDAR",
@@ -170,12 +177,17 @@ SyncSceneAssistant.prototype.startSync = function()
   );*/
  
   
-  //try{
+  try {
     this.lockded = true;
     log("Starting...");
+    account = SyncMLAccount.getAccount();
+    delete account.datastores.contacts; //be sure to not sync contacts, yet.
+    eventCallbacks.setAccountAndDatastoreIds({accountId: account.accountId, calendarId: account.datastores.calendar.dbId});
+    eventCallbacks.setRevisions({calendar: account.datastores.calendar.lastRev || 0});
     SyncML.initialize(account);
-    SyncML.setCalendarCallbacks(
+    SyncML.setCallbacks([
       {
+        name: "calendar",
         //needs to get all calendar data and call callback with { update: [ all data here ] }, callback
         getAllData: eventCallbacks.getAllEvents,
         //needs to get only new calendar data and call callback with { update: [modified], add: [new], del: [deleted] }, callback
@@ -189,68 +201,74 @@ SyncSceneAssistant.prototype.startSync = function()
         //Param: { type: del, callback, localId: ... }. Call callback with { type: del, globalId: ..., localId: ... success: true/false }. 
         delEntry: eventCallbacks.deleteEvent
       }
+    ]
     );
     log("syncer initialized.");
     log("=== Trying to call sendSyncInitializationMsg.");
-
-    var checkCredCallback = function(result) { 
+    
+    checkCredCallback = function (result) { 
       log("CheckCredentials came back.");
       log("result: " + (result ? result.success : "failure?"));
       //log(JSON.stringify(result));
       if (result.success && result.account) {
-        account = result.account; //write modified account into db. :)
-        this.finished(true, false);
+        this.finished(result.account);
       } else {
-        if (account.syncCalendarMethod !== "one-way-from-server" && account.syncCalendarMethod !== "one-way-from-client")
-        account.syncCalendarMethod = "slow";
+        var account = SyncMLAccount.getAccount();
+        if (account.datastores.calendar.method !== "one-way-from-server" && account.datastores.calendar.method !== "one-way-from-client") {
+          //account.datastores.calendar.method = "slow"; let server do that.
+          SyncMLAccount.setAccount(result.account);
+          SyncMLAccount.saveConfig(); //on errors save that we want to do slow sync next time. :(
+        }
       }
       this.locked = false; 
       this.controller.get("btnStart").mojo.deactivate(); 
     }.bind(this);
-
+    
     //eventCallbacks.getAllEvents(checkCredCallback);
     SyncML.sendSyncInitializationMsg(checkCredCallback);
-  //} catch (e) { log("Error: " + e.name + " what: " + e.message + " - " + e.stack); this.locked = false; }
+  } catch (e) { 
+    log("Error: " + e.name + " what: " + e.message + " - " + e.stack); 
+    this.locked = false; 
+  }
 };
 
-SyncSceneAssistant.prototype.finished = function(calOk,conOk)
+SyncSceneAssistant.prototype.finished = function (account)
 {
-	if(account.syncCalendar)
-	{
-		if (calOk === true)
+  var calendar, contacts;
+	if (account.datastores.calendar) {
+	  calendar = account.datastores.calendar;
+		if (calendar.ok === true)
 		{
 			log("Calendar sync worked.");
       //keep changes for next two-way.
-      eventCallbacks.finishSync(account.syncCalendarMethod !== "slow");
-			if (account.syncCalendarMethod === "slow" || account.syncCalendarMethod.indexOf("refresh") !== -1) {
-        account.syncCalendarMethod = "two-way";
+      eventCallbacks.finishSync(account, true);
+			if (calendar.method === "slow" || calendar.method.indexOf("refresh") !== -1) {
+        calendar.method = "two-way";
       }
 		}
 		else
 		{
 			log("Calendar sync had errors.");
-			//account.syncCalendarMethod = "slow";
+			calendar.method = "slow";
 		}
 	}
-	if(account.syncContacts)
-	{
-		if (conOk === true)
-		{
+	if (account.datastores.contacts) {
+	  contacts = account.datastores.contacts;
+		if (contacts.ok) {
 			log("Contacts sync worked.");
 			//TODO: call doneWithChanges!
 		
-			if (account.syncContactsMethod === "slow" || account.syncContactsMethod.indexOf("refresh") !== -1) {
-				account.syncContactsMethod = "two-way";
+			if (contacts.method === "slow" || contacts.method.indexOf("refresh") !== -1) {
+				contacts.method = "two-way";
 			}
-		}
-		else
-		{
+		} else {
 			log("Contacts sync had errors.");
-			//account.syncContactsMethod = "slow";
+			contacts.method = "slow";
 		}
 	}
 	
-	account.saveConfig();
+	SyncMLAccount.setAccount(account);
+	SyncMLAccount.saveConfig();
 	this.controller.get("btnStart").mojo.deactivate();
 };
 
@@ -261,19 +279,55 @@ SyncSceneAssistant.prototype.finished = function(calOk,conOk)
 	Mojo.Log.info(message);
 };*/
 
-SyncSceneAssistant.prototype.activate = function(event) {
+function email(subject, message)
+{
+
+  var request = new Mojo.Service.Request("palm://com.palm.applicationManager",
+  {
+    method: 'open',
+    parameters:
+    {
+      id: 'com.palm.app.email',
+      params:
+      {
+        'summary':  subject,
+        'text':   '<html><body>' + message + '</body></html>'
+      }
+    }
+  });
+  return request;
+}
+
+function formatForHtml(string) {
+  //string = string.escapeHTML();
+  //string = string.replace(/[\s]{2}/g, " &nbsp;");
+  return string;
+}
+
+SyncSceneAssistant.prototype.handleCommand = function (event) {
+  if (event.type === Mojo.Event.command && event.command === "do-log-email") {
+    var text = 'Here is the log from SyncML:<br /><br />';
+    this.out = this.controller.get("logOutput");
+    log("output: " + this.out);
+    text += formatForHtml(this.out.innerHTML);
+    email('Log for SyncML', text);
+  }
+};
+
+SyncSceneAssistant.prototype.activate = function (event) {
 	/* put in event handlers here that should only be in effect when this scene is active. For
 	   example, key handlers that are observing the document */
 };
 
-SyncSceneAssistant.prototype.deactivate = function(event) {
+SyncSceneAssistant.prototype.deactivate = function (event) {
 	/* remove any event handlers you added in activate and do any other cleanup that should happen before
 	   this scene is popped or another scene is pushed on top */
 	log = this.oldLog;
-	account.saveConfig();
+	logStatus = this.oldStatus;
+	SyncMLAccount.saveConfig();
 };
 
-SyncSceneAssistant.prototype.cleanup = function(event) {
+SyncSceneAssistant.prototype.cleanup = function (event) {
 	/* this function should do any cleanup needed before the scene is destroyed as 
 	   a result of being popped off the scene stack */
 };

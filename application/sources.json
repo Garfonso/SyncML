@@ -1,10 +1,7 @@
 [
-	{"source": "app/lib/eventCallbacks.js"},
-	{"source": "app/lib/helpers.js"},
-	{"source": "app/lib/iCal.js"},
-	{"source": "app/lib/SyncMLMessage.js"},
-	{"source": "app/lib/SyncML.js"},
- 	{"source": "app/lib/SyncMLAccount.js"},
+ 	{
+ 	  "source": "app/assistants/app-assistant.js"
+ 	},
     {"source": "app/assistants/stage-assistant.js"},
     {
         "scenes": "welcome",

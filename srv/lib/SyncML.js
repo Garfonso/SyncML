@@ -1,7 +1,7 @@
 //JSLint options:
-/*global Ajax, log, Mojo, syncMLMessage, window, setTimeout */
-/*jslint indent: 2 */
+/*global AjaxCall, log, Mojo, syncMLMessage, Base64, setTimeout */
 
+"use strict";
 var SyncMLModes = {
     "two-way":             "200", // TWO-WAY Specifies a client-initiated, two-way synchronization. 
     "slow":                "201", // SLOW SYNC Specifies a client-initiated, two-way slow-synchronization. 
@@ -39,13 +39,13 @@ var SyncMLAlertCodes = {
 //some more or less static device infos.
 var DeviceProperties = {
     man: "MoboSync for WebOs",
-    mod: Mojo.Environment.DeviceInfo.modelName,
+    mod: "Pre3", //TODO: get from account or so...
     oem: "MoboSync",
     fwv: "20.11.2011", //set firmware version to today.
-    swv: Mojo.Environment.DeviceInfo.platformVersion + " appv 0.0.2", //set to full platform version.. that could help to work out vcard interpretation issues.
+    swv: "0.0.16", //set to full platform version.. that could help to work out vcard interpretation issues.
     hwv: "20.11.2011", //set hardware version to today, too.. doesn't really care.
     devID: undefined, //fill that from the account!
-    devType: "phone", //say phone here. Also the tablet is "similar to a phone".. ;)
+    devType: "smartphone", //say smartphone here. Also the tablet is "similar to a phone".. ;)
 
     id: undefined, //needs id.
 
@@ -67,54 +67,31 @@ var DeviceProperties = {
 //    continueSyncCalendar/Contacts => parseSyncResponse => itemActionCalendar/ContactsCallback => parseLastResponse => callback :)
 // one problem remains: make contacts/calendar nicer and more uniform.. :( make it much easier to add more datastores.
 
-var SyncML = (function () {
-  "use strict";
-  var sessionInfo, account = {}, lastMsg,
+var SyncML = (function () {      //lastMsg allways is the last response from the server, nextMsg allways is the message that we are currently building to send.
+  var sessionInfo, account = {}, lastMsg, nextMsg,
   //callbacks to get event / contacts data as iCal / vCard strings.
   //will all receive a callback function as parameter, that is to be called with "false" in the case of errors.
   //otherwise it needs to be supplied to the called sync function!
   //data needs to be of form { data = whole data in vcard/ iCal string, localId = id on device } 
-    calendar = {
+    //callback names:
       //needs to get all calendar data and call callback with { replace: [ all data here ] }, callback
-      getAllData: function () { throw ({name: "LogicError", message: "Need to set calendar.getAllData callback to something."}); },
+      //getAllData: function () { throw ({name: "LogicError", message: "Need to set calendar.getAllData callback to something."}); },
       //needs to get only new calendar data and call callback with { replace: [modified], add: [new], del: [deleted] }, callback
-      getNewData: function () { throw ({name: "LogicError", message: "Need to set calendar.getNewData callback to something."}); },
+      //getNewData: function () { throw ({name: "LogicError", message: "Need to set calendar.getNewData callback to something."}); },
       //this will be called on refresh from server to delete all local data. Call callback with {}.
-      deleteAllData: function () { throw ({name: "LogicError", message: "Need to set calendar.deleteAllData callback to something."}); },
+      //deleteAllData: function () { throw ({name: "LogicError", message: "Need to set calendar.deleteAllData callback to something."}); },
       //Param: {type: add, callback, globalId: ..., item: new item data }. call callback with {type: add, globalId: ..., localId: ... success: true/false }
-      newEntry: function () { throw ({name: "LogicError", message: "Need to set calendar.newEntry callback to something."}); },
+      //newEntry: function () { throw ({name: "LogicError", message: "Need to set calendar.newEntry callback to something."}); },
       //Param: {type: replace, callback, localId: ..., item: new data }. Call callback with { type: replace, globalId: ..., localId: ... success: true/false }.
-      updateEntry: function () { throw ({name: "LogicError", message: "Need to set calendar.updateEntry callback to something."}); },
+      //updateEntry: function () { throw ({name: "LogicError", message: "Need to set calendar.updateEntry callback to something."}); },
       //Param: { type: del, callback, localId: ... }. Call callback with { type: del, globalId: ..., localId: ... success: true/false }. 
-      delEntry: function () { throw ({name: "LogicError", message: "Need to set calendar.delEntry callback to something."}); },
+      //delEntry: function () { throw ({name: "LogicError", message: "Need to set calendar.delEntry callback to something."}); },
       //status variables:
-      add: 0,
-      del: 0,
-      replace: 0,
-      mapping: []
-    },
-    contacts = { //same as in calendar. TODO: will we really implement continueSyncContacts?
-      //needs to get all calendar data and call continueSyncContacts with { replace: [ all data here ] }, callback
-      getAllData: function () { throw ({name: "LogicError", message: "Need to set contacts.getAllData callback to something."}); },
-      //needs to get only new contacts data and call continueSyncContacts with { replace: [modified], add: [new], del: [deleted] }, callback
-      getNewData: function () { throw ({name: "LogicError", message: "Need to set contacts.getNewData callback to something."}); },
-      //this will be called on refresh from server to delete all local data. Call continueSyncCalendar.
-      deleteAllData: function () { throw ({name: "LogicError", message: "Need to set calendar.deleteAllData callback to something."}); },
-      //Param: {type: add, callback, globalId: ..., item: new item data }. call callback with {type: add, globalId: ..., localId: ... success: true/false }
-      newEntry: function () { throw ({name: "LogicError", message: "Need to set contacts.newEntry callback to something."}); },
-      //Param: {type: replace, callback, localId: ..., item: new data }. Call callback with { type: replace, localId: ... success: true/false }.
-      updateEntry: function () { throw ({name: "LogicError", message: "Need to set contacts.updateEntry callback to something."}); },
-      //Param: { type: del, callback, localId: ... }. Call callback with { type: del, localId: ... success: true/false }. 
-      delEntry: function () { throw ({name: "LogicError", message: "Need to set contacts.delEntry callback to something."}); },
-      //status variables:
-      add: 0,
-      del: 0,
-      replace: 0,
-      mapping: []
-    },
+    dsNames = ["calendar", "contacts"], dsTypes = ["text/vcalendar", "text/vcard"],
+    types = ["add", "del", "replace"], willBeSynced = [],
     secondTry = false,
     resultCallback, parseSyncResponse,
-    msgQueue = []; //for multiple sync messages. Don't run into last-msg-cycle if there are messages in here. 
+    msgQueue = []; //for multiple sync messages. Don't run into last-msg-cycle if there are messages in here.
 
   //private members & methods:
   sessionInfo = {
@@ -131,85 +108,272 @@ var SyncML = (function () {
   }
 
   //sends a message to the server.
-  function sendToServer(text, callback) {
-    log("Sending to server.");
-    return new Ajax.Request(sessionInfo.url, {
-      onFailure : function (error) { log("Request failed"); log(JSON.stringify(error)); },
-      onSuccess : function (transport) { log("Request succeeded"); callback(transport); },
-      //onComplete : function () { log("Request completed"); },
-      postBody : text,
-      method : 'post',
-      contentType : 'application/vnd.syncml+xml'
-    });
+  function sendToServer(msg, callback, retry, id) {
+    var text;
+    try {
+      if (!retry) {
+        retry = 0;
+        id = getMsgId();
+      }
+      if (lastMsg) {
+        msg.addStatuses(lastMsg);
+      }
+      text = msg.buildMessage({sessionId: sessionInfo.sessionId, msgId: id, target: account.url, source: DeviceProperties.id});
+      log("Sending to server: " + text);
+      nextMsg = msg; //just in case. :)
+      var future = AjaxCall.post(sessionInfo.url, text, 
+          { "bodyEncoding":"utf8" , 
+            "headers": {"Content-Type":"application/vnd.syncml+xml", "Content-Length": text.length} } );
+      future.then(function(f) {
+        log("Status of message: " + f.result.status);
+        if (f.result.status == 200) {
+//          try {
+            log("Request succeeded, Got: ");
+            log(f.result.responseText);
+            if (f.result.responseText === "") {
+              if (retry <= 5) {
+                log("Got empty response. Try to send message again (" + retry + ")");
+                logStatus("No connection to server, try again. (" + retry + " / 5)");
+                sendToServer(msg, callback, retry + 1, id);
+              } else {
+                logStatus("No connection to server, retries did not help. Please check connection.");
+              }
+            } else {
+              callback(f.result.responseText);
+            }
+//          } catch (e) {
+//            log("Error in sendMessage(future):");
+//            log(e);
+//          }
+        } else { //request failure!
+          log("Request failed");
+          logStatus("No connection to server, retries did not help. Please check connection, Error: " + f.result.status);
+          log(JSON.stringify(f.result));
+        }
+      });
+      /*AjaxCall.post(sessionInfo.url, text,
+          { "bodyEncoding": "utf8", "headers": [{"Content-type": "application/vnd.syncml+xml"}]}).then(function (future) {
+        try {
+          if (future.result.status === 200) {
+            log("Request succeeded, Got: ");
+            log(future.result.responseText);
+            if (future.result.responseText === "" && retry < 5) {
+              log("Got empty response. Try to send message again (" + retry + ")");
+              sendToServer(msg, callback, retry + 1);
+            } else {
+              callback(future.result.responseText);
+            }
+          } else {
+            log("Request failed. Status: " + future.result.status);
+          }
+        } catch (e) {
+          log("Error in sendMessage(future):");
+          log(JSON.stringify(e));
+        }
+      });*/
+    } catch (error) {
+      log("Error in sendMessage:");
+      log(JSON.stringify(error));
+    }
   }
 
-  function parseLastResponse(transport) {
-    var msg, failed, i;
-    //log("Got: ");
-    //log(transport.responseText);
-
-    msg = syncMLMessage();
-    //log("trying to parse msg...");
-    msg.buildMessageFromResponse(transport.responseText);
-    //log("last response parsed.");
-    failed = msg.matchCommandsFromMessage(lastMsg);
-    if (failed && failed.length > 0) {
-      log("Have " + failed.length + " failed commands: ");
-      for (i = 0; i < failed.length; i += 1) {
-        log(JSON.stringify(failed[i]));
+  function putDevInfo(msg, datastores, cmd) {
+    var ds, i;
+    if (!datastores) {
+      datastores = [];
+      for (i = 0; i < dsNames.length; i += 1) {
+        ds = account.datastores[dsNames[i]];
+        if (ds) {
+          datastores.push({name: ds.name, type: ds.type});
+        }
       }
-      resultCallback({success: false});
-    } else {
+    }
+    msg.addPutDevInfo(DeviceProperties, datastores, cmd);
+  }
+
+  function generalParseMsg(text) {
+    var i, j, k, failed, cmd, datastores, source, types, type;
+    try {
+      lastMsg = syncMLMessage();
+      /*i = 1;
+      while (i < 300) {
+        log("Char(" + i + "): " + text.charAt(i) + " = " + text.charCodeAt(i));
+        i += 1;
+      }
+      return [ {cmd: {}, status: {}}];*/
+      //log("trying to parse msg...");
+      lastMsg.buildMessageFromResponse(text);
+      //parse failed things here:
+      failed = lastMsg.matchCommandsFromMessage(nextMsg);
+      if (failed && failed.length > 0) { //debug output.
+        log("Have " + failed.length + " failed commands: ");
+        for (i = 0; i < failed.length; i += 1) {
+          if ((failed[i].cmd.type === "Put" || failed[i].cmd.type === "Results") && failed[i].status.data === "501") {
+            log("Server does not support put dev info, ignore.");
+            failed.splice(i, 1);
+            i -= 1;
+          } else {
+            log(JSON.stringify(failed[i]));
+          }
+          if (failed[i].status.cmdRef == 0) {
+            log("Credentials not accepted by server. Can't sync! Please check credentials and try again.");
+            logStatus("Credentials not accepted by server. Can't sync! Please check credentials and try again.");
+            resultCallback({success: false});
+          } else {
+            log("Not header: " + failed[i].status.cmdRef + " - " + failed[i].status.cmdName);
+          }
+        }
+      }
+      nextMsg = syncMLMessage();
+      if (lastMsg.getHeader().respURI) {
+        sessionInfo.url = lastMsg.getHeader().respURI;
+        log("Got new response URI " + sessionInfo.url);
+      }
+      //server may ask for device info, answer to that: 
+      for (i = 0; i < lastMsg.getBody().cmds.length; i += 1) {
+        cmd = lastMsg.getBody().cmds[i];
+        if (cmd.type === "Get" &&
+            cmd.items &&
+            cmd.items[0] &&
+            cmd.items[0].target === "./devinf12") {
+          log("Server requested dev info, put it into next msg.");
+          cmd.msgId = lastMsg.getHeader().msgId;
+          cmd.type = "Results";
+          putDevInfo(nextMsg, undefined, cmd);
+        } else if ((cmd.type === "Results" || cmd.type === "Put") && cmd.items && cmd.items[0] && cmd.items[0].source === "./devinf12") {
+          log("Got devInfo from server.");
+          if (typeof cmd.items[0].data === "object") {
+            datastores = cmd.items[0].data.getElementsByTagName("DataStore");
+            for (j = 0; j < datastores.length; j += 1) {
+              source = datastores[j].getElementsByTagName("SourceRef")[0].firstChild.nodeValue;
+              types = datastores[j].getElementsByTagName("CTType");
+              log("Got " + types.length + " types from server for " + source + ".");
+              for (k = 0; k < types.length; k += 1) {
+                type = types[k].firstChild.nodeValue;
+                log("Testing type " + type);
+                if (type !== "text/vcard" && type !== "text/x-vcalendar" && type !== "text/x-vcard" && type !== "text/calendar" && type !== "text/x-vcalendar") {
+                  log("Don't support type " + type + " right now. Please report back with log file.");
+                  type = undefined;
+                } else {
+                  break;
+                }
+              }
+              log("Datastore: " + source);
+              log("Type: " + type);
+              for (k in account.datastores) {
+                if (account.datastores.hasOwnProperty(k)) {
+                  if (account.datastores[k].path === source) {
+                    log("Setting type for datastore " + k);
+                    account.datastores[k].serverType = type;
+                    if (cmd.items[0].data.getElementsByTagName("DevID")[0]) {
+                      account.datastores[k].serverId = cmd.items[0].data.getElementsByTagName("DevID")[0].firstChild.nodeValue;
+                      log("Stored serverId: " + account.datastores[k].serverId);
+                    }
+                  } else {
+                    log(k + " is not the right datastore");
+                  }
+                }
+              } //account.datastores.loop
+            } //datastores loop
+          }
+        } //results cmd.
+      }
+      return failed;
+    } catch (e) {
+      log("Error in generalParseMsg:");
+      log(JSON.stringify(e));
+    }
+    return [];
+  }
+
+  function parseLastResponse(responseText, direct) {
+    var failed, i;
+    try {
+      if (!direct) {
+        failed = generalParseMsg(responseText);
+        if (failed && failed.length > 0) {
+          log("Have " + failed.length + " failed commands: ");
+          for (i = 0; i < failed.length; i += 1) {
+            log(JSON.stringify(failed[i]));
+          }
+          resultCallback({success: false});
+          return;
+        }
+      }
+      for (i = 0; i < willBeSynced.length; i += 1) {
+        if (account.datastores[willBeSynced[i]]) {
+          account.datastores[willBeSynced[i]].state = "finished";
+        }
+      }
       //sync finished successful! :)
       log("All ok. Finished sync, call last callback.");
+      logStatus("Sync was ok.");
       resultCallback({success: true, account: account }); //return account to update next / last sync. Mode might also be set by server. Nothing else should have changed.
+    } catch (e) {
+      log("Error in parseLastResponse:");
+      log(JSON.stringify(e));
     }
   }
 
-  function itemActionCalendarCallback(result) {
-    var item, message, content;
-    if (result && result.success) {
-      log("item action success");
-      calendar[result.type] -= 1;
-      if (result.type === "add") {
-        //log("Sync: " + JSON.stringify(lastMsg.getBody().sync[0]));
-        //log("lastMsg: " + JSON.stringify(lastMsg));
-        //log("lastMsg.body: " + JSON.stringify(lastMsg.getBody()));
-        item = lastMsg.getBody().sync[result.globalId.sync][result.type][result.globalId.cmd].items[result.globalId.item];
-        calendar.mapping.push({source: result.localId, target: item.source});
-        log("Added id to mapping");
-      }
-    } else if (result && result.success === false) {
-      log("item action failure");
-      lastMsg.getBody().sync[result.globalId.sync][result.type][result.globalId.cmd].failure = true; //remember that this was a failure. Fail the whole command if any item fails.
-      log("noted failure for status cmd.");
-    }
-
-    if (calendar.add + calendar.del + calendar.replace === 0) { //all callbacks finished:
-      log("all change callbacks finished.");
-      if (msgQueue.length > 0) {
-        message = msgQueue.shift(); //get first queued message.
-      } else {
-        message = syncMLMessage();
-      }
-      log("Will send msg " + (sessionInfo.msgId + 1) + ", addind status of msg " + lastMsg.getHeader().msgId);
-      message.addStatuses(lastMsg); //will handle failures, also. *phew*. => status finished.
-      message.addMap({source: "calendar", target: account.syncCalendarPath, mapItems: calendar.mapping });
-      if (!message.hasStatus() && calendar.mapping.length === 0 && msgQueue.length === 0 && (!message.getBody().sync || message.getBody().sync.length === 0)) {
-        log("message is empty => add alert 222");
-        message.addAlert({ data: "222", items: [ { source: "calendar", target: account.syncCalendarPath } ] });
-        log("add alert ok");
+  function itemActionCallback(result) {
+    var item, message, ds, cbsRunning, i;
+    try {
+      ds = account.datastores[result.name];
+      if (result && result.success) {
+        log("item action success");
+        ds[result.type] -= 1;
+        if (result.type === "add") {
+          //get cmd item from last message to get the globalId for the mapping cmd.
+          item = lastMsg.getBody().sync[result.globalId.sync][result.type][result.globalId.cmd].items[result.globalId.item];
+          ds.mapping.push({source: result.localId, target: item.source});
+          item.status = 200;
+          log("Added id to mapping");
+        }
+      } else if (result && result.success === false) {
+        log("item action failure");
+        lastMsg.getBody().sync[result.globalId.sync][result.type][result.globalId.cmd].status = 510; //remember that this was a failure. Fail the whole command if any item fails.
+        log("noted failure for status cmd.");
       }
 
-      content = message.buildMessage({sessionId: sessionInfo.sessionId, msgId: getMsgId(), target: account.url, source: DeviceProperties.id});
-      if (lastMsg.isFinal() && msgQueue.length === 0) {
-        sendToServer(content, parseLastResponse);
-      } else {
-        log("Not final message. there will be more.");
-        sendToServer(content, parseSyncResponse); //continue sync.
+      //TODO: this can't sync multiple datastores, yet!!! :(
+      cbsRunning = 0;
+      for (i = 0; i < willBeSynced.length; i += 1) {
+        ds = account.datastores[willBeSynced[i]];
+        cbsRunning += ds.add + ds.del + ds.replace;
       }
-      log("Overwrite lastMsg with own msg, next must be receive. (itemActionCallback");
-      lastMsg = message;
+      log("Have " + cbsRunning + " callbacks left");
+      if (cbsRunning === 0) { //all callbacks finished:
+        log("all change callbacks finished.");
+        if (msgQueue.length > 0) {
+          message = msgQueue.shift(); //get first queued message.
+        } else {
+          message = nextMsg;
+        }
+        //only add mappings to last msg.
+        if (lastMsg.isFinal() && msgQueue.length === 0) {
+          for (i = 0; i < willBeSynced.length; i += 1) {
+            ds = account.datastores[willBeSynced[i]];
+            message.addMap({source: ds.name, target: ds.path, mapItems: ds.mapping });
+            if (ds.mapping.length === 0 && msgQueue.length === 0 && (!message.getBody().sync || message.getBody().sync.length === 0)) {
+              log("message is empty => add alert 222"); //this might happen to often or even to few times... hm.
+              message.addAlert({ data: "222", items: [ { source: ds.name, target: ds.path } ] });
+              log("add alert ok");
+            }
+            ds.state = "sendMapping";
+          }
+        }
+
+        log("lastMsg.isFinal = " + lastMsg.isFinal() + " msgQueue: " + msgQueue.length);
+        if (lastMsg.isFinal() && msgQueue.length === 0) {
+          sendToServer(message, parseLastResponse);
+        } else {
+          log("Not final message. there will be more.");
+          sendToServer(message, parseSyncResponse); //continue sync.
+        }
+      }
+    } catch (e) {
+      log("Error in itemActionCallback:");
+      log(JSON.stringify(e));
     }
   }
 
@@ -218,440 +382,407 @@ var SyncML = (function () {
   //in the end a new message containing mapings from local to global ids for new items 
   //needs to be generated and send.
   //remark: we don't check item type anywhere.. this would be the right place.
-  parseSyncResponse = function (transport) {
-    var msg, failed, i, j, k, sync, content, types = ["add", "del", "replace"], callbacks = ["newEntry", "delEntry", "updateEntry"], ti, item, cmd, realFailure;
-    //log("Got: ");
-    //log(transport.responseText);
-    msg = syncMLMessage();
-    msg.buildMessageFromResponse(transport.responseText);
-    //log("Sync message had sync: " + JSON.stringify(lastMsg.getBody().sync));
-    failed = msg.matchCommandsFromMessage(lastMsg);
-    if (failed && failed.length > 0) {
-      log("Have " + failed.length + " failed commands: ");
-      realFailure = false;
-      for (i = 0; i < failed.length; i += 1) {
-        if (failed[i].status.data === "207") {
-          log("Conflict resolved on server side with merge, replace command will follow. Own cmd was: " + JSON.stringify(failed[i].cmd));
-        } else if (failed[i].status.data === "209") {
-          log("Conflict resolved on server side with duplicate, add command will follow. Own cmd was: " + JSON.stringify(failed[i].cmd));
-        } else if (failed[i].status.data === "419") {
-          log("Conflict resolved on server side with server data. Own cmd and status: " + JSON.stringify(failed[i]));
-        } else {
-          realFailure = true;
-          log(JSON.stringify(failed[i]));
+  parseSyncResponse = function (responseText) {
+    var lastOwn, failed, i, j, k, sync, callbacks = ["newEntry", "delEntry", "updateEntry"], ti, item, cmd, realFailure, ds, waitingSync;
+    try {
+      lastOwn = nextMsg;
+      failed = generalParseMsg(responseText);
+      if (failed && failed.length > 0) {
+        log("Have " + failed.length + " failed commands: ");
+        realFailure = false;
+        for (i = 0; i < failed.length; i += 1) {
+          if (failed[i].status.data === "207") {
+            log("Conflict resolved on server side with merge, replace command will follow. Own cmd was: " + JSON.stringify(failed[i].cmd));
+          } else if (failed[i].status.data === "209") {
+            log("Conflict resolved on server side with duplicate, add command will follow. Own cmd was: " + JSON.stringify(failed[i].cmd));
+          } else if (failed[i].status.data === "419") {
+            log("Conflict resolved on server side with server data. Own cmd and status: " + JSON.stringify(failed[i]));
+          } else {
+            realFailure = true;
+            log(JSON.stringify(failed[i]));
+          }
+        }
+        if (realFailure) {
+          resultCallback({success: false});
+          return;
         }
       }
-      if (realFailure) {
-        resultCallback({success: false});
-        return;
-      }
-    } else {
-      if (lastMsg.isFinal() && msgQueue.length === 0 //only if our last msg was out and we answered to all status replies try to get more from server.
-          && (!msg.getBody().sync || msg.getBody().sync.length === 0)  //only if there is no sync cmd try to get more from server
-          && account.syncCalendarMethod !== "one-way-from-client"      //only try to get more from server
-            && account.syncCalendarMethod !== "refresh-from-client") { //if we are meant to get something from server! :)
+      log("Status-Cmds processed. No failures.");
+      if (lastOwn.isFinal() && msgQueue.length === 0 &&                       //only if our last msg was out and we answered to all status replies try to get more from server.
+          (!lastMsg.getBody().sync || lastMsg.getBody().sync.length === 0)) {     //if we are meant to get something from server! :)
         log("Did not receive a sync cmd.");
-        if (!secondTry) {
-          log("Try a get next msg command.");
-          log("Overwrite lastMsg with server msg, next must be send. (parseSyncResponse(1)");
-          lastMsg = msg;
-          msg = syncMLMessage();
-          msg.addStatuses(lastMsg);
-          msg.addAlert({ data: "222", items: [ { source: "calendar", target: account.syncCalendarPath } ] });
-          content = msg.buildMessage({sessionId: sessionInfo.sessionId, msgId: getMsgId(), target: account.url, source: DeviceProperties.id});
-          sendToServer(content, parseSyncResponse);
-          log("Overwrite lastMsg with own msg, next must be receive. (parseSyncResponse(2)");
-          lastMsg = msg;
-          return;
+        for (i = 0; i < willBeSynced.length; i += 1) {
+          if (account.datastores[willBeSynced[i]] &&
+              account.datastores[willBeSynced[i]].method !== "one-way-from-client" &&
+              account.datastores[willBeSynced[i]].method !== "refresh-from-client") {
+            account.datastores[willBeSynced[i]].state = "waitingSyncCmd";
+            waitingSync = true;
+          }
+        }
+        if (waitingSync) {
+          if (!secondTry) {
+            secondTry = true;
+            log("Try to get next msg command.");
+            for (i = 0; i < willBeSynced.length; i += 1) {
+              if (account.datastores[willBeSynced[i]]) {
+                nextMsg.addAlert({ data: "222", items: [ { source: willBeSynced[i], target: account.datastores[willBeSynced[i]].path } ] });
+              }
+            }
+            sendToServer(nextMsg, parseSyncResponse);
+            return;
+          } else {
+            log("Already had second try, something failed.");
+            logStatus("Server did not send sync command...?");
+            resultCallback({success: false});
+            return;
+          }
         } else {
-          log("Already had second try, something failed.");
-          resultCallback({success: false});
+          log("All sync cmds finished. => sync finished.");
+          parseLastResponse("", true);
           return;
         }
       }
       secondTry = false;
 
       //server will answer with sync-command(s) that contains server changes:
-      for (i = 0; msg.getBody().sync && i < msg.getBody().sync.length; i += 1) {
-        log("Processing sync " + (i + 1) + " of " + msg.getBody().sync.length + " syncs.");
-        sync = msg.getBody().sync[i];
+      for (i = 0; lastMsg.getBody().sync && i < lastMsg.getBody().sync.length; i += 1) {
+        log("Processing sync " + (i + 1) + " of " + lastMsg.getBody().sync.length + " syncs.");
+        sync = lastMsg.getBody().sync[i];
+        ds = account.datastores[sync.target];
 
-        for (ti = 0; ti < 3; ti += 1) {
+        for (ti = 0; ti < types.length; ti += 1) {
           for (j = 0; sync[types[ti]] && j < sync[types[ti]].length; j += 1) {
             cmd = sync[types[ti]][j];
             for (k = 0; k < cmd.items.length; k += 1) {
-              calendar[types[ti]] += 1;
+              ds[types[ti]] += 1;
               item = undefined;
               if (types[ti] !== "del") {
                 item = cmd.items[k].data;
                 if (cmd.items[k].format === "b64") {
-                  item = window.atob(item); //TODO: this most probably won't work, get rid of "CDATA" things first... :(
+                  item = Base64.decode(item); //TODO: this most probably won't work, get rid of "CDATA" things first... :(
                 }
               }
-              calendar[callbacks[ti]](
+              ds[callbacks[ti]](
                 {
                   type: types[ti],
-                  callback: itemActionCalendarCallback,
+                  callback: itemActionCallback,
                   localId: cmd.items[k].target,
                   globalId: {sync: i, item: k, cmd: j, cmdId: cmd.cmdId }, //abuse cmdId to get globalId later and find status better later. :)
-                  item: item
+                  item: item,
+                  name: ds.name,
+                  serverData: ds
                 }
               );
             }
           }
         }
-      }
+        ds.state = "processingData";
+      } //sync cmd processing.
       log("Parsing of sync response finished.");
-      log("Overwrite lastMsg with server msg, next must be send. (parseSyncResponse(3)");
-      lastMsg = msg; //save msg for later reference.
-      itemActionCalendarCallback({}); //in case there was no action to be done, continue with sync by calling itemActionCalendarCallback.
+      itemActionCallback({}); //in case there was no action to be done, continue with sync by calling itemActionCallback.
+    } catch (e) {
+      log("Error in parseSyncResponse:");
+      log(JSON.stringify(e));
     }
   };
 
-  function mContinueSyncCalendar(data) {
-    var msg = syncMLMessage(), addedItems = 0, types = ["add", "del", "replace"], ti = 0, i, obj, content;
-    if (!data.success) {
-      resultCallback({success: false});
-      return;
-    }
-    for (ti = 0; ti < 3; ti += 1) {
-      for (i = 0; data[types[ti]] && i < data[types[ti]].length; i += 1) {
-        obj = data[types[ti]][i];
-        msg.addSyncCmd({
-          type: types[ti],
-          item: {
-            data: obj.data,
-            source: obj.localId,
-            target: obj.uid,
-            meta: {
-              type: "text/calendar"
-              //format: "b64" //do we want b64? First try without, maybe.. easier to debug.
+  function mContinueSync(name, data) {
+    var addedItems = 0, ti = 0, i, obj;
+    //TODO: what happens if this is called two times with different data objects?
+    try {
+      if (!data.success) {
+        resultCallback({success: false});
+        return;
+      }
+      for (ti = 0; ti < types.length; ti += 1) {
+        for (i = 0; data[types[ti]] && i < data[types[ti]].length; i += 1) {
+          obj = data[types[ti]][i];
+          nextMsg.addSyncCmd({
+            type: types[ti],
+            item: {
+              data: obj.data,
+              source: obj.localId,
+              //target: obj.uid,
+              meta: {
+                type: account.datastores[name].serverType ? account.datastores[name].serverType : account.datastores[name].type 
+                //format: "b64" //do we want b64? First try without, maybe.. easier to debug.
+              }
             }
+          });
+          account.datastores[name][types[ti] + "Own"] += 1;
+          addedItems += 1;
+          if (addedItems >= 9) { //TODO: make this more dynamic as reaction to server.
+            addedItems = 0;
+            //tell server that this won't be the last msg.
+            nextMsg.setFinal(false);
+            //we need to send sync command to initialize sync, even if we don't have data.
+            //initialize target / source for sync cmd.
+            nextMsg.setSyncTargetSource({ source: name, target: account.datastores[name].path });
+            msgQueue.push(nextMsg);
+            nextMsg = syncMLMessage(); //get new message!
           }
-        });
-        addedItems += 1;
-        if (addedItems >= 9) { //TODO: make this more dynamic as reaction to server.
-          addedItems = 0;
-          //tell server that this won't be the last msg.
-          msg.setFinal(false);
-          //we need to send sync command to initialize sync, even if we don't have data.
-          //initialize target / source for sync cmd.
-          msg.setSyncTargetSource({ source: "calendar", target: account.syncCalendarPath });
-          msgQueue.push(msg);
-          msg = syncMLMessage(); //get new message! 
         }
       }
-    }
 
-    if (addedItems === 0 && msgQueue.length > 0) { //last msg was empty. get back the last msg of the queue if there is one.
-      msg = msgQueue.pop();
-    }
-
-    //store last msg in queue.
-    msg.setFinal(true);
-    //we need to send sync command to initialize sync, even if we don't have data.
-    //initialize target / source for sync cmd.
-    msg.setSyncTargetSource({ source: "calendar", target: account.syncCalendarPath });
-    msgQueue.push(msg);
-
-    msg = msgQueue.shift(); //get FIRST message from queue.
-    msg.addStatuses(lastMsg); //should only be like one sync-alert.
-    content = msg.buildMessage({sessionId: sessionInfo.sessionId, msgId: getMsgId(), target: account.url, source: DeviceProperties.id});
-    //log("Sending to server: " + content);
-    sendToServer(content, parseSyncResponse);
-    log("Overwrite lastMsg with own msg, next must be receive. (continueCalendarSync");
-    lastMsg = msg;
-  }
-
-  function mContinueSyncContacts(data) {
-    var msg = syncMLMessage(), i, content;
-    if (data.add) {
-      for (i = 0; i < data.add.length; i += 1) {
-        msg.addSyncCmd({
-          type: "add",
-          item: {
-            data: data.add[i].data,
-            source: data.add[i].localId,
-            target: data.add[i].uid,
-            meta: {
-              type: "text/vcard"
-              //format: "b64" //do we want b64? First try without, maybe.. easier to debug.
-            }
-          }
-        });
+      if (addedItems === 0 && msgQueue.length > 0) { //last msg was empty. get back the last msg of the queue if there is one.
+        nextMsg = msgQueue.pop();
       }
-    }
-    if (data.del) {
-      for (i = 0; i < data.del.length; i += 1) {
-        msg.addSyncCmd({
-          type: "del",
-          item: {
-            //data: data.del[i].data, //data not necessary for delete.
-            source: data.del[i].localId,
-            target: data.del[i].uid,
-            meta: {
-              type: "text/vcard"
-              //format: "b64" //do we want b64? First try without, maybe.. easier to debug.
-            }
-          }
-        });
-      }
-    }
-    if (data.replace) {
-      for (i = 0; i < data.replace.length; i += 1) {
-        msg.addSyncCmd({
-          type: "replace",
-          item: {
-            data: data.replace[i].data,
-            source: data.replace[i].localId,
-            target: data.replace[i].uid,
-            meta: {
-              type: "text/vcard"
-              //format: "b64" //do we want b64? First try without, maybe.. easier to debug.
-            }
-          }
-        });
-      }
-    }
 
-    msg.addStatuses(lastMsg); //should only be like one sync-alert.
-    //if we don't have any data, add alert with "next-message" code.
-    if ((!data.add || data.add.length === 0) && (!data.del || data.del.length === 0) && (!data.replace || data.replace.length === 0)) {
-      msg.addAlert({ data: "222", items: [ { source: "contacts", target: account.syncContactsPath } ] });
+      //store last msg in queue.
+      nextMsg.setFinal(true);
+      //we need to send sync command to initialize sync, even if we don't have data.
+      //initialize target / source for sync cmd.
+      nextMsg.setSyncTargetSource({ source: name, target: account.datastores[name].path });
+      msgQueue.push(nextMsg);
+
+      nextMsg = msgQueue.shift(); //get FIRST message from queue.
+      sendToServer(nextMsg, parseSyncResponse);
+      account.datastores[name].state = "waitingForSyncResponse";
+    } catch (e) {
+      log("Error in continueSync:");
+      log(JSON.stringify(e));
     }
-    content = msg.buildMessage({sessionId: sessionInfo.sessionId, msgId: getMsgId(), target: account.url, source: DeviceProperties.id});
-    //log("Sending to server: " + content);
-    sendToServer(content, parseSyncResponse);
-    log("Overwrite lastMsg with own msg, next must be receive. (continueContactSync");
-    lastMsg = msg;
   }
 
   //this will try to get all changes from the device.
   //TODO: this most probably won't work if calendar and contacts are enabled, because two asynchronous functions are called and not synchronized again. 
   //need to handle that where I build the next message to the server.
   function getSyncData() {
-    if (account.syncCalendar) {
-      if (account.syncCalendarMethod === "slow" ||
-            account.syncCalendarMethod === "refresh-from-client") {
-        log("Getting all calendar data, because of slow sync or refresh from client.");
-        calendar.getAllData(mContinueSyncCalendar);
+    var i, method;
+    try {
+      for (i = 0; i < dsNames.length; i += 1) {
+        if (account.datastores[dsNames[i]]) {
+          log("ServerIdGetSyncData: " + account.datastores[dsNames[i]].serverId);
+          method = account.datastores[dsNames[i]].method;
+          if (method === "slow" || method === "refresh-from-client") {
+            log("Getting all data, because of slow sync or refresh from client.");
+            account.datastores[dsNames[i]].getAllData({callback: mContinueSync.bind(null, dsNames[i]), serverData: account.datastores[dsNames[i]] });
+            account.datastores[dsNames[i]].state = "gatheringAllData";
+          } else if (method === "two-way" || method === "one-way-from-client") {
+            log("Getting new data, because of two-way sync or one way from client.");
+            account.datastores[dsNames[i]].getNewData({callback: mContinueSync.bind(null, dsNames[i]), serverData: account.datastores[dsNames[i]]});
+            account.datastores[dsNames[i]].state = "gatheringNewData";
+          } else if (method === "refresh-from-server") {
+            log("Deleting all data, because of refresh from server.");
+            account.datastores[dsNames[i]].deleteAllData({callback: mContinueSync.bind(null, dsNames[i]), serverData: account.datastores[dsNames[i]]});
+            account.datastores[dsNames[i]].state = "deletingAllData";
+          } else if (method === "one-way-from-server") {
+            log("Don't get any calendar data, because of one way from server sync.");
+            account.datastores[dsNames[i]].state = "receivingData";
+            mContinueSync(dsNames[i], {success: true});
+          } else {
+            log("Unknown sync method: " + method);
+            resultCallback({success: false});
+          }
+        }
       }
-      if (account.syncCalendarMethod === "two-way" ||
-            account.syncCalendarMethod === "one-way-from-client") {
-        log("Getting new calendar data, because of two-way sync or one way from client.");
-        calendar.getNewData(mContinueSyncCalendar);
-      }
-      if (account.syncCalendarMethod === "refresh-from-server") {
-        log("Deleting all calendar data, because of refresh from server.");
-        calendar.deleteAllData(mContinueSyncCalendar);
-      }
-      if (account.syncCalendarMethod === "one-way-from-server") {
-        log("Don't get any calendar data, because of one way from server sync.");
-        mContinueSyncCalendar({success: true});
-      }
-    }
-    if (account.syncContacts) {
-      if (account.syncContactsMethod === "slow" ||
-            account.syncContactsMethod === "refresh-from-client") {
-        contacts.getAllData(mContinueSyncContacts);
-      }
-      if (account.syncContactsMethod === "two-way" ||
-            account.syncContactsMethod === "one-way-from-client") {
-        contacts.getNewData(mContinueSyncContacts);
-      }
-      if (account.syncContactsMethod === "refresh-from-server") {
-        contacts.deleteAllData(mContinueSyncContacts);
-      }
-      if (account.syncContactsMethod === "one-way-from-server") {
-        mContinueSyncContacts({success: true});
-      }
+    } catch (e) {
+      log("Error in getSyncData:");
+      log(JSON.stringify(e));
     }
   }
 
-  function parseInitResponse(transport) {
-    var msg, failed, numProblems = 0, i, alert, needRefresh = false;
-    //log("Got: ");
-    //log(transport.responseText);
-
-    msg = syncMLMessage();
-    //log("trying to parse msg...");
-    msg.buildMessageFromResponse(transport.responseText);
-    //log("initial response parsed.");
-    failed = msg.matchCommandsFromMessage(lastMsg);
-    if (failed && failed.length > 0) {
-      numProblems = failed.length;
-      log("Have " + failed.length + " failed commands: ");
-      for (i = 0; i < failed.length; i += 1) {
-        log(JSON.stringify(failed[i]));
-        if (failed[i].status.cmdName === "Alert" && failed[i].status.data === "508") { //server requires refresh.
-        //TODO: this does not really work for more than one source, right??
-        //if (failed[i].status.cmdRef === lastMsg.getBody().alerts[0].cmdId) { //got response to cmdRef.
-          log("No problem, server just wants a refresh.");
-          needRefresh = true;
-          numProblems -= 1;
-        }
-      }
-    }
-    if (numProblems) {
-      log(numProblems + " real problems left... break.");
-      resultCallback({success: false});
-      return;
-    } else {
-      if (msg.getHeader().respURI) {
-        sessionInfo.url = msg.getHeader().respURI;
-        log("Got new response URI " + sessionInfo.url);
-      }
-      //server will answer with sync-alerts, which might have a different sync mode, like slow for first sync:
-      //TODO: maybe some other server will already send a sync cmd with data here?? See if that happens...
-      for (i = 0; i < msg.getBody().alerts.length; i += 1) {
-        alert = msg.getBody().alerts[i];
-        //log("Alert: " + JSON.stringify(alert));
-        if (alert.items && alert.items[0] && alert.items[0].target === "calendar") {
-          if (alert.data) {
-            log("Got syncCalendarMethod: " + alert.data);
-            account.syncCalendarMethod = SyncMLAlertCodes[alert.data];
-            needRefresh = false;
-          }
-          if (alert.items && alert.items[0] && alert.items[0].meta && alert.items[0].meta.anchor && alert.items[0].meta.anchor.last) {
-            log("Got server-last: " + alert.items[0].meta.anchor.last + " and have own server-last: " + account.syncCalendarServerNext);
-            //account.syncCalendarServerNext = alert.items[0].meta.anchor.last;
-          }
-          if (alert.items && alert.items[0] && alert.items[0].meta && alert.items[0].meta.anchor && alert.items[0].meta.anchor.next) {
-            log("Got next: " + alert.items[0].meta.anchor.next + " for server, save.");
-            account.syncCalendarServerNext = alert.items[0].meta.anchor.next;
-          }
-        }
-        if (alert.items && alert.items[0] && alert.items[0].target === "contacts") {
-          if (alert.data) {
-            account.syncContactsMethod = SyncMLAlertCodes[alert.data];
+  function parseInitResponse(responseText) {
+    var failed, numProblems = 0, i, alert, needRefresh = false;
+    try {
+      failed = generalParseMsg(responseText);
+      if (failed && failed.length > 0) {
+        numProblems = failed.length;
+        log("Have " + failed.length + " failed commands: ");
+        for (i = 0; i < failed.length; i += 1) {
+          log(JSON.stringify(failed[i]));
+          if (failed[i].status.cmdName === "Alert" && failed[i].status.data === "508") { //server requires refresh.
+          //TODO: this does not really work for more than one source, right??
+          //if (failed[i].status.cmdRef === lastMsg.getBody().alerts[0].cmdId) { //got response to cmdRef.
+            log("No problem, server just wants a refresh.");
+            logStatus("Server requested slow sync.");
+            needRefresh = true;
+            numProblems -= 1;
           }
         }
       }
-      if (needRefresh) {
-        log("Server told us that we need to refresh, but did not send a alert for that... fail. :(");
+      if (numProblems) {
+        log(numProblems + " real problems left... break.");
         resultCallback({success: false});
         return;
+      } else {
+        //server will answer with sync-alerts, which might have a different sync mode, like slow for first sync:
+        //TODO: maybe some other server will already send a sync cmd with data here?? See if that happens...
+        willBeSynced = []; //empty willBeSynced.
+        for (i = 0; i < lastMsg.getBody().alerts.length; i += 1) {
+          alert = lastMsg.getBody().alerts[i];
+          //log("Alert: " + JSON.stringify(alert));
+          if (alert.items && alert.items[0]) {
+            if (account.datastores[alert.items[0].target]) {
+              if (alert.data) {
+                log("Got " + alert.items[0].target + " method: " + alert.data);
+                account.datastores[alert.items[0].target].method = SyncMLAlertCodes[alert.data];
+                log("adding " + alert.items[0].target + " to will be synced.");
+                willBeSynced.push(alert.items[0].target);
+                account.datastores[alert.items[0].target].state = "receivedInit";
+                log("willbesynced: " + JSON.stringify(willBeSynced));
+                needRefresh = false;
+              }
+              if (alert.items && alert.items[0] && alert.items[0].meta && alert.items[0].meta.anchor && alert.items[0].meta.anchor.last) {
+                account.datastores[alert.items[0].target].serverLast = account.datastores[alert.items[0].target].serverNext;
+                log("Got server-last: " + alert.items[0].meta.anchor.last + " and have own server-last: " + account.datastores[alert.items[0].target].serverLast);
+                if (account.datastores[alert.items[0].target].serverLast !== alert.items[0].meta.anchor.last) {
+                  log("Lasts do not match. Hopefully server told us to do slow sync.");
+                }
+              }
+              if (alert.items && alert.items[0] && alert.items[0].meta && alert.items[0].meta.anchor && alert.items[0].meta.anchor.next) {
+                log("Got next: " + alert.items[0].meta.anchor.next + " for server, save.");
+                account.datastores[alert.items[0].target].serverNext = alert.items[0].meta.anchor.next;
+              }
+            }
+          }
+        }
+        if (needRefresh) {
+          log("Server told us that we need to refresh, but did not send a alert for that... fail. :(");
+          resultCallback({success: false});
+          return;
+        }
+        getSyncData();
       }
-      //log("Call getSyncData()");
-      log("Overwrite lastMsg with server msg, next must be send. (parseInitResponse)");
-      lastMsg = msg;
-      getSyncData();
+    } catch (e) {
+      log("Error in parseInitMessage:");
+      log(JSON.stringify(e));
     }
   }
 
-  function parseCredResponse(transport) {
+  function parseCredResponse(responseText) {
     var responseMsg, status;
 
-    //log("Got response: " + transport.responseText);
-
-    responseMsg = syncMLMessage();
-    responseMsg.buildMessageFromResponse(transport.responseText);
-    status = responseMsg.getBody().status[sessionInfo.msgId]["0"].data; //status of last msg and header => allways 0. 
-    if (status === "212" || status === "200") {
-      log("Good credentials.");
-      resultCallback(true);
-    } else {
-      log("Wrong credentials?, status data: " + status);
-      resultCallback({success: false});
-    }
+    //try {
+      responseMsg = syncMLMessage();
+      responseMsg.buildMessageFromResponse(responseText);
+      status = responseMsg.getBody().status[sessionInfo.msgId]["0"].data; //status of last msg and header => allways 0. 
+      if (status === "212" || status === "200") {
+        log("Good credentials.");
+        resultCallback({success: true});
+      } else {
+        log("Wrong credentials?, status data: " + status);
+        resultCallback({success: false});
+      }
+//    } catch (e) {
+//      log("Error in parseCredResponse:");
+//      log(e);
+//    }
   }
 
   //define public interface:
 	return {
 	  initialize: function (inAccount) {
-	    sessionInfo.sessionId = new Date().getTime();
-	    sessionInfo.msgId = 0;
-	    sessionInfo.error = null;
-	    sessionInfo.url = inAccount.url; //initialize with global url, might change later.
-	    account = inAccount; //TODO: is this still a reference?
-	    secondTry = false;
+	    var i, ds;
+	    try {
+        sessionInfo.sessionId = parseInt((new Date().getTime() / 1000).toFixed(), 10);
+        sessionInfo.msgId = 0;
+        sessionInfo.error = null;
+        sessionInfo.url = inAccount.url; //initialize with global url, might change later.
+        account = inAccount;
+        if (account.datastores === undefined) {
+          account.datastores = [];
+        }
+        for (i = 0; i < dsNames.length; i += 1) {
+          ds = account.datastores[dsNames[i]];
+          if (ds) {
+            ds.name = dsNames[i];
+            ds.type = dsTypes[i];
+            ds.add = 0;
+            ds.del = 0;
+            ds.replace = 0;
+            ds.addOwn = 0;
+            ds.replaceOwn = 0;
+            ds.delOwn = 0;
+            ds.mapping = [];
+            ds.state = "sendingInit";
+            ds.ok = true;
+          }
+        }
+        secondTry = false;
 
-	    if (!DeviceProperties.devID) {
-	      throw ({name: "MissingInformation", message: "Error: Need to fill DeviceProperties.devId before syncML can start."});
-	    } else {
-	      DeviceProperties.id = DeviceProperties.devID;
-	      log("Will be known to server as " + DeviceProperties.id);
+        if (!DeviceProperties.devID) {
+          throw ({name: "MissingInformation", message: "Error: Need to fill DeviceProperties.devId before syncML can start."});
+        } else {
+          DeviceProperties.id = DeviceProperties.devID;
+          log("Will be known to server as " + DeviceProperties.id);
+        }
+	    } catch (e) {
+	      log("Error in initialize:");
+	      log(JSON.stringify(e));
 	    }
 	  },
 
 	  //finished 5.10.2011, is working with eGroupware, both ok and false.
 		//callback will be called with true or false as argument.
 		checkCredentials: function (callback) {
-		  var content, msg = syncMLMessage(); //TODO: ist das richtig so??? :(
-		  msg.addCredentials(account); //cool, will find username and password field. :)
-		  msg.setFinal(true);
-		  resultCallback = callback;
+		  try {
+		    nextMsg = syncMLMessage(); //TODO: ist das richtig so??? :(
+		    nextMsg.addCredentials(account); //cool, will find username and password field. :)
+		    nextMsg.setFinal(true);
+		    resultCallback = callback;
 
-		  content = msg.buildMessage({sessionId: sessionInfo.sessionId, msgId: getMsgId(), target: account.url, source: DeviceProperties.id});
-
-			//log("Sending to server: " + content);
-			sendToServer(content, parseCredResponse);
-			lastMsg = msg;
+		    sendToServer(nextMsg, parseCredResponse);
+		  } catch (e) {
+	      log("Error in checkCredentials:");
+	      log(JSON.stringify(e));
+	    }
 		},
 
 		sendSyncInitializationMsg: function (callback) {
-		  var msg = syncMLMessage(), datastores = [], content;
-			msg.addCredentials(account);
-			msg.setFinal(true);
-			resultCallback = callback;
+		  var i, ds, datastores = [];
+		  try {
+		    nextMsg = syncMLMessage();
+		    nextMsg.addCredentials(account);
+		    nextMsg.setFinal(true);
+		    resultCallback = callback;
 
-			if (account.syncCalendar) {
-			  account.syncCalendarLast = account.syncCalendarNext;
-			  account.syncCalendarNext = (new Date().getTime() / 1000).toFixed();
-			  msg.addAlert({
-			    data: SyncMLModes[account.syncCalendarMethod],
-			    items: [{
-			      target: account.syncCalendarPath,
-			      source: "calendar",
-			      meta: { anchor: { next: account.syncCalendarNext, last: account.syncCalendarLast }}
-			    }]
-			  });
-			  datastores.push({name: "calendar", type: "text/calendar"});
-			}
+		    for (i = 0; i < dsNames.length; i += 1) {
+		      ds = account.datastores[dsNames[i]];
+		      if (ds) {
+		        ds.last = ds.next;
+		        ds.next = (new Date().getTime() / 1000).toFixed();
+		        nextMsg.addAlert({
+		          data: SyncMLModes[ds.method],
+		          items: [{
+		            target: ds.path,
+		            source: dsNames[i],
+		            meta: { anchor: { next: ds.next, last: ds.last }}
+		          }]
+		        });
+		        datastores.push({name: ds.name, type: ds.type});
 
-			if (account.syncContacts) {
-	      account.syncContactsLast = account.syncContactsNext;
-	      account.syncContactsNext = new Date().getTime();
-        msg.addAlert({
-          data: SyncMLModes[account.syncContactsMethod],
-          items: [{
-            target: account.syncContactsPath,
-            source: "contacts",
-            meta: { anchor: { next: account.syncContactsNext, last: account.syncContactsLast }}
-          }]
-        });
-        datastores.push({name: "contacts", type: "text/vcard"}); //TODO: is this correct for contacts?
-			}
+		        if (!ds.serverType || !ds.serverId) {
+		          nextMsg.doGetDevInfo();
+		        }
+		      }
+		    }
+		    putDevInfo(nextMsg, datastores, {type: "Put"});
 
-		  msg.addPutDevInfo(DeviceProperties, datastores);
-
-		  content = msg.buildMessage({sessionId: sessionInfo.sessionId, msgId: getMsgId(), target: account.url, source: DeviceProperties.id});
-			//log("Sending to server: " + content);
-      sendToServer(content, parseInitResponse);
-      log("Overwrite lastMsg with own msg, next must be receive. (sendInitialMsg)");
-      lastMsg = msg;
+		    sendToServer(nextMsg, parseInitResponse);
+		  } catch (e) {
+	      log("Error in sendSyncInitializationMsg:");
+	      log(JSON.stringify(e));
+	    }
 		},
 
-		setCalendarCallbacks: function (callbacks) {
+		//callbacks of type: [ name: "calendar", ...]
+		setCallbacks: function (callbacks) {
+		  var i, ds;
 		  log("Got calendar callbacks.");
-		  calendar = callbacks;
-		  calendar.add = 0;
-		  calendar.del = 0;
-		  calendar.replace = 0;
-		  calendar.mapping = [];
+		  for (i = 0; i < callbacks.length; i += 1) {
+		    ds = account.datastores[callbacks[i].name];
+		    if (ds) {
+		      ds.getAllData = callbacks[i].getAllData;
+		      ds.getNewData = callbacks[i].getNewData;
+		      ds.deleteAllData = callbacks[i].deleteAllData;
+		      ds.newEntry = callbacks[i].newEntry;
+		      ds.updateEntry = callbacks[i].updateEntry;
+		      ds.delEntry = callbacks[i].delEntry;
+		    }
+		  }
 		},
 
-		setContactsCallbacks: function (callbacks) {
-		  log("Got contacts callbacks.");
-		  contacts = callbacks;
-		  contacts.add = 0;
-		  contacts.del = 0;
-		  contacts.replace = 0;
-		  contacts.mapping = [];
-		},
-
-		continueSyncCalendar: mContinueSyncCalendar,
-
-		continueSyncContacts: mContinueSyncContacts
+		continueSync: mContinueSync
 	};
 }());

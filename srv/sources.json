@@ -1,17 +1,22 @@
-[{
-    "library": {
-        "name": "foundations",
-        "version": "1.0"
-    }
-},
-{"source": "srv/lib/eventCallbacks.js"},
-{"source": "srv/lib/helpers.js"},
-{"source": "srv/lib/iCal.js"},
-{"source": "srv/lib/SyncMLMessage.js"},
-{"source": "srv/lib/SyncML.js"},
-{"source": "srv/lib/SyncMLAccount.js"},
+[
+{  "library": { "name": "foundations"        , "version": "1.0" }},
+{  "library": { "name": "calendar"           , "version": "1.0" }},
+{"source": "lib/serviceHelpers.js"},
+{"source": "lib/contactCallbacks.js"},
+{"source": "lib/eventCallbacks.js"},
+{"source": "lib/iCal.js"},
+{"source": "lib/keymanager.js"},
+{"source": "lib/SyncML.js"},
+{"source": "lib/SyncMLAccount.js"},
+{"source": "lib/SyncMLMessage.js"},
+{"source": "lib/xmldom/dom.js" },
+{"source": "lib/xmldom/dom-parser.js" },
+{"source": "lib/xmldom/sax.js" },
 {
-	"source": "assitants/checkCredentialsAssistant.js"
+  "source": "assistants/accountAssistants.js"
+},
+{
+	"source": "assistants/checkCredentialsAssistant.js"
 },
 {
 	"source": "assistants/onCapabiltiesChangedAssistant.js"

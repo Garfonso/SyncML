@@ -1,32 +1,75 @@
+//JSLint options:
+/*global AjaxCall, console, Base64, log */
 //***************************************************
-// Validate contact username/password 
+//Validate contact username/password 
 //***************************************************
-var checkCredentialsAssistant = function(future) {};
+var checkCredentialsAssistant = function (future) {};
 
+checkCredentialsAssistant.prototype.run = function (outerFuture) { 
+  log("CheckCredentialsAssistant start");
+  var args = this.controller.args;
+  log("Args: " + JSON.stringify(args));
 
-checkCredentialsAssistant.prototype.run = function(future) {  
-     var args = this.controller.args;  
-     console.log("Test Service: checkCredentials args =" + JSON.stringify(args));
-
-     //...Base64 encode our entered username and password
-     var base64Auth = "Basic " + Base64.encode(args.username + ":" + args.password);
-
-     //...Request contacts, which requires a username and password
-     //...Ask for contacts updated in last second or so to minimize network traffic
-     var syncURL = "http://www.plaxo.com/pdata/contacts?updatedSince=" + calcSyncDateTime();
-
-     //...If request fails, the user is not valid
-     AjaxCall.get(syncURL, {headers: {"Authorization":base64Auth, "Connection": "keep-alive"}}).then ( function(f2)
-     {
-        if (f2.result.status == 200 ) // 200 = Success
-        {    
-            //...Pass back credentials and config (username/password); config is passed to onCreate where
-            //...we will save username/password in encrypted storage
-            future.result = {returnValue: true, "credentials": {"common":{ "password" : args.password, "username":args.username}},
-                                                "config": { "password" : args.password, "username":args.username} };
+  if (locked === true) {
+    log("Locked... already running?");
+    outerFuture.result = { returnValue: false, notStarted: true };
+    return;
+  }
+  
+  if (!args.username || !args.password || !args.url) {
+    log("Need username, password and url to check credentials!");
+    outerFuture.result = { returnValue: false, notStarted: true };
+    return;
+  }
+  
+  try {
+    if (outerFuture) {
+      log ("outerFuture result: " + JSON.stringify(outerFuture.result));
+    }
+    locked = true;
+    var f = initialize({devID: true});
+    f.then(this, function (f2) {
+      log("f2: " + f2);
+      if (f2.result.returnValue === true) {
+        log("f2.result: " + JSON.stringify(f2.result));
+        
+        log("Starting checkCredentials - 1");
+        log("Parameters: " + JSON.stringify(args));
+        if (outerFuture) {
+          log("outerFuture result: " + JSON.stringify(outerFuture.result));
         }
-        else   {
-           future.result = {returnValue: false};
-        }
-     });    
+        
+        log("Starting...");
+        var account = {username: args.username, password: args.password, url: args.url};
+        SyncML.initialize(account);
+        log("SyncML initialized.");
+        log("=== Trying to call checkCredentials.");
+        
+        checkCredCallback = function (result) { 
+          log("CheckCredentials came back.");
+          log("result: " + (result ? result.success : "failure?"));
+          //log(JSON.stringify(result));
+          if (result.success === true) {
+            //config will be passed to onCreate.
+            outerFuture.result = { returnValue: true, success: true, "credentials": {"common": {"password": args.password, "username": args.username}},
+                "config": {"password": args.password, "username": args.username, "url": args.url}};
+          } else {
+            outerFuture.result = { returnValue: false, success: false };
+          }
+          locked = false; 
+        }.bind(this);
+        
+        //eventCallbacks.getAllEvents(checkCredCallback);
+        SyncML.checkCredentials(checkCredCallback);
+      } else {
+        log("Initialization failed... :(");
+        locked = false;
+        outerFuture.result = { returnValue: false, notStarted: true };
+      }
+      //return outerFuture;
+    });
+  } catch (e) { 
+    log("Error: " + e.name + " what: " + e.message + " - " + e.stack); 
+    locked = false; 
+  }
 };

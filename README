@@ -5,14 +5,76 @@ The sync of contacts is to be added later. Maybe also more datastore types. You 
 
 The synergy integration is not done yet, but the JavaScript SyncML Client and iCal parser work. So synergy integration is just a formal thing now... I'll be workin on that, next. 
 
-My list of Todo’s
-
+My list of Todo's
+- Move login data to key manager!
 - Build synergy integration
 - Build service for that
 - Rebuild App to use the service (for easier debugging)
 - Test the service
-- Modify account management  and sync management for better integration of calendar and contacts to add more datastores
 - Implement contacts sync (will require new or extended parser)
-- Modify app to view service logs and allow to send them per E-Mail
 - Optimize old eventCallback structure to be more database optimized and collect all adds, updates and deletes to do them in one batch.
-- Try to respect server max msg size by only adding like 10 objects to a message (currently sends all in one message and has reached like 20kb which is way over the server advertised limit of 10kb. Luckily that does not matter much to the server, as it seems).
+
+Pull requests are welcome! :)
+Released under MIT license.
+
+State of the software:
+Known Issues:
+- x-vcalendar implementation does not yet support b64ecoding/decoding.
+- O3SIS Server (like O2 Germany operates for its customers) does not understand our device info and therefore will not send more complicated recurring events to me.
+- Can't interpret "DAYLIGHT" string, yet. Need to extract TZID from that.
+
+Changelog:
+2012-05-17 => 0.0.16
+- added a status description above log output. Should help with outside errors, like wrong credentials or connection aborts.
+- changed behavior, app won't suggest slow sync (happened too often). On broken sync the server should request a slow sync anyway.
+2012-05-14
+- fixed some issues with account creation. Should now work again.
+- now 0.0.15 is sending capability description to the server. This might help in some cases where synchronization is not working. Hopefully this does not break anything.
+- app now is using the full screen on a Pre3. 
+2012-05-01
+- fixed a bug that prevented events with recurrence on a first Sunday of a month to be handled correctly.
+- fixed a bug that prevented aalarms to be interpreted correctly. 
+2012-04-25
+- fixed bug that prevent any action if no account was specified.
+2012-04-24
+- improved the app to force initialization to happen before sync can be started. As a side effect sync is now started automatically in the sync scene.
+- changed the app icon.
+2012-04-22
+- service can now load the complete syncml library. Great step towards real synergy integration and background sync.
+2012-04-20
+- app now selects first account automatically
+2012-02-07
+- fixed a bug that changed the msgId for repeated msg tries.
+- repaired service configuration, service can now be started, but does not have functionalities.
+2012-02-02
+- fixed a bug that sended deletes to the server until a change (other than a delete) on the client device happened.
+- fixed a bug with restored profiles that prevented changes from the device to be send to the server during a fast sync
+2012-01-29
+- fixed bug that prevented iCal->webOs time conversion to fail for UTC times denoted by a "Z" in the time string and no TZID field.
+- first steps in implementing the service, but is still crashing during startup.
+2012-01-21
+- implemented x-vcalendar support for recurring events. Now older server should work properly.
+2012-01-19
+- implemented x-vcalendar support for servers like O2. Missing: Support for recurring events. 
+- implemented quoted_printable and utf-8 support for x-vcalendar
+- fixed a bug that prevented events without timezone information from completing iCal => webOs conversion.
+- fixed a bug that prevented incoming, not repeating events, to show up in the device calendar
+2012-01-18
+- Supplied most funcitions with try/catch blocks to make system more robust and ease debugging
+- implemented retry mechanism if empty response is received (how to systematically test that??)
+- fixed a bug that prevented server updates from deleting fields in webOs.
+- fixed some bugs that prevented updates from client to server.
+- O2 currently really broken. Need to add support for x-vcalendar = iCal 1.0. :(
+2012-01-17
+- Added abilty to repair missformated XML if &,< or > characters are in unencoded item data.
+- Fixed timezone issue. Now using Timezone Manager from frameworks/calendar. Might be forbidden for app catalog. But precentral is also fine for distribution...
+2012-01-12
+- Tried to fix some issues I had with O3SIS SyncML Server (used by O2 Germany):
+  - allDay issue fixed. 
+  - Alarm partly fixed (sometimes alarm does not appear on server, need to investigate further).
+  - Detected new character encoding problem.
+  - Still the server does not accept my device info, don't know why.
+older:
+- Modified app to allow to send logs per E-Mail
+
+.

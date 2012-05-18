@@ -13,7 +13,7 @@
 {
 	"type": "db.kind",
 	"object": "info.mobo.syncml.contact:1",
-	"caller": "info.mobo.syncml.service",
+	"caller": "info.mobo.syncml.client.service",
 	"operations": {
 		"read": "allow",
 		"create": "allow",
