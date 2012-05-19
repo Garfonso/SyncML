@@ -193,9 +193,8 @@ var syncMLMessage = function () {
   //helper function to parse header values into this message:
   function readHeader(hdr) {
     var header = { cmdId: "0"}, child;
-    log("Header..");
     child = hdr.firstChild;
-    log("First child: " + child);
+//    log("First child: " + child);
     while (child) {
       //log("header-child: " + child.nodeName);
       switch (child.nodeName) {
@@ -231,9 +230,8 @@ var syncMLMessage = function () {
         log("WARNING: readHeader does not understand " + child.nodeName + ", yet. Value ignored. " + printNode(hdr));
         break;
       }
-      log("test");
       child = child.nextSibling;
-      log("Next sibling: " + child);
+//      log("Next sibling: " + child);
     }
     return header;
   }
@@ -916,7 +914,7 @@ var syncMLMessage = function () {
         for (i = 0; i < obody.sync.length; i += 1) {
           sync = obody.sync[i];
           cmdId = sync.cmdId;
-          if (cmdId || cmd === 0) {
+          if (cmdId || cmdId === 0) {
             if (body.status[msgRef][cmdId]) {
               syncStatus = body.status[msgRef][cmdId];
               syncStatus.add = {fail: 0, good: 0};

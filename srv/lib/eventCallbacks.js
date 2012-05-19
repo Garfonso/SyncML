@@ -425,6 +425,9 @@ var eventCallbacks = (function () {
 		            log("Could not save new rev in account object... wrong parameters applied?");
 		          }
 		          var res = outerFuture.result;
+		          if (!res) {
+		            res = {};
+		          }
 		          res.rev = true;
 		          outerFuture.result = res;
 				    } else {
@@ -435,6 +438,9 @@ var eventCallbacks = (function () {
 			} catch (exception) {
 				log("Exception in startTrackingChanges: " + exception + " - " + JSON.stringify(exception));
         var res = outerFuture.result;
+        if (!res) {
+          res = {};
+        }
         res.rev = true;
         outerFuture.result = res;
 			}
@@ -448,19 +454,27 @@ var eventCallbacks = (function () {
 		      if (updates === 0) {
 		        //all updates finished.
 		        var res = innerFuture.result;
+	          if (!res) {
+	            res = {};
+	          }
 		        res.updates = true;
 		        innerFuture.result = res;
 		      }
 		    };
 
 		    var finishFinished = function (f) {
-		      if (f.updates && f.rev) {
+		      log("check if event cleanup finished.");
+		      if (f.result.updates && f.result.rev) {
 		        var res = outerFuture.result;
+		        if (!res) {
+		          res = {};
+		        }
 		        res.calendar = true;
 		        outerFuture.result = res;
+		        log("event cleanup finished.");
 		      } else {
-		        log("eventCallbacks.finishSync not finished yet: " + JSON.stringify(f.result));
-		        setTimeout( function() { f.then(finishFinished); }, 500);
+		        log("event cleanup not finished yet: " + JSON.stringify(f.result));
+		        f.then(finishFinished);
 		      }
 		    };
 		     
@@ -501,6 +515,9 @@ var eventCallbacks = (function () {
 			  }
 			  if (updates === 0) {
           var res = innerFuture.result;
+          if (!res) {
+            res = {};
+          }
           res.updates = true;
           innerFuture.result = res;
 			  }

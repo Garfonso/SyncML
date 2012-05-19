@@ -54,9 +54,9 @@ var KeyManager = (function () {
 //      return future;
       //don't try to decrypt if already decrypted.
       log("Trying to decrypt " + name + " = " + obj[name+"_enc"]);
-      if (obj[name+"_enc"] === undefined) {
+      if (obj[name+"_enc"] === undefined || obj[name+"_enc"] == "") {
         log("No encrypted data. Return ok to be backwads compatible.");
-        future.result = {returnValue: true};
+        setTimeout(function() { future.result = {returnValue: true}; }, 100);
         return future;
       }
       try {
@@ -92,6 +92,11 @@ var KeyManager = (function () {
 //      return future;
       //don't try to encrypt, if already encrypted.
       log("Trying to encrypt " + name);
+      if (typeof data == "undefined" || data == "") {
+        log("No data received, return.");
+        setTimeout(function() { future.result = {returnValue: false}; }, 100);
+        return future;
+      }
       try {
         PalmCall.call("palm://com.palm.keymanager/", "crypt", {
           "keyname": keyname, 

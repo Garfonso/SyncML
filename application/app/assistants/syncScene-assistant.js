@@ -14,15 +14,14 @@ SyncSceneAssistant.prototype.setup = function () {
 	this.oldStatus = logStatus;
 	logStatus = logStatus.bind(this, this.controller);
 
-	//setup menu with email log:
-  this.model = { visible: true, items: [ {label: $L("E-Mail Log"), command: "do-log-email" }] };
-  this.controller.setupWidget(Mojo.Menu.appMenu, { omitDefaultItems: true }, this.model);
+	
+  this.controller.setupWidget(Mojo.Menu.appMenu, { omitDefaultItems: true }, AppAssistant.prototype.MenuModel);
 	
 	/* use Mojo.View.render to render view templates and add them to the scene, if needed */
 	
 	/* setup widgets here */
-  var buttonModel = { disabled: true, label: $L("Start sync") };
-	this.controller.setupWidget("btnStart", { type : Mojo.Widget.activityButton }, buttonModel );
+  this.buttonModel = { disabled: true, label: $L("Start sync") };
+	this.controller.setupWidget("btnStart", { type : Mojo.Widget.activityButton }, this.buttonModel );
 	
 	/* add event handlers to listen to events from widgets */
 	Mojo.Event.listen(this.controller.get("btnStart"), Mojo.Event.tap, this.startSync.bind(this));
@@ -37,35 +36,49 @@ SyncSceneAssistant.prototype.startSync = function ()
   }
   this.controller.get("btnStart").mojo.activate();
   
+  var oldMsg = "";
   var getResult = function (f) {
-    log(f.result.msg);
-    logStatus(this.controller, f.result.msg);
+    if (f.result.msg) {
+      log(oldMsg);
+      oldMsg = f.result.msg;
+      logStatus(f.result.msg);
+    }
 
+    if (f.result.reason) {
+      log(f.result.reason);
+      logStatus(f.result.reason);
+    }
+    
     if (f.result.finalResult) {
+      log(oldMsg);
       //sync finished.
-      if (f.result.returnValue) {
+      if (f.result.success) {
         logStatus("Sync returned ok");
-        var es = f.result.account.datastores.calendar;
-        if (es.deleteFromServerFail) {
-          log("Deletes on client FAILED: " + es.deleteFromServerFail);
+        if (f.result.account) {
+          var es = f.result.account.datastores.calendar;
+          if (es.deleteFromServerFail) {
+            log("Deletes on client FAILED: " + es.deleteFromServerFail);
+          }
+          if (es.updateFromServerFail) {
+            log("Updates on client FAILED: " + es.updateFromServerFail);
+          }
+          if (es.addFromServerFail) {
+            log("Adds    on client FAILED: " + es.addFromServerFail);
+          }
+          log("Deletes on client: " + es.deleteFromServer);
+          log("Updates on client: " + es.updateFromServer);
+          log("Adds    on client: " + es.addFromServer);
+          log("Deletes on server: " + es.delOwn);
+          log("Updates on server: " + es.replaceOwn);
+          log("Adds    on server: " + es.addOwn);
+          log("Stats for calendar:");
         }
-        if (es.updateFromServerFail) {
-          log("Updates on client FAILED: " + es.updateFromServerFail);
-        }
-        if (es.addFromServerFail) {
-          log("Adds    on client FAILED: " + es.addFromServerFail);
-        }
-        log("Deletes on client: " + es.deleteFromServer);
-        log("Updates on client: " + es.updateFromServer);
-        log("Adds    on client: " + es.addFromServer);
-        log("Deletes on server: " + es.delOwn);
-        log("Updates on server: " + es.replaceOwn);
-        log("Adds    on server: " + es.addOwn);
-        log("Stats for calendar:");
       } else {
         logStatus("Sync returned with error.");
       }
       this.controller.get("btnStart").mojo.deactivate();
+      this.buttonModel.disabled = false;
+      this.controller.modelChanged(this.buttonModel);
       this.locked = false;
     } else {
       f.then(this, getResult);
@@ -76,45 +89,11 @@ SyncSceneAssistant.prototype.startSync = function ()
     this.lockded = true;
     var account = accounts[currentAccount];
     account.subscribe = true;
-    PalmCall.call("palm://info.mobo.syncml.client.server", "sync", account).then(this, getResult);
+    log("Calling service.");
+    PalmCall.call("palm://info.mobo.syncml.client.service/", "sync", account).then(this, getResult);
   } catch (e) { 
     log("Error: " + e.name + " what: " + e.message + " - " + e.stack); 
     this.locked = false; 
-  }
-};
-
-function email(subject, message)
-{
-
-  var request = new Mojo.Service.Request("palm://com.palm.applicationManager",
-  {
-    method: 'open',
-    parameters:
-    {
-      id: 'com.palm.app.email',
-      params:
-      {
-        'summary':  subject,
-        'text':   '<html><body>' + message + '</body></html>'
-      }
-    }
-  });
-  return request;
-}
-
-function formatForHtml(string) {
-  //string = string.escapeHTML();
-  //string = string.replace(/[\s]{2}/g, " &nbsp;");
-  return string;
-}
-
-SyncSceneAssistant.prototype.handleCommand = function (event) {
-  if (event.type === Mojo.Event.command && event.command === "do-log-email") {
-    var text = 'Here is the log from SyncML:<br /><br />';
-    this.out = this.controller.get("logOutput");
-    log("output: " + this.out);
-    text += formatForHtml(this.out.innerHTML);
-    email('Log for SyncML', text);
   }
 };
 

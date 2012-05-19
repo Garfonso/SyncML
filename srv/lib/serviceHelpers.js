@@ -8,23 +8,59 @@ try {
 	var PalmCall = Foundations.Comms.PalmCall;
   var AjaxCall = Foundations.Comms.AjaxCall;
   var Calendar = IMPORTS.calendar; 
+  var path = IMPORTS.require('path');
+  var fs = IMPORTS.require('fs');
 
+  try {
+    var stats = fs.statSync("/media/internal/.info.mobo.syncml.log");
+    if (stats.size > 2097152) {
+      console.error("Truncating log file, size was " + stats.size);
+      var fd = fs.openSync("/media/internal/.info.mobo.syncml.log","a");
+      fs.truncateSync(fd, 2097152); //truncate log to 2MB.
+      fs.closeSync(fd);
+    }
+  } catch (error) {
+    console.error("No logfile present, yet? " + error);
+  }
+  
 	console.error("--------->Loaded Libraries OK");
 } catch (Error) {
   console.error("Error during loading libraries: " + Error);
 }
 
 var locked = false;
+var previousOperationFuture = new Future();
 
-var log = function (logmsg) {
-	console.error(logmsg);
+var finishAssistant = function(outerFuture, result) {
+  locked = false;
+  previousOperationFuture.result = {go: true};
+  outerFuture.result = result;
 };
 
-var logStatus = function (logmsg) {
-  console.error("=================================================================================");
-  console.error("================ SYNCSTATUS: ====================================================");
-  console.error(logmsg);
-  console.error("=================================================================================");
+var stream;
+var log = function (logmsg) {
+	console.error(logmsg);
+	try {
+	  if (typeof stream == "undefined") {
+	    stream = fs.createWriteStream("/media/internal/.info.mobo.syncml.log", {flags:"a"});
+	  }
+	  stream.write(logmsg + "\n");
+	  //stream.end();
+	} catch(e) {
+	  console.error("Unable to write to file: " + e);
+	}
+};
+
+var logSubscription = undefined;
+var logToApp = function (logmsg) {
+  log("==============================================");
+  log("To App: " + logmsg);
+  log("==============================================");
+  if (!logSubscription || ! logmsg) {
+    return;
+  }
+  var f = logSubscription.get();
+  f.result = { msg: logmsg };
 };
 
 //simple logging - requires target HTML element with id of "targOutput"
@@ -37,9 +73,10 @@ var logGUI = function (controller, logInfo) {
 	this.targOutput.innerHTML =  logInfo + "<br/>" + this.targOutput.innerHTML;
 };
 
+var fresult = {};
 var initialize = function(params) {
-  var future = new Future(), innerFuture = new Future({}), initFinishCheck;
-  log("initialize helper");
+  var future = new Future(), innerFuture = new Future(fresult), initFinishCheck;
+  log("initialize helper, status: " + JSON.stringify(fresult));
   if (params.iCal) {
     iCal.intitialize(innerFuture);
   }
@@ -81,6 +118,7 @@ var initialize = function(params) {
   //checks if all inner init functions are finished. Only then it will set a result for the outer future.
   initFinishCheck = function (f) {
     if (f.result) {
+      fresult = f.result;
       if (((params.iCal && f.result.iCal) || !params.iCal) && 
           ((params.devID && f.result.devID) || !params.devID) && 
           ((params.keymanager && f.result.keymanager) || !params.keymanager) && 
@@ -91,7 +129,8 @@ var initialize = function(params) {
         future.result = { returnValue: true};
       } else {
         log("Init not finished yet " + JSON.stringify(f.result));
-        setTimeout( function() { f.then(initFinishCheck); }, 500);
+        //setTimeout( f.then(initFinishCheck.bind(this), 500);
+        f.then(this, initFinishCheck);
         
         if (f.result.keymanager && !f.result.accounts && params.accounts) {
           initAccounts(innerFuture);
@@ -101,7 +140,7 @@ var initialize = function(params) {
   };
   
   //get devide id:
-  if (params.devID) {
+  if (params.devID && !fresult.devID) {
     if (!DeviceProperties.devID) {
       PalmCall.call('palm://com.palm.preferences/systemProperties', "Get", {"key": "com.palm.properties.nduid" }).then(function (f) {
         if (f.result.returnValue === true) {
@@ -122,11 +161,11 @@ var initialize = function(params) {
     }
   }
   
-  if (params.keymanager) {
+  if (params.keymanager && !fresult.keymanager) {
     KeyManager.initialize(innerFuture);
   }
-
-  innerFuture.then(initFinishCheck);
+  
+  innerFuture.then(this, initFinishCheck);
   return future;
 };
 

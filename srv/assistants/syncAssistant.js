@@ -6,19 +6,19 @@ syncAssistant.prototype.finished = function (account) {
   var saveAccounts = function () { 
     SyncMLAccount.setAccount(account);
     log("Saving config to store new revs.");
-    PalmCall.call("palm://info.mobo.syncml.client.service", "storeAccounts", SyncMLAccount.getAccounts()).then(function (f) {
+    SyncMLAccount.saveConfig().then(function (f) {
       log("StoreAccounts returned: " + JSON.stringify(f.result));
+      outerFuture.result = { returnValue: f.result.returnValue };
     });
   };
   
   var calendar, contacts, innerFuture = new Future();
   var checkRevsResult = function (f) {
     if (f.result.calendar && f.result.contacts) {
-      outerFuture.result = { returnValue: true};
       saveAccounts();
     } else {
-      log("Cleanup not finished, yet");
-      setTimeout( function() { f.then(checkRevsResult); }, 500);
+      log("Cleanup not finished, yet: " + JSON.stringify(f.result));
+      f.then(checkRevsResult);
     }
   };
   
@@ -27,18 +27,24 @@ syncAssistant.prototype.finished = function (account) {
     if (calendar.ok === true) {
       log("Calendar sync worked.");
       //keep changes for next two-way.
-      eventCallbacks.finishSync(account, true, innerFuture);
+      eventCallbacks.finishSync(account, innerFuture);
       if (calendar.method === "slow" || calendar.method.indexOf("refresh") !== -1) {
         calendar.method = "two-way";
       }
     } else {
       var res = innerFuture.result;
+      if (!res) {
+        res = {};
+      }
       res.calendar = true;
       innerFuture.result = res;
       log("Calendar sync had errors.");
     }
   } else {
     var res = innerFuture.result;
+    if (!res) {
+      res = {};
+    }
     res.calendar = true;
     innerFuture.result = res;    
   }
@@ -53,11 +59,17 @@ syncAssistant.prototype.finished = function (account) {
     } else {
       log("Contacts sync had errors.");
       var res = innerFuture.result;
+      if (!res) {
+        res = {};
+      }
       res.contacts = true;
       innerFuture.result = res;
     }
   } else {
     var res = innerFuture.result;
+    if (!res) {
+      res = {};
+    }
     res.contacts = true;
     innerFuture.result = res;
   }
@@ -66,24 +78,28 @@ syncAssistant.prototype.finished = function (account) {
   return outerFuture;
 };
 
-syncAssistant.prototype.run = function (outerFuture) {
+syncAssistant.prototype.run = function (outerFuture, subscription) {
   log("============== syncAssistant");
-  log("Params: " + JSON.stringify(this.controller.args));
+  //log("Params: " + JSON.stringify(this.controller.args)); //may contain password.
   log("Future: " + JSON.stringify(outerFuture.result));
-  
+    
   if (locked === true) {
     log("Locked... already running?");
-    outerFuture.result = { finalResult: true, returnValue: false, reason: "Service is busy with something else. Please wait." };
+    previousOperationFuture.then(this, function (f) {
+      log("PreviousOperation finished " + JSON.stringify(f.result) + " , starting syncAssistant");
+      this.run(outerFuture);
+    });
     return;
   }
 
   var args = this.controller.args;
   if (!args.accountId && !args.index >= 0 && !args.name) {
     log("Need accountId or account.index or account.name to sync!");
-    outerFuture.result = { finalResult: true, returnValue: false, reason: "Parameters not sufficient. " + JSON.stringify(args) };
+    finishAssistant(outerFuture, { finalResult: true, success: false, reason: "Parameters not sufficient. " + JSON.stringify(args) });
     return;
   }
   
+  logSubscription = subscription;
   try {
     locked = true;
     var f = initialize({devID: true, keymanager: true, accounts: true, accountsInfo: true, iCal: true});
@@ -92,7 +108,6 @@ syncAssistant.prototype.run = function (outerFuture) {
         log("f2.result: " + JSON.stringify(f2.result));
         
         log("Starting sync");
-        log("Parameters: " + JSON.stringify(args));
         var account = args;
         if (args.accountId) {
           account = SyncMLAccount.getAccountById(args.accountId);
@@ -105,32 +120,33 @@ syncAssistant.prototype.run = function (outerFuture) {
         if(!account.username || !account.password || !account.url) {
           log("Account seems to be not fully configured. Can't sync.");
           log("Account: " + JSON.stringify(account));
-          outerFuture.result = { finalResult: true, returnValue: false, reason: "Account not fully configured: " + JSON.stringify(account) };
+          finishAssistant(outerFuture, { finalResult: true, success: false, reason: "Account not fully configured: " + JSON.stringify(account) });
           return;
         }
 
         var syncCallback = function (result) { 
           log("Sync came back.");
-          log("result: " + JSON.stringify(result));
+          //log("result: " + JSON.stringify(result));
           //log(JSON.stringify(result));
           if (result.success === true) {
             this.finished(account).then(function (f) {
-              if (f.result.retunValue === true) {
+              if (f.result.returnValue === true) {
                 //config will be passed to onCreate.
-                outerFuture.result = { finalResult: true, returnValue: true, reason: "All went well, updates", account: account};
+                log("Success, returning to client");
+                finishAssistant(outerFuture, { finalResult: true, success: true, reason: "All went well, updates", account: account});
               } else {
-                outerFuture.result = { finalResult: true, returnValue: false, reason: "Failure in cleanup, expect trouble with next sync."};
+                log("Failure, returning to client");
+                finishAssistant(outerFuture, { finalResult: true, success: false, reason: "Failure in cleanup, expect trouble with next sync."});
               }
             });
           } else {
-            outerFuture.result = { finalResult: true, returnValue: false, reason: "Internal sync error." };
+            finishAssistant(outerFuture,{ finalResult: true, success: false, reason: "Internal sync error." });
           }
-          locked = false;
           
           //get revs:
         }.bind(this);
         
-        checkAccount(account).then(function (f3) {
+        this.checkAccount(account).then(function (f3) {
           if (f3.result.returnValue === true) {
             log("Finishing initialization of SyncML framework.");
             SyncML.initialize(account);
@@ -156,24 +172,22 @@ syncAssistant.prototype.run = function (outerFuture) {
                                  ]
             );
             log("SyncML initialized.");
-            log("=== Calling sync.");
-            SyncML.sendSyncInitializationMsg(syncCallback, outerFuture);
+            logToApp("SyncML completely initialized, starting sync process.");
+            SyncML.sendSyncInitializationMsg(syncCallback);
           } else {
             log("check and creation of accounts and calendar did not work.");
-            outerFuture.result = { finalResult: true, returnValue: false, reason: "Could not create/check account/calendar." };
+            finishAssistant(outerFuture, { finalResult: true, success: false, reason: "Could not create/check account/calendar." });
           }
         });
       } else {
         log("Initialization failed... :(");
-        locked = false;
-        outerFuture.result = { finalResult: true, returnValue: false, reason: "Initialization failed." };
+        finishAssistant(outerFuture, { finalResult: true, success: false, reason: "Initialization failed." });
       }
       //return future;
     });
   } catch (e) { 
     log("Error: " + e.name + " what: " + e.message + " - " + e.stack);
-    locked = false; 
-    outerFuture.result = { finalResult: true, returnValue: false, reason: "Error: " + e.name + " what: " + e.message };
+    finishAssistant(outerFuture, { finalResult: true, success: false, reason: "Error: " + e.name + " what: " + e.message });
   }
 };
 

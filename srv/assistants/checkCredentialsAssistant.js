@@ -6,19 +6,23 @@
 var checkCredentialsAssistant = function (future) {};
 
 checkCredentialsAssistant.prototype.run = function (outerFuture) { 
-  log("CheckCredentialsAssistant start");
+  log("========== CheckCredentialsAssistant start");
   var args = this.controller.args;
-  log("Args: " + JSON.stringify(args));
+  //log("Args: " + JSON.stringify(args));
+  log("Checking username " + args.username + " on " + args.url);
 
   if (locked === true) {
     log("Locked... already running?");
-    outerFuture.result = { returnValue: false, notStarted: true };
+    previousOperationFuture.then(this, function (f) {
+      log("PreviousOperation finished " + JSON.stringify(f.result) + " , starting CheckCredentialsAssistant");
+      this.run(outerFuture);
+    });
     return;
   }
   
   if (!args.username || !args.password || !args.url) {
     log("Need username, password and url to check credentials!");
-    outerFuture.result = { returnValue: false, notStarted: true };
+    finishAssistant(outerFuture, { returnValue: false });
     return;
   }
   
@@ -34,7 +38,6 @@ checkCredentialsAssistant.prototype.run = function (outerFuture) {
         log("f2.result: " + JSON.stringify(f2.result));
         
         log("Starting checkCredentials - 1");
-        log("Parameters: " + JSON.stringify(args));
         if (outerFuture) {
           log("outerFuture result: " + JSON.stringify(outerFuture.result));
         }
@@ -51,25 +54,23 @@ checkCredentialsAssistant.prototype.run = function (outerFuture) {
           //log(JSON.stringify(result));
           if (result.success === true) {
             //config will be passed to onCreate.
-            outerFuture.result = { returnValue: true, success: true, "credentials": {"common": {"password": args.password, "username": args.username}},
-                "config": {"password": args.password, "username": args.username, "url": args.url}};
+            finishAssistant(outerFuture, { returnValue: true, success: true, "credentials": {"common": {"password": args.password, "username": args.username}},
+                "config": {"password": args.password, "username": args.username, "url": args.url}});
           } else {
-            outerFuture.result = { returnValue: false, success: false };
-          }
-          locked = false; 
+            finishAssistant(outerFuture, { returnValue: false, success: false });
+          } 
         }.bind(this);
         
         //eventCallbacks.getAllEvents(checkCredCallback);
         SyncML.checkCredentials(checkCredCallback);
       } else {
         log("Initialization failed... :(");
-        locked = false;
-        outerFuture.result = { returnValue: false, notStarted: true };
+        finishAssistant(outerFuture, { returnValue: false });
       }
       //return outerFuture;
     });
   } catch (e) { 
     log("Error: " + e.name + " what: " + e.message + " - " + e.stack); 
-    locked = false; 
+    finishAssistant(outerFuture, { returnValue: false });
   }
 };

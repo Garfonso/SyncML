@@ -1365,45 +1365,54 @@ var iCal = (function () {
     },
     
     intitialize: function (future) {
-      var fPalmCall, fTZManager, PalmCallReturn, TZManagerReturn;
-      if (!future) {
-        future = new Future({});
-      }
+      log("iCal init...");
+      var PalmCallReturn, TZManagerReturn;
+      var innerFuture = new Future({});
       
       //somehow nest does not do what I want.. so I need to do this. :(
-      PalmCallReturn = function (f) {
-        var result = f.result;
-        if (result.timezone) {
-          localTzId = result.timezone;
-          log("Got local timezone: " + localTzId);
-          f.result = {returnValue: true};
-        }
-      };
-      fPalmCall = PalmCall.call("palm://com.palm.systemservice", "time/getSystemTime", { "subscribe": true}).then(PalmCallReturn);
+      if (!this.haveSystemTime) {
+        log("iCal: need systemTime!");
+        PalmCallReturn = function (f) {
+          var result = f.result;
+          if (result.timezone) {
+            localTzId = result.timezone;
+            log("Got local timezone: " + localTzId);
+          }
+          this.haveSystemTime = true;
+          innerFuture.result = { returnValue: true };
+        };
+        PalmCall.call("palm://com.palm.systemservice", "time/getSystemTime", { "subscribe": true}).then(this, PalmCallReturn);
+      } else {
+        innerFuture.result = { returnValue: true };
+      }
 
-      TZManagerReturn = function (f) {
-        if (f && f.result) {
-          f.result = {returnValue: true};
-        }
-      };
-      fTZManager = TZManager.setup().then(TZManagerReturn);
+      if (!this.TZManagerInitialized) {
+        log("iCal: init TZManager");
+        TZManagerReturn = function (f) {
+          log("TZManager initialized");
+          this.TZManagerInitialized = true;
+          innerFuture.result = { returnValue: true };
+        };
+        TZManager.setup().then(this, TZManagerReturn);
+      } else {
+        innerFuture.result = { returnValue: true };
+      }
       
       var EndInit = function(f) {
+        log("iCal init checking " + this.haveSystemTime + " - " + this.TZManagerInitialized);
         if (!f.result) {
           f.result = {};
         }
-        if (fTZManager.result && fPalmCall.result && fTZManager.result.returnValue === true && fPalmCall.result.returnValue === true) {
-          var res = f.result;
+        if (this.haveSystemTime && this.TZManagerInitialized) {
+          log("iCal init finished");
+          var res = future.result;
           res.iCal = true;
-          f.result = res;
+          future.result = res;
         } else {
-          var res = f.result;
-          res.iCal = false;
-          f.result = res;
-          setTimeout( function() { f.then(EndInit); }, 500);
+          innerFuture.then(this, EndInit);
         }
       };
-      future.then(EndInit);
+      innerFuture.then(this, EndInit);
       
       return future;
     }

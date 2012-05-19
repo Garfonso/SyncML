@@ -7,7 +7,10 @@ onEnabledAssistant.prototype.run = function (outerFuture) {
   
   if (locked === true) {
     log("Locked... already running?");
-    outerFuture.result = { returnValue: false, notStarted: true };
+    previousOperationFuture.then(this, function (f) {
+      log("PreviousOperation finished " + JSON.stringify(f.result) + " , starting onEnabledAssistant");
+      this.run(outerFuture);
+    });
     return;
   }
   
@@ -19,9 +22,15 @@ onEnabledAssistant.prototype.run = function (outerFuture) {
       log("Init complete");
       
       var account = SyncMLAccount.getAccountById(this.controller.args.accountId);
+      if(!account) {
+        log("Could not find account! Won't do anything.");
+        finishAssistant(outerFuture, { returnValue: false, success: false });
+        return;
+      }
       if (this.controller.args.capabilityProviderId === "info.mobo.syncml.calendar") {
         if (account.datastores.calendar.enabled != this.controller.args.enabled) {
           account.datastores.calendar.enabled = this.controller.args.enabled;
+          log("Changed account " + account.name);
 
           //save the changed setting in the db:
           SyncMLAccount.setAccount(account);
@@ -30,10 +39,9 @@ onEnabledAssistant.prototype.run = function (outerFuture) {
             if (account.datastores.calendar.enabled) {
               //if newly enabled, start a sync:
               log("Calendar got enabled, initiating sync.");
+              finishAssistant(outerFuture, { returnValue: false, success: f3.result.returnValue}); //first give back lock, then trigger sync.
               PalmCall.call("palm://info.mobo.syncml.client.service", "sync", account).then(this, function (f3) {
                 log("Sync finished: " + JSON.stringify(f3.result));
-                outerFuture.result = {returnValue: f3.result.returnValue};
-                locked = false;
               });
             } else {
               //if disabled, delete all events:
@@ -41,21 +49,20 @@ onEnabledAssistant.prototype.run = function (outerFuture) {
               eventCallbacks.setAccountAndDatastoreIds({accountId: account.accountId, calendarId: account.datastores.calendar.dbId});
               eventCallbacks.deleteAllEvents({callback: function (result) {
                 log("DeleteAllEvents came back: " + JSON.stringify(result));
-                outerFuture.result = {returnValue: result.success};
-                locked = false;
+                finishAssistant(outerFuture, { returnValue: false, success: result.success});
               }.bind(this)});
             }
           });
         } else {
           log("Should change calendar, but was already the same: " + account.datastores.calendar.enabled + " == " + this.controller.args.enabled);
-          outerFuture.result = {returnValue: true};
-          locked = false;
+          finishAssistant(outerFuture, { returnValue: false, success: true });
         }
+      } else {
+        log("Only calendar supported right now.");
       }
     } else {
       log("Init failed" + JSON.stringify(f.result));
-      outerFuture.result = {returnValue: false};
-      locked = false;
+      finishAssistant(outerFuture, { returnValue: false, success: false });
     }
   });
 };

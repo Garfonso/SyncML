@@ -30,6 +30,8 @@ WelcomeAssistant.prototype.setup = function () {
       log("Could not get accounts..." + JSON.stringify(f.result));
     }
   });
+  
+  this.controller.setupWidget(Mojo.Menu.appMenu, { omitDefaultItems: true }, AppAssistant.prototype.MenuModel);
   	
 	/* setup widgets here */
 	this.controller.setupWidget("btnConfig", {}, configModel);
@@ -45,14 +47,22 @@ WelcomeAssistant.prototype.setup = function () {
 
 WelcomeAssistant.prototype.pushConfig = function (event) {
   log("Selecting account " + this.dropboxModel.value);
-  SyncMLAccount.getAccount(this.dropboxModel.value);
+  currentAccount = this.dropboxModel.value;
 	this.controller.stageController.pushScene("configSyncMLAccount");
 };
 
 WelcomeAssistant.prototype.startSync = function (event) {
   log("Selecting account " + this.dropboxModel.value);
-  SyncMLAccount.getAccount(this.dropboxModel.value);
-	this.controller.stageController.pushScene("syncScene");
+  currentAccount = this.dropboxModel.value;
+  if (currentAccount != -1) {
+    this.controller.stageController.pushScene("syncScene");
+  } else {
+    this.controller.showAlertDialog({
+      title: $L("Error"),
+      message: "You need to configure an account first.",
+      choices: [{label:$L("OK"), value:"OK"}]
+    });
+  }
 };
 
 WelcomeAssistant.prototype.refreshAccounts = function () {

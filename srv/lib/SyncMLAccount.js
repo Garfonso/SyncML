@@ -4,7 +4,7 @@
 
 var SyncMLAccount = (function () {
   var version = 2,
-    savedFields = ["url", "name", "datastores", "accountId", "username_enc", "password_enc"],
+    savedFields = ["url", "name", "datastores", "accountId", "username_enc", "password_enc", "deviceName"],
     dsNames = ["calendar", "contacts"],
     savedFieldsDS = ["path", "method", "next", "serverNext", "dbId", "lastRev", "serverType", "serverId", "enabled"],
 //  currentAccount = { //account object!
@@ -93,13 +93,16 @@ var SyncMLAccount = (function () {
         currentAccount = index;
         //log("CA: " + currentAccount);
       }
+      if (typeof index === "undefined") {
+        currentAccount = 0;
+      }
       if (currentAccount >= 0 && currentAccount < accounts.length) {
         //log("Returning account " + currentAccount);
         return accounts[currentAccount];
       } else {
         //return a new account.
         //log("Returning new account with index " + accounts.length);
-        return {index: accounts.length}; 
+        return undefined; 
       }
     },
     
@@ -110,7 +113,7 @@ var SyncMLAccount = (function () {
           return accounts[i];
         }
       }
-      return {index: accounts.length};
+      //return {index: accounts.length};
     },
     
     getAccountByName: function(name) {
@@ -120,7 +123,7 @@ var SyncMLAccount = (function () {
           return accounts[i];
         }
       }
-      return {index: accounts.length};
+      //return {index: accounts.length};
     },
 
     getAccounts: function() {
@@ -150,6 +153,16 @@ var SyncMLAccount = (function () {
       accounts[accounts.length] = account;
       if (saveAccounts) {
         return this.saveConfig();
+      }
+    },
+    
+    removeAccount: function (account) {
+      if (account.index >= 0 && account.index < accounts.length) {
+        var b = accounts[account.index];
+        if(b.name === account.name) {
+          log("Deleting " + b.name);
+          accounts.splice(account.index, 1);
+        }
       }
     },
 
@@ -316,7 +329,6 @@ var SyncMLAccount = (function () {
         return;
       }
       try {
-        log("1");
         accObj = {
             "templateId"          : "info.mobo.syncml.account",
             "capabilityProviders" : getCapabilities(account),
@@ -330,9 +342,8 @@ var SyncMLAccount = (function () {
                 "datastores": account.datastores
               }
             };
-        log("accObj: " + JSON.stringify(accObj));
+        //log("accObj: " + JSON.stringify(accObj));
         PalmCall.call("palm://com.palm.service.accounts/", "createAccount", accObj).then(function (future) {
-              log("1.1");
               try {
                 if (future.result.returnValue === true) {
                   log("Account created!" + JSON.stringify(future.result));
@@ -340,10 +351,12 @@ var SyncMLAccount = (function () {
                   account.name = future.result.result.alias;
                   log("Got account Id: " + account.accountId);
                   SyncMLAccount.setAccount(account);
-                  SyncMLAccount.saveConfig();
-                  if (callback) {
-                    callback(account);
-                  }
+                  SyncMLAccount.saveConfig().then(function (f) {
+                    account.success = true;
+                    if (callback) {
+                      callback(account);
+                    }
+                  });
                 } else {
                   log("Account creation failed. " + JSON.stringify(future.result));
                   if (callback) {
@@ -353,22 +366,31 @@ var SyncMLAccount = (function () {
               } catch (e) {
                 log("Account creation failed, exception during PalmCall-callback.");
                 log("Exception: " + e);
-                log(JSON.stringify(e));                
+                log(JSON.stringify(e));    
+                if (callback) {
+                  callback({success: false});
+                }
               }
             });
-        log("2");
       } catch (e) { 
         log("Account creation failed, exception during PalmCall.");
         log("Exception: " + e);
         log(JSON.stringify(e));
+        if (callback) {
+          callback({success: false});
+        }
       }
     },
 
     //this deletes an account from the database!
     deleteAccountFromDB: function (account) {
-      var ids, field = "";
+      var ids, field = "", outerFuture = new Future();
       if (!account) {
         account = SyncMLAccount.getAccount();
+        if (!account) {
+          outerFuture.result = {returnValue: false};
+          return outerFuture;
+        }
       }
       if (account.dbId) {
         ids = [account.dbId];
@@ -385,17 +407,23 @@ var SyncMLAccount = (function () {
               accounts[account.index].dbId = undefined; //remember that we deleted this account from db.
             }
             account.isDeleted = true;
+            outerFuture.result = {returnValue: true};
           } else {
             log("del failure! Err = " + JSON.stringify(future.result));
+            outerFuture.result = {returnValue: false};
           }
         });
       }
+      return outerFuture;
     },
 
     //this deletes an account from the account service!
     deleteAccount: function (account) {
       if (!account) {
         account = SyncMLAccount.getAccount();
+        if (!account) {
+          return;
+        }
       }
       if (account.accountId) {
         PalmCall.call("palm://com.palm.service.accounts/", "deleteAccount", {"accountId": account.accountId}).then(function (future) {
@@ -422,17 +450,29 @@ var SyncMLAccount = (function () {
     getAccountInfo: function (account, callback) {
       if (!account) {
         account = SyncMLAccount.getAccount();
+        if (!account) {
+          if (callback) {
+            callback({success: false});
+          }
+          return;
+        }
       } else if (!account.accountId) {
         //don't have created an account with webOs, yet.. only my object seems to exist right now.
-        callback({success: false, account: account}); 
+        if (callback) {
+          callback({success: false, account: account});
+        }
       }
       PalmCall.call("palm://com.palm.service.accounts/", "getAccountInfo", {"accountId": account.accountId}).then(function (future) {
         if (future.result.returnValue === true) {
           log("getAccountInfo success" + JSON.stringify(future.result) + "\n");
           account.name = future.result.result.alias;
+          if (future.result.result.beingDeleted) {
+            log("Account " + account.name + " marked for deletion, will remove accountId.");
+            delete account.accountId;
+          }
           parseCapabilities(account, future.result.result.capabilityProviders);
           if (future.result.result.username) {
-            log("got username: " + future.result.result.username);
+            //log("got username: " + future.result.result.username);
             account.username = future.result.result.username;
           }
           SyncMLAccount.setAccount(account);
@@ -448,40 +488,55 @@ var SyncMLAccount = (function () {
 
     //can be used to change capabilities, too:
     modifyAccount: function (account) {
+      var outerFuture = new Future();
       if (!account) {
         account = SyncMLAccount.getAccount();
+        if (!account) {
+          outerFuture.result = { returnValue: false};
+          return outerFuture;
+        }
       }
       if (!account.accountId) {
         //log("Account not created, can't modify, trying create.");
         //SyncMLAccount.createAccount(account);
         log("Account not created, can't modify.");
-        return;
+        outerFuture.result = { returnValue: false};
+        return outerFuture;
       }
-      PalmCall.call("palm://com.palm.service.accounts/", "modifyAccount",
-        {
+      try {
+        log("modifying account " + account.name);
+        PalmCall.call("palm://com.palm.service.accounts/", "modifyAccount",
+            {
           "accountId": account.accountId,
           object:
+          {
+            "username": account.username,
+            "capabilityProviders": getCapabilities(account),
+            "alias": account.name,
+            "credentials":
             {
-              "username": account.username,
-              "capabilityProviders": getCapabilities(account),
-              "alias": account.name,
-              "credentials":
-                {
-                  "common": { "password": account.password }
-                },
-                "config":
-                {
-                  "url": account.url,
-                  "datastores": account.datastores
-                } //this will go to transport service...??? Why don't I get that with getAccountInfo? :(
-              }
-            }).then(function (future) {
+              "common": { "password": account.password }
+            },
+            "config":
+            {
+              "url": account.url,
+              "datastores": account.datastores
+            } //this will go to transport service...??? Why don't I get that with getAccountInfo? :(
+          }
+            }).then(this, function (future) {
               if (future.result.returnValue === true) {
                 log("Account modified = " + JSON.stringify(future.result));
               } else {
                 log("modifiyAccount failure: " + JSON.stringify(future.result));
               }
+              outerFuture.result = { returnValue: future.result.returnValue};
             });
+      } catch (error) {
+        log("Error in modify account: " + error.name);
+        log(JSON.stringify(error));
+        outerFuture.result = { returnValue: false};
+      }
+      return outerFuture;
     }
   }; //end of public interface.
 }()); //self infocation.

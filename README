@@ -24,6 +24,16 @@ Known Issues:
 - Can't interpret "DAYLIGHT" string, yet. Need to extract TZID from that.
 
 Changelog:
+2012-05-20 => 0.1.0
+- Major change: Implemented node.js service. 
+- App only calls service functions
+- Cleaned up log in the app itself considerably!
+- Writing exhaustive log to /media/internal/.info.mobo.syncml.log (accessible in usb-mode)
+- Not logging passwords (hopefully)
+- Passwords and usernames stored only encrypted
+- Integration into account app, delete and disable / enable of calendar/contacts works
+- Create from account manager works partially (need to find out how to prevent it from spawning the welcome scene and popping it to front)
+- E-Mail log improved, adds log-file as attachment
 2012-05-17 => 0.0.16
 - added a status description above log output. Should help with outside errors, like wrong credentials or connection aborts.
 - changed behavior, app won't suggest slow sync (happened too often). On broken sync the server should request a slow sync anyway.

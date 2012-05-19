@@ -8,7 +8,10 @@ onCreateAssistant.prototype.run = function (outerFuture) {
   
   if (locked === true) {
     log("Locked... already running?");
-    outerFuture.result = { returnValue: false, notStarted: true };
+    previousOperationFuture.then(this, function (f) {
+      log("PreviousOperation finished " + JSON.stringify(f.result) + " , starting OnCreateAssistant");
+      this.run(outerFuture);
+    });
     return;
   }
   
@@ -22,6 +25,15 @@ onCreateAssistant.prototype.run = function (outerFuture) {
       //build account object:
       account = this.controller.args.config;
       account.accountId = this.controller.args.accountId;
+      var acc2 = SyncMLAccount.getAccountById(account.accountId); 
+      if (!acc2) {
+        acc2 = SyncMLAccount.getAccountByName(account.name);
+      }
+      if (acc2) {
+        log("Account with id " + account.accountId + " already present. Won't create!");
+        finishAssistant(outerFuture, { returnValue: false, notStarted: true });
+        return;
+      }
       
       //then add account using my account management stuff.
       SyncMLAccount.addNewAccount(account, true).then(this, function (f2) {
@@ -31,15 +43,13 @@ onCreateAssistant.prototype.run = function (outerFuture) {
         } else {
           log("Account save failed. :(");
         }
-        locked = false;
-        outerFuture.result = {returnValue: f2.result.returnValue};
+        finishAssistant(outerFuture, {returnValue: f2.result.returnValue});
         //start a background sync:
         PalmCall.call("palm://info.mobo.syncml.client.service", "sync", account);
       });
     } else {
       log("Init failed" + JSON.stringify(f.result));
-      outerFuture.result = {returnValue: false};
-      locked = false;
+      finishAssistant(outerFuture, { returnValue: false });
     }
   });
 };

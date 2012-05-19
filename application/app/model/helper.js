@@ -19,18 +19,18 @@ try {
 
 //simple logging - requires target HTML element with id of "targOutput"
 var logGUI = function (controller, logInfo) {
-Mojo.Log.error(logInfo);
-logInfo = "" + logInfo;
-logInfo = logInfo.replace(/</g, "&lt;");
-logInfo = logInfo.replace(/>/g, "&gt;");
-this.targOutput = controller.get("logOutput");
-this.targOutput.innerHTML = logInfo + "<br/>" + this.targOutput.innerHTML;
+  Mojo.Log.error(logInfo);
+  logInfo = "" + logInfo;
+  logInfo = logInfo.replace(/</g, "&lt;");
+  logInfo = logInfo.replace(/>/g, "&gt;");
+  this.targOutput = controller.get("logOutput");
+  this.targOutput.innerHTML = logInfo + "<br/>" + this.targOutput.innerHTML;
 };
 
 //simple logging - requires target HTML element with id of "targOutput"
 var logStatus = function (controller, logInfo) {
   if (controller && logInfo) {
-    Mojo.Log.error("Sync Satuts " + logInfo);
+    Mojo.Log.error("Sync Status " + logInfo);
     logInfo = "" + logInfo;
     logInfo = logInfo.replace(/</g, "&lt;");
     logInfo = logInfo.replace(/>/g, "&gt;");

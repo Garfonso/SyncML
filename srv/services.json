@@ -37,6 +37,7 @@
             },
             {
               "name": "sync",
+              "subscribe": true,
               "assistant": "syncAssistant",
               "public": true
             },

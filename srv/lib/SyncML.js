@@ -39,7 +39,7 @@ var SyncMLAlertCodes = {
 //some more or less static device infos.
 var DeviceProperties = {
     man: "MoboSync for WebOs",
-    mod: "Pre3", //TODO: get from account or so...
+    mod: "", 
     oem: "MoboSync",
     fwv: "20.11.2011", //set firmware version to today.
     swv: "0.0.16", //set to full platform version.. that could help to work out vcard interpretation issues.
@@ -133,10 +133,10 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
             if (f.result.responseText === "") {
               if (retry <= 5) {
                 log("Got empty response. Try to send message again (" + retry + ")");
-                logStatus("No connection to server, try again. (" + retry + " / 5)");
+                logToApp("Need to retry transmission " + retry + " / 5");
                 sendToServer(msg, callback, retry + 1, id);
               } else {
-                logStatus("No connection to server, retries did not help. Please check connection.");
+                logToApp("No connection to server, retries did not help. Please check connection.");
               }
             } else {
               callback(f.result.responseText);
@@ -147,7 +147,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
 //          }
         } else { //request failure!
           log("Request failed");
-          logStatus("No connection to server, retries did not help. Please check connection, Error: " + f.result.status);
+          logToApp("No connection to server, retries did not help. Please check connection, Error: " + f.result.status);
           log(JSON.stringify(f.result));
         }
       });
@@ -174,6 +174,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
     } catch (error) {
       log("Error in sendMessage:");
       log(JSON.stringify(error));
+      logToApp("Error during send: " + error.name + ", " + error.message);
     }
   }
 
@@ -217,7 +218,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
           }
           if (failed[i].status.cmdRef == 0) {
             log("Credentials not accepted by server. Can't sync! Please check credentials and try again.");
-            logStatus("Credentials not accepted by server. Can't sync! Please check credentials and try again.");
+            logToApp("Credentials not accepted by server. Can't sync! Please check credentials and try again.");
             resultCallback({success: false});
           } else {
             log("Not header: " + failed[i].status.cmdRef + " - " + failed[i].status.cmdName);
@@ -280,6 +281,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
       }
       return failed;
     } catch (e) {
+      logToApp(e.name + " during message parsing: " + e.message);
       log("Error in generalParseMsg:");
       log(JSON.stringify(e));
     }
@@ -307,9 +309,10 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
       }
       //sync finished successful! :)
       log("All ok. Finished sync, call last callback.");
-      logStatus("Sync was ok.");
+      logToApp("Got last message and parsed it, sync was successful.");
       resultCallback({success: true, account: account }); //return account to update next / last sync. Mode might also be set by server. Nothing else should have changed.
     } catch (e) {
+      logToApp(e.name + " during parse last response: " + e.message);
       log("Error in parseLastResponse:");
       log(JSON.stringify(e));
     }
@@ -365,13 +368,16 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
 
         log("lastMsg.isFinal = " + lastMsg.isFinal() + " msgQueue: " + msgQueue.length);
         if (lastMsg.isFinal() && msgQueue.length === 0) {
+          logToApp("Last message send to server.");
           sendToServer(message, parseLastResponse);
         } else {
+          logToApp("Sending sync cmd/response to server, more data will transmitted.");
           log("Not final message. there will be more.");
           sendToServer(message, parseSyncResponse); //continue sync.
         }
       }
     } catch (e) {
+      logToApp(e.name + " in processing sync comand: " + e.message);
       log("Error in itemActionCallback:");
       log(JSON.stringify(e));
     }
@@ -393,12 +399,16 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
         for (i = 0; i < failed.length; i += 1) {
           if (failed[i].status.data === "207") {
             log("Conflict resolved on server side with merge, replace command will follow. Own cmd was: " + JSON.stringify(failed[i].cmd));
+            logToApp("Conflict resolved on server side with merge: " + JSON.stringify(failed[i].cmd.item.data));
           } else if (failed[i].status.data === "209") {
             log("Conflict resolved on server side with duplicate, add command will follow. Own cmd was: " + JSON.stringify(failed[i].cmd));
+            logToApp("Conflict resolved on server side with duplicate: " + JSON.stringify(failed[i].cmd.item.data));
           } else if (failed[i].status.data === "419") {
             log("Conflict resolved on server side with server data. Own cmd and status: " + JSON.stringify(failed[i]));
+            logToApp("Conflict resolved on server side with server data: " + JSON.stringify(failed[i].cmd.item.data));
           } else {
             realFailure = true;
+            logToApp("Command failed: " + failed[i].status.cmd + " error " + failed[i].status.data);
             log(JSON.stringify(failed[i]));
           }
         }
@@ -428,16 +438,18 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
                 nextMsg.addAlert({ data: "222", items: [ { source: willBeSynced[i], target: account.datastores[willBeSynced[i]].path } ] });
               }
             }
+            logToApp("No sync command in msg, trying to trigger it with get next message command.");
             sendToServer(nextMsg, parseSyncResponse);
             return;
           } else {
             log("Already had second try, something failed.");
-            logStatus("Server did not send sync command...?");
+            logToApp("Server did not send a sync command, no data from server receiver.");
             resultCallback({success: false});
             return;
           }
         } else {
           log("All sync cmds finished. => sync finished.");
+          logToApp("All sync cmds processed, sync finished.");
           parseLastResponse("", true);
           return;
         }
@@ -479,8 +491,10 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
         ds.state = "processingData";
       } //sync cmd processing.
       log("Parsing of sync response finished.");
+      logToApp("Sync cmd parsed, now processing data.");
       itemActionCallback({}); //in case there was no action to be done, continue with sync by calling itemActionCallback.
     } catch (e) {
+      logToApp(e.name + " during parse sync cmd: " + e.message);
       log("Error in parseSyncResponse:");
       log(JSON.stringify(e));
     }
@@ -536,9 +550,11 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
       msgQueue.push(nextMsg);
 
       nextMsg = msgQueue.shift(); //get FIRST message from queue.
+      logToApp("Sending first sync cmd to server.");
       sendToServer(nextMsg, parseSyncResponse);
       account.datastores[name].state = "waitingForSyncResponse";
     } catch (e) {
+      logToApp(e.name + " during continueSync: " + e.message);
       log("Error in continueSync:");
       log(JSON.stringify(e));
     }
@@ -577,6 +593,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
         }
       }
     } catch (e) {
+      logToApp(e.name + " during getSyncData " + e.message);
       log("Error in getSyncData:");
       log(JSON.stringify(e));
     }
@@ -595,9 +612,11 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
           //TODO: this does not really work for more than one source, right??
           //if (failed[i].status.cmdRef === lastMsg.getBody().alerts[0].cmdId) { //got response to cmdRef.
             log("No problem, server just wants a refresh.");
-            logStatus("Server requested slow sync.");
+            logToApp("Server requested slow sync.");
             needRefresh = true;
             numProblems -= 1;
+          } else {
+            logToApp("Cmd " + failed[i].status.cmd + " failed. Code: " + failed[i].status.data);
           }
         }
       }
@@ -638,13 +657,16 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
           }
         }
         if (needRefresh) {
+          logToApp("Could not find datastore for requested refresh.");
           log("Server told us that we need to refresh, but did not send a alert for that... fail. :(");
           resultCallback({success: false});
           return;
         }
+        logToApp("Will sync " + JSON.stringify(willBeSynced));
         getSyncData();
       }
     } catch (e) {
+      logToApp(e.name + " in parse of initial message: " + e.message);
       log("Error in parseInitMessage:");
       log(JSON.stringify(e));
     }
@@ -675,6 +697,11 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
 	  initialize: function (inAccount) {
 	    var i, ds;
 	    try {
+	      if (inAccount.deviceName) {
+	        DeviceProperties.mod = inAccount.deviceName;
+	        log("Got deviceName: " + DeviceProperties.mod);
+	      }
+	      
         sessionInfo.sessionId = parseInt((new Date().getTime() / 1000).toFixed(), 10);
         sessionInfo.msgId = 0;
         sessionInfo.error = null;
@@ -705,9 +732,10 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
           throw ({name: "MissingInformation", message: "Error: Need to fill DeviceProperties.devId before syncML can start."});
         } else {
           DeviceProperties.id = DeviceProperties.devID;
-          log("Will be known to server as " + DeviceProperties.id);
+          //log("Will be known to server as " + DeviceProperties.id);
         }
 	    } catch (e) {
+	      logToApp(e.name + " in SyncML.initialize:" + e.message); 
 	      log("Error in initialize:");
 	      log(JSON.stringify(e));
 	    }
@@ -759,6 +787,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
 		    }
 		    putDevInfo(nextMsg, datastores, {type: "Put"});
 
+		    logToApp("Sending initialization message to server.");
 		    sendToServer(nextMsg, parseInitResponse);
 		  } catch (e) {
 	      log("Error in sendSyncInitializationMsg:");

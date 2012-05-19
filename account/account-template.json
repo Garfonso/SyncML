@@ -15,10 +15,10 @@
 	"capabilityProviders": [{
 		"capability": "CALENDAR",
 		"id": "info.mobo.syncml.calendar",
-		"onCreate"  : "palm://info.mobo.syncml.client.service/onCreate",  
-    "onEnabled" : "palm://info.mobo.syncml.client.service/onEnabled", 
+		"onCreate"  : "palm://info.mobo.syncml.client.service/onCreate", 
     "onDelete"  : "palm://info.mobo.syncml.client.service/onDelete",
-    "sync"      : "palm://info.mobo.syncml.client.service/sync", 
+    "onEnabled" : "palm://info.mobo.syncml.client.service/onEnabled",
+    "sync"      : "palm://info.mobo.syncml.client.service/sync",   
 		"loc_name": "SyncML Calendar",
         "dbkinds": {  
                 "calendar": "info.mobo.syncml.calendar:1",
@@ -28,9 +28,9 @@
 	{
 		"capability": "CONTACTS",
 		"id": "info.mobo.syncml.contact",
-		"onCreate"  : "palm://info.mobo.syncml.client.service/onCreate",  
-    "onEnabled" : "palm://info.mobo.syncml.client.service/onEnabled", 
+		"onCreate"  : "palm://info.mobo.syncml.client.service/onCreate", 
     "onDelete"  : "palm://info.mobo.syncml.client.service/onDelete",
+    "onEnabled" : "palm://info.mobo.syncml.client.service/onEnabled",
     "sync"      : "palm://info.mobo.syncml.client.service/sync", 
 		"loc_name": "SyncML Contacts",
         "dbkinds": {  
