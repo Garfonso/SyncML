@@ -22,6 +22,9 @@ Known Issues:
 - x-vcalendar implementation does not yet support b64ecoding/decoding.
 - O3SIS Server (like O2 Germany operates for its customers) does not understand our device info and therefore will not send more complicated recurring events to me.
 - Can't interpret "DAYLIGHT" string, yet. Need to extract TZID from that.
+- Modify account does not return anymore (why???)
+- checkCredentials sometimes does not return, if server refuses connection. Error message is thrown, but it seems catch clause in assistant won't happen...?
+- create account does not work on touch pad.
 
 Changelog:
 2012-05-20 => 0.1.0
@@ -34,6 +37,7 @@ Changelog:
 - Integration into account app, delete and disable / enable of calendar/contacts works
 - Create from account manager works partially (need to find out how to prevent it from spawning the welcome scene and popping it to front)
 - E-Mail log improved, adds log-file as attachment
+- log is truncated at 2MB, that means many sync processes can be kept in log and logs can be send way after the sync process that failed.
 2012-05-17 => 0.0.16
 - added a status description above log output. Should help with outside errors, like wrong credentials or connection aborts.
 - changed behavior, app won't suggest slow sync (happened too often). On broken sync the server should request a slow sync anyway.
