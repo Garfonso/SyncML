@@ -27,6 +27,8 @@ Known Issues:
 - create account does not work on touch pad.
 
 Changelog:
+2012-05-20 => 0.1.1
+- added repairDBPermission.sh script into app folder to repair db permissions. Issues might arise, if the app was installed before submitted to webos nation. Careful: Script might delete all data.
 2012-05-20 => 0.1.0
 - Major change: Implemented node.js service. 
 - App only calls service functions

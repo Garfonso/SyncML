@@ -42,7 +42,7 @@ var DeviceProperties = {
     mod: "", 
     oem: "MoboSync",
     fwv: "20.11.2011", //set firmware version to today.
-    swv: "0.0.16", //set to full platform version.. that could help to work out vcard interpretation issues.
+    swv: "0.1.1", //set to full platform version.. that could help to work out vcard interpretation issues.
     hwv: "20.11.2011", //set hardware version to today, too.. doesn't really care.
     devID: undefined, //fill that from the account!
     devType: "smartphone", //say smartphone here. Also the tablet is "similar to a phone".. ;)
