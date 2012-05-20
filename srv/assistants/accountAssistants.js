@@ -109,3 +109,12 @@ storeAccountsAssistant.prototype.run = function (outerFuture) {
     }
   });
 };
+
+var resetServiceAssistant = function (future) {};
+
+resetServiceAssistant.prototype.run = function (outerFuture) {
+  log("Service Locked: " + locked);
+  log("Will try to exit service now.");
+  process.exit(0);
+  log("This should not get printed, right?");
+};

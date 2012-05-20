@@ -31,7 +31,7 @@ WelcomeAssistant.prototype.setup = function () {
     }
   });
   
-  this.controller.setupWidget(Mojo.Menu.appMenu, { omitDefaultItems: true }, AppAssistant.prototype.MenuModel);
+  this.controller.setupWidget(Mojo.Menu.appMenu, {}, AppAssistant.prototype.MenuModel);
   	
 	/* setup widgets here */
 	this.controller.setupWidget("btnConfig", {}, configModel);

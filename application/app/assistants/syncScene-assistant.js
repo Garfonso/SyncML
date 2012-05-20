@@ -15,7 +15,7 @@ SyncSceneAssistant.prototype.setup = function () {
 	logStatus = logStatus.bind(this, this.controller);
 
 	
-  this.controller.setupWidget(Mojo.Menu.appMenu, { omitDefaultItems: true }, AppAssistant.prototype.MenuModel);
+	this.controller.setupWidget(Mojo.Menu.appMenu, {}, AppAssistant.prototype.MenuModel);
 	
 	/* use Mojo.View.render to render view templates and add them to the scene, if needed */
 	

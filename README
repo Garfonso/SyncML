@@ -27,6 +27,9 @@ Known Issues:
 - create account does not work on touch pad.
 
 Changelog:
+2012-05-20 => 0.1.2
+- Ignoring 406 errors = optional feature not supported. Maybe that helps with oracle server.
+- Added menu entry to reset the service. Only use this if you are sure that the service hangs and you don't want for it to timeout ( one minute without action ). 
 2012-05-20 => 0.1.1
 - added repairDBPermission.sh script into app folder to repair db permissions. Issues might arise, if the app was installed before submitted to webos nation. Careful: Script might delete all data.
 2012-05-20 => 0.1.0

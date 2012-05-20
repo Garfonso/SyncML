@@ -50,6 +50,11 @@
               "name": "storeAccounts",
               "assistant": "storeAccountsAssistant",
               "public": true
+            },
+            {
+              "name": "resetService",
+              "assistant": "resetServiceAssistant",
+              "public": true
             }
 		      ]
 	    }

@@ -38,7 +38,7 @@ function email() {
 }
 
 //setup menu with email log:
-AppAssistant.prototype.MenuModel = { visible: true, items: [ {label: $L("E-Mail Log"), command: "do-log-email" }] };
+AppAssistant.prototype.MenuModel = { visible: true, items: [ {label: $L("E-Mail Log"), command: "do-log-email" }, {label: $L("Reset Service"), command: "do-reset-service"}] };
 
 AppAssistant.prototype.handleCommand = function(event) {   
   var stageController = this.controller.getActiveStageController();   
@@ -56,6 +56,13 @@ AppAssistant.prototype.handleCommand = function(event) {
         choices:[{label:$L("OK"), value:""}]   
       }); 
       break;   
+    case 'do-reset-service':
+      currentScene.showAlertDialog({   
+        onChoose: function(value) { if(value == "do") { log("Resetting service."); PalmCall.call("palm://info.mobo.syncml.client.service/", "resetService", {}); } },   
+        title: $L("Are you sure?"),   
+        message: $L("Please reset the service only, if you are really sure. Only do that if the app hangs for a long time and you are sure that the service is not reacting anymore. Don't disturb a working service, you were warned! Do you really want to reset the service now?"),   
+        choices:[{label:$L("Do it!"), value:"do", type:'negative'}, {label:$L("Cancel"), value:"cancel", type:'dismiss'}]   
+      }); 
     }   
   }   
 }; 
