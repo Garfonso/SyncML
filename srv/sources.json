@@ -19,9 +19,6 @@
 	"source": "assistants/checkCredentialsAssistant.js"
 },
 {
-	"source": "assistants/onCapabiltiesChangedAssistant.js"
-},
-{
 	"source": "assistants/onCreateAssistant.js"
 },
 {
