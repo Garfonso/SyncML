@@ -213,15 +213,17 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
             log("Server does not support put dev info, ignore.");
             failed.splice(i, 1);
             i -= 1;
-          } else {
-            log(JSON.stringify(failed[i]));
-          }
-          if (failed[i].status.cmdRef == 0) {
+          } else if (failed[i].status.cmdRef == 0) {
             log("Credentials not accepted by server. Can't sync! Please check credentials and try again.");
             logToApp("Credentials not accepted by server. Can't sync! Please check credentials and try again.");
             resultCallback({success: false});
           } else {
-            log("Not header: " + failed[i].status.cmdRef + " - " + failed[i].status.cmdName);
+            log(JSON.stringify(failed[i]));
+          }
+          if (failed[i].status.data == "406") {
+            logToApp("Warning: Server said to not support optional command " + JSON.stringify(failed[i]));
+            failed.splice(i, 1);
+            i -= 1;
           }
         }
       }
