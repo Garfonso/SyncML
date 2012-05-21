@@ -69,6 +69,16 @@ var SyncMLAccount = (function () {
   function parseCapabilities(account, caps) {
     var i;
 
+    if (!account.datastores) {
+      account.datastores = {};
+    }
+    if (!account.datastores.calendar) {
+      account.datastores.calendar = {};
+    }
+    if (!account.datastores.contacts) {
+      account.datastores.contacts = {};
+    }
+    
     account.datastores.calendar.enabled = false;
     account.datastores.contacts.enabled = false;
     for (i = 0; i < caps.length; i += 1) {

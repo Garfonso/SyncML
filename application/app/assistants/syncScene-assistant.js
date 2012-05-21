@@ -35,20 +35,11 @@ SyncSceneAssistant.prototype.startSync = function ()
     return;
   }
   this.controller.get("btnStart").mojo.activate();
+  this.buttonModel.disabled = true;
+  this.controller.modelChanged(this.buttonModel);
   
   var oldMsg = "";
   var getResult = function (f) {
-    if (f.result.msg) {
-      log(oldMsg);
-      oldMsg = f.result.msg;
-      logStatus(f.result.msg);
-    }
-
-    if (f.result.reason) {
-      log(f.result.reason);
-      logStatus(f.result.reason);
-    }
-    
     if (f.result.finalResult) {
       log(oldMsg);
       //sync finished.
@@ -80,17 +71,37 @@ SyncSceneAssistant.prototype.startSync = function ()
       this.buttonModel.disabled = false;
       this.controller.modelChanged(this.buttonModel);
       this.locked = false;
+      f.cancel();
     } else {
       f.then(this, getResult);
     }
+    
+    if (f.result.msg) {
+      log(oldMsg);
+      oldMsg = f.result.msg;
+      logStatus(f.result.msg);
+    }
+
+    if (f.result.reason) {
+      log(f.result.reason);
+      logStatus(f.result.reason);
+    }
   };
-  
+      
   try {
-    this.lockded = true;
+    this.locked = true;
     var account = accounts[currentAccount];
     account.subscribe = true;
     log("Calling service.");
-    PalmCall.call("palm://info.mobo.syncml.client.service/", "sync", account).then(this, getResult);
+    var future = PalmCall.call("palm://info.mobo.syncml.client.service/", "sync", account);
+    future.then(this, getResult);
+    var keepInTouch = function () {
+      if (this.locked) {
+        future.then(this, getResult);
+        setTimeout(keepInTouch.bind(this), 10);
+      }
+    };
+    setTimeout(keepInTouch.bind(this), 10);
   } catch (e) { 
     log("Error: " + e.name + " what: " + e.message + " - " + e.stack); 
     this.locked = false; 

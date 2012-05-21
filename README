@@ -27,6 +27,11 @@ Known Issues:
 - create account does not work on touch pad.
 
 Changelog:
+2012-05-21 => 0.1.3
+- fixed possible issue during parsing of device data from server
+- fixed locking up of modifyAccount calls during storeAccount. Race condition with onCredentialsChanged call. We don't really use onCredentialsChanged, anyway.
+- fixed issues were the app lost connection to the service and would hang forever in the sync scene. (Now this only happens if the service itself crashes)
+- fixed account icons 
 2012-05-20 => 0.1.2
 - Ignoring 406 errors = optional feature not supported. Maybe that helps with oracle server.
 - Added menu entry to reset the service. Only use this if you are sure that the service hangs and you don't want for it to timeout ( one minute without action ). 

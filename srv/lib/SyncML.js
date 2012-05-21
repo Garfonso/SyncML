@@ -248,11 +248,11 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
           if (typeof cmd.items[0].data === "object") {
             datastores = cmd.items[0].data.getElementsByTagName("DataStore");
             for (j = 0; j < datastores.length; j += 1) {
-              source = datastores[j].getElementsByTagName("SourceRef")[0].firstChild.nodeValue;
-              types = datastores[j].getElementsByTagName("CTType");
+              source = datastores.item(j).getElementsByTagName("SourceRef").item(0).firstChild.nodeValue;
+              types = datastores.item(j).getElementsByTagName("CTType");
               log("Got " + types.length + " types from server for " + source + ".");
               for (k = 0; k < types.length; k += 1) {
-                type = types[k].firstChild.nodeValue;
+                type = types.item(k).firstChild.nodeValue;
                 log("Testing type " + type);
                 if (type !== "text/vcard" && type !== "text/x-vcalendar" && type !== "text/x-vcard" && type !== "text/calendar" && type !== "text/x-vcalendar") {
                   log("Don't support type " + type + " right now. Please report back with log file.");
@@ -268,8 +268,8 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
                   if (account.datastores[k].path === source) {
                     log("Setting type for datastore " + k);
                     account.datastores[k].serverType = type;
-                    if (cmd.items[0].data.getElementsByTagName("DevID")[0]) {
-                      account.datastores[k].serverId = cmd.items[0].data.getElementsByTagName("DevID")[0].firstChild.nodeValue;
+                    if (cmd.items[0].data.getElementsByTagName("DevID").item(0)) {
+                      account.datastores[k].serverId = cmd.items[0].data.getElementsByTagName("DevID").item(0).firstChild.nodeValue;
                       log("Stored serverId: " + account.datastores[k].serverId);
                     }
                   } else {
