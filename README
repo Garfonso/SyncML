@@ -31,6 +31,7 @@ Changelog:
 - implemented "local" fix of AjaxCall to work with non standard http ports.
 - added "Delete this account" - Button to config scene to delete accounts. Deletes accounts only from the apps db. If there exists a webOS account, delete it from the accounts app (should also delete app's account object).
 - tried to add some more error messages to log files.
+- fixed issue with attached E-Mail log (thanks to Matthias)
 2012-05-21 => 0.1.3
 - fixed possible issue during parsing of device data from server
 - fixed locking up of modifyAccount calls during storeAccount. Race condition with onCredentialsChanged call. We don't really use onCredentialsChanged, anyway.

@@ -28,8 +28,8 @@ function email() {
         'text':   '<html><body>Please add some error description here... :)</body></html>',
         "attachments":[
                        { "fullPath":"/media/internal/.info.mobo.syncml.log",
-                          "displayName":"SyncML Log",
-                          "mimeType":"application/text"
+                          "displayName":"SyncMLLog",
+                          "mimeType":"text/plain"
                        }]
       }
     }
