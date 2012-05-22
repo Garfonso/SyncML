@@ -64,25 +64,32 @@ storeAccountsAssistant.prototype.run = function (outerFuture) {
       var accounts = this.controller.args.accounts;
       log("Processing " + accounts.length + " accounts.");
       for (var i = 0; i < accounts.length; i += 1) {
-        if (accounts[i].index >= 0 && typeof accounts[i].accountId != "undefined") { //already known account!
-          SyncMLAccount.setAccount(accounts[i]);
-          log("Account " + i + " of " + accounts.length + " already exists. Calling modify");
-          SyncMLAccount.modifyAccount(accounts[i]).then(function (f) {
-            modifies -= 1;
-          });
-          modifies += 1;
-        } else {
-          if (accounts[i].username && accounts[i].password && accounts[i].name && accounts[i].url) {
-            SyncMLAccount.addNewAccount(accounts[i], false); //don't write directly into database.
-            log("Account " + i + " of " + accounts.length + " is new. Calling create");
-            SyncMLAccount.createAccount(accounts[i], function() {
-              creates -= 1;
-            });
-            creates += 1;
-          } else {
-            log("Account not properly defined, ignoring.");
+        if (accounts[i].index >= 0) { //already known account!
+          if (accounts[i].deleteThis) {
+            //TODO: check if account already existed and then delete webOs account?
+            log("Deleting account " + i);
+            SyncMLAccount.removeAccount(accounts[i]);
           }
         }
+        //this creates issues... don't know how to solve them, right now.. therefore:  deacitvated and done on first sync.
+//          SyncMLAccount.setAccount(accounts[i]);
+//          log("Account " + i + " of " + accounts.length + " already exists. Calling modify");
+//          SyncMLAccount.modifyAccount(accounts[i]).then(function (f) {
+//            modifies -= 1;
+//          });
+//          modifies += 1;
+//        } else {
+//          if (accounts[i].username && accounts[i].password && accounts[i].name && accounts[i].url) {
+//            SyncMLAccount.addNewAccount(accounts[i], false); //don't write directly into database.
+//            log("Account " + i + " of " + accounts.length + " is new. Calling create");
+//            SyncMLAccount.createAccount(accounts[i], function() {
+//              creates -= 1;
+//            });
+//            creates += 1;
+//          } else {
+//            log("Account not properly defined, ignoring.");
+//          }
+//        }
       }
 
       var checkFinish = function() {

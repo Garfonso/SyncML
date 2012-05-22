@@ -10,6 +10,11 @@ try {
   var Calendar = IMPORTS.calendar; 
   var path = IMPORTS.require('path');
   var fs = IMPORTS.require('fs');
+  //for "local" AjaxCall fix:
+  var urlModule = IMPORTS.require('url');
+  var httpModule = IMPORTS.require('http');
+  var bufferModule = IMPORTS.require('buffer');
+  var Err = Foundations.Err;
 
   try {
     var stats = fs.statSync("/media/internal/.info.mobo.syncml.log");
@@ -129,7 +134,6 @@ var initialize = function(params) {
         future.result = { returnValue: true};
       } else {
         log("Init not finished yet " + JSON.stringify(f.result));
-        //setTimeout( f.then(initFinishCheck.bind(this), 500);
         f.then(this, initFinishCheck);
         
         if (f.result.keymanager && !f.result.accounts && params.accounts) {
@@ -142,7 +146,8 @@ var initialize = function(params) {
   //get devide id:
   if (params.devID && !fresult.devID) {
     if (!DeviceProperties.devID) {
-      PalmCall.call('palm://com.palm.preferences/systemProperties', "Get", {"key": "com.palm.properties.nduid" }).then(function (f) {
+      var future_ = PalmCall.call('palm://com.palm.preferences/systemProperties', "Get", {"key": "com.palm.properties.nduid" });
+      future_.then(function (f) {
         if (f.result.returnValue === true) {
           DeviceProperties.devID = f.result["com.palm.properties.nduid"];
           log("Got deviceId: " + DeviceProperties.devID);
@@ -152,6 +157,11 @@ var initialize = function(params) {
         } else {
           log("Could not get device id: " + JSON.stringify(f.result));
         }
+      });
+      future_.onError(function (f) {
+        log("Error in getDeviceID-future: " + f.exeption);
+        logToApp("Could not get device id: " + JSON.stringify(f.exeption));
+        future_.result = { returnValue: false };
       });
     } else {
       log("DeviceID still present");
@@ -290,4 +300,156 @@ var Base64 = {
       }
       return string;
   }
+};
+
+//own AjaxCall, because it is broken in webOS 2.2.4
+var AjaxCallPost = function (method, url, body, options) {
+  return new Future().now(this, function(future) {
+    options = options || {};
+    // console.log("Options: " + JSON.stringify(options));
+    method = method.toUpperCase();
+    
+    if (body && method !== AjaxCall.RequestMethod.POST)
+    {
+      if (url.match("\\?")) {
+        url = url + "&" + body;
+      } else {
+        url = url + "?" + body;
+      }
+      body = undefined;
+    }
+    
+    if (options.customRequest) {
+      method = options.customRequest;
+      method = method.toUpperCase();
+    }
+    //console.log("method = " + method);
+    
+    
+    /*
+     * First we set up the http client.
+     */
+    var parsed = urlModule.parse(url);
+    var secure = (parsed.protocol === 'https:');
+    var port = parsed.port;
+    if (!port) {
+      port = (secure) ? 443 : 80;
+    }
+    
+    // console.log("SECURE="+secure);
+    // console.log("parsed = "+JSON.stringify(parsed));
+    var httpClient = httpModule.createClient(port, parsed.hostname, secure);
+    httpClient.addListener('error', function clientError(error) {
+      future.exception = Err.create(error.errno, "httpClient error "+error.message);
+    });
+    
+    
+    /*
+     * Then we set up the http request.
+     */
+    var headers = {};
+    // Add all the generic headers that are always needed
+    headers.host = parsed.host;
+    // TODO: add support for deflate and gzip encodings, and handle 'nocompression' option
+    headers["Accept-Encoding"] = "identity";// "deflate, gzip";
+    var bodyEncoding = (options.bodyEncoding === "ascii" ? "ascii" : "utf8");
+    if (bodyEncoding === 'ascii') {
+      headers["Content-Length"] = (body && body.length) || 0;
+    } else {
+      headers["Content-Length"] = (body && bufferModule.Buffer.byteLength(body)) || 0;
+    }
+    headers.Accept = "*/*";
+    headers['Content-Type'] = "application/x-www-form-urlencoded";
+    headers.Date = (new Date()).toUTCString();
+    
+    // TODO: Add "expect 100" support for large POST operations?
+    
+    // Allow the caller to set/override any headers they want
+    Object.keys(options.headers || {}).forEach(function (headerName) {
+      headers[headerName] = options.headers[headerName];
+    });
+    // console.log("Headers: " + JSON.stringify(headers));
+    
+    if (options.joinableHeaders) {
+      for (var i = 0; i < options.joinableHeaders.length; ++i) {
+        httpClient.palm_markHeaderJoinable(options.joinableHeaders[i]);
+      }
+    }
+    
+    // console.log("pathname=" + parsed.pathname);
+    var requestPath = parsed.pathname || "/";
+    if (parsed.search) {
+      requestPath = requestPath + parsed.search;
+    }
+    
+    var local_result = { responseText: "" };
+    // console.log("requesting path: " + requestPath);
+    var request = httpClient.request(method, requestPath, headers);
+    request.addListener('error', function requestError(error) {
+      future.exception = Err.create(error.errno, "httpRequest error "+error.message);
+    });
+    
+    /*
+     * Set up the response handler for the request.
+     */
+    request.addListener('response', function returnResponse(response) {
+      // console.log("Response headers: " + JSON.stringify(response.headers));
+      
+      /*
+       * Handle the data we have now - the status code and the headers
+       */
+      future._response = response;
+      local_result.status = response.statusCode;
+      local_result.getResponseHeader = function(name) {
+        return response.headers[name.toLowerCase()];
+      };
+      local_result.getAllResponseHeaders = function(name) {
+        if (!local_result.allHeaders) {
+          // Concat all the headers together as a string if they
+          // haven't already been
+          var headers = [];
+          for (var key in response.headers) {
+            if (response.headers.hasOwnProperty(key)) {
+              headers.push("" + key + ": " + response.headers[key]);
+            }
+          }
+          local_result.allHeaders = headers.join('\r\n');
+        }
+        return local_result.allHeaders;
+      };
+      //if the caller passed an onResponse function, call it with the status code and response headers
+      if (options.onResponse && typeof options.onResponse === "function") {
+        options.onResponse(response.statusCode, response.headers);
+      }
+      
+      
+      /*
+       * Add handlers for the "data", "error", and "end" events
+       */
+      response.addListener('data', function addToResponseText(chunk) {
+        local_result.responseText += chunk;
+        
+        //if the caller passed an onData function, call it with the current chunk of data
+        if (options.onData && typeof options.onData === "function") {
+          options.onData(chunk);
+        }
+      });
+      
+      response.addListener('error', function responseError(error) {
+        future.exception = Err.create(error.errno, "httpResponse error " + error.message);
+      });
+      
+      response.addListener('end', function requestDone() {
+        try {
+          local_result.responseJSON = JSON.parse(local_result.responseText);
+        } catch (parseError) {
+          //ignore errors while parsing the response as JSON - it must not be a JSON response
+        }
+        future.result = local_result;
+      });
+    });
+    
+    // console.log("Body (" + bodyEncoding + ", " + headers["Content-Length"] + "): " + body);
+    request.end(body, bodyEncoding);
+  });
 };

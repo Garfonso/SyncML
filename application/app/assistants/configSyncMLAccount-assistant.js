@@ -78,6 +78,34 @@ ConfigSyncMLAccountAssistant.prototype.setup = function () {
 	this.spinnerModel = { spinning: false };
 	this.controller.setupWidget("saveSpinner", this.attributes = { spinnerSize: "large" }, this.spinnerModel);
 	this.controller.get('Scrim').hide();
+	
+  this.btnDeleteModel = { label: $L("Delete this account"), disabled: false};
+	if (!this.params) {
+	  this.controller.setupWidget("btnDelete", {}, this.btnDeleteModel); 
+	  Mojo.Event.listen(this.controller.get("btnDelete"), Mojo.Event.tap, this.deleteThisAccount.bind(this));
+	}
+};
+
+ConfigSyncMLAccountAssistant.prototype.deleteThisAccount = function () {
+  if (currentAccount >= 0 && currentAccount < accounts.length) {
+    accounts[currentAccount].deleteThis = true;
+    log("Saving changes to accounts.");
+    this.controller.get('Scrim').show();
+    this.controller.get('saveSpinner').mojo.start();
+    PalmCall.call("palm://info.mobo.syncml.client.service", "storeAccounts", {accounts: accounts }).then(this, function (f) {
+      log("Accounts stored, result: " + JSON.stringify(f.result));
+      PalmCall.call("palm://info.mobo.syncml.client.service","getAccounts",{}).then(this, function(f2) {
+        if (f2.result.returnValue === true) {
+          accounts = f2.result.accounts;
+          log("Got " + accounts.length + " accounts fresh from service");
+        }
+        this.popScene();
+      });
+    });
+  } else {
+    log("Account was not saved in db, nothing to do.");
+    this.popScene();
+  }
 };
 
 ConfigSyncMLAccountAssistant.prototype.enableControls = function () {

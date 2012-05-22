@@ -16,7 +16,8 @@ var eventCallbacks = (function () {
   function getEventsFromDB(input) {
     try {
       log("Getting events: " + JSON.stringify(input.query));
-      DB.find(input.query, false, false).then(
+      var future_ = DB.find(input.query, false, false);
+      future_.then(
         function (future) {
           try {
             var r = future.result;
@@ -37,6 +38,13 @@ var eventCallbacks = (function () {
           }
         }
       );
+      future_.onError(function (f) {
+        log("Error in getEventsFromDB future: " + f.exeption);
+        logToApp("Could not get events from DB: " + JSON.stringify(f.exeption));
+        future_.result = { returnValue: false };
+        input.success = false;
+        input.callback(input);
+      });
     } catch (exception) {
       log("Error in getEventsFromDB(Future): ");
       log(JSON.stringify(exception));
@@ -145,7 +153,8 @@ var eventCallbacks = (function () {
   
         //continue update.
         e[0]._kind = "info.mobo.syncml.calendarevent:1";
-        DB.merge(e).then(clone({ recurringId: recId, id: e[0]._id, child: childId }), //try to prevent others from overwriting data for this object. :(
+        var future_ = DB.merge(e);
+        future_.then(clone({ recurringId: recId, id: e[0]._id, child: childId }), //try to prevent others from overwriting data for this object. :(
           function (future) {
             try {
               var r = future.result;
@@ -196,6 +205,13 @@ var eventCallbacks = (function () {
               input.callback(input);
             }
           });
+        future_.onError(function (f) {
+          log("Error in updateEvent-future: " + f.exeption);
+          logToApp("Could not update Event: " + JSON.stringify(f.exeption));
+          future_.result = { returnValue: false };
+          input.success = false;
+          input.callback(input);
+        });
       } catch (exception) {
         log("Exception in UpdateEvent(doUpdate): " + exception + " - " + JSON.stringify(exception) + " at " + input.item + " with ID " + input.localId);
         input.success = false;
@@ -248,7 +264,8 @@ var eventCallbacks = (function () {
 			try {
 				var ids = [input.localId];
 				//delete with purge=true.
-				DB.del(ids, true).then(
+				var future_ = DB.del(ids, true);
+				future_.then(
 				  function (future) {
 				    try {
   				    var r = future.result;
@@ -275,6 +292,13 @@ var eventCallbacks = (function () {
 	          }
 				  }
 				);
+				future_.onError(function (f) {
+          log("Error in delEvent-future: " + f.exeption);
+          logToApp("Could not delete Event: " + JSON.stringify(f.exeption));
+          future_.result = { returnValue: false };
+          input.success = false;
+          input.callback(input);
+        });
 			} catch (exception) {
 				log("Exception in DeleteEvent: " + exception + " - " + JSON.stringify(exception));
 				input.success = false;
@@ -289,7 +313,8 @@ var eventCallbacks = (function () {
 		  log("DeleteAll events called.");
       try {
         //delete with purge=true.
-        DB.del({from: "info.mobo.syncml.calendarevent:1", where: [{prop: "accountId", op: "=", val: ids.accountId}] }, true).then(
+        var future_ = DB.del({from: "info.mobo.syncml.calendarevent:1", where: [{prop: "accountId", op: "=", val: ids.accountId}] }, true);
+        future_.then(
           function (future) {
             var r = future.result;
             if (r.returnValue === true) {
@@ -301,6 +326,12 @@ var eventCallbacks = (function () {
             }
           }
         );
+        future_.onError(function (f) {
+          log("Error in deleteAllEvents-future: " + f.exeption);
+          logToApp("Could not delete all Events: " + JSON.stringify(f.exeption));
+          future_.result = { returnValue: false };
+          input.callback({success: false});
+        });
 			} catch (exception) {
 				log("Exception in deleteAllEvents: " + exception + " - " + JSON.stringify(exception));
 				//something went wrong, continue sync:
@@ -359,11 +390,16 @@ var eventCallbacks = (function () {
 					      account.datastores.calendar.dbId = undefined;
 					      eventCallbacks.checkCalendar(account).then(function (f) {
 					        //transfer result to outer future.
-					        resfuture = f.result;
+					        resfuture.result = f.result;
 					      });
 					    }
 					  }
 					);
+				  resfuture.onError(function (f) {
+	          log("Error in checkCalendar-future: " + f.exeption);
+	          logToApp("Could not find Calendar: " + JSON.stringify(f.exeption));
+	          resfuture.result = { returnValue: false };
+	        });
 				} else {
 					//log("Need to create calendar account.");
 
@@ -397,6 +433,11 @@ var eventCallbacks = (function () {
 					    }
 					  }
 					);
+					future_.onError(function (f) {
+	          log("Error in checkCalendar-future: " + f.exeption);
+	          logToApp("Could not create Calendar: " + JSON.stringify(f.exeption));
+	          resfuture.result = { returnValue: false };
+	        });
 				}
 			}
 			
@@ -407,7 +448,10 @@ var eventCallbacks = (function () {
 		  log("startTrackingChanges called.");
 			try {
 				log("Tracking changes for future updates.");
-				DB.find({from: "info.mobo.syncml.calendarevent:1", where: [{prop: "accountId", op: "=", val: ids.accountId}], select: ["_rev"], incDel: true}).then(
+				var future_ = DB.find({from: "info.mobo.syncml.calendarevent:1", 
+				                       where: [{prop: "accountId", op: "=", val: ids.accountId}], 
+				                       select: ["_rev"], incDel: true});
+				future_.then(
 				  function (future) {
 				    var r = future.result, i;
 				    if (r.returnValue === true) {
@@ -435,6 +479,11 @@ var eventCallbacks = (function () {
 				    }
 				  }
 				);
+				future_.onError(function (f) {
+          log("Error in startTrackingChanges-future: " + f.exeption);
+          logToApp("Could not clean up event changes: " + JSON.stringify(f.exeption));
+          future_.result = { returnValue: false };
+        });
 			} catch (exception) {
 				log("Exception in startTrackingChanges: " + exception + " - " + JSON.stringify(exception));
         var res = outerFuture.result;

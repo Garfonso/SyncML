@@ -13,7 +13,8 @@ var KeyManager = (function () {
     //That means, to be sure that the key exists and that something returns a callback,
     //we just call keyInfo and generate. One will always return and the key will exist. :)
     log("Checking if key exists.");
-    PalmCall.call("palm://com.palm.keymanager/", "keyInfo", { keyname: keyname}).then(function (future) {
+    var f1 = PalmCall.call("palm://com.palm.keymanager/", "keyInfo", { keyname: keyname});
+    f1.then(function (future) {
       if (future.result.returnValue === true) {
         log("Key exists. All is fine. :) " + JSON.stringify(future.result));
         if (callback) {
@@ -24,7 +25,13 @@ var KeyManager = (function () {
         log("No key, need to create key." + JSON.stringify(result));
       }
     });
-    PalmCall.call("palm://com.palm.keymanager", "generate", { "keyname": keyname, "size": 32, "type": "AES", "nohide" : false }).then(function(future) {
+    f1.onError(function (f) {
+      log("Error in keyInfo-future: " + f.exeption);
+      logToApp("Could not get keyInfo: " + JSON.stringify(f.exeption));
+      f1.result = { returnValue: false };
+    });
+    var f2 = PalmCall.call("palm://com.palm.keymanager", "generate", { "keyname": keyname, "size": 32, "type": "AES", "nohide" : false });
+    f2.then(function(future) {
       if (future.result.returnValue === true) {
         log("Key created. All is fine. :) " + JSON.stringify(future.result));
         if (callback) {
@@ -32,10 +39,15 @@ var KeyManager = (function () {
         }
       } else {
         log("Key not created. Nothing is fine. :( " + JSON.stringify(result));
-        if (callback) {
-          callback(false);
-        }
+//        if (callback) {
+//          callback(false);
+//        }
       }
+    });
+    f2.onError(function (f) {
+      log("Error in generateKey-future: " + f.exeption);
+      logToApp("Could not generate Key: " + JSON.stringify(f.exeption));
+      f2.result = { returnValue: false };
     });
   }
   
@@ -60,12 +72,13 @@ var KeyManager = (function () {
         return future;
       }
       try {
-        PalmCall.call("palm://com.palm.keymanager/", "crypt", {
+        var future_ = PalmCall.call("palm://com.palm.keymanager/", "crypt", {
           "keyname": keyname, 
           "algorithm" : "AES", 
           "decrypt": true, 
           "data": obj[name+"_enc"]
-        }).then(function (f) {
+        });
+        future_.then(function (f) {
           var result = f.result;
           if (result.returnValue === true) {
             obj[name] = Base64.decode(result.data);
@@ -74,6 +87,11 @@ var KeyManager = (function () {
             log(JSON.stringify(result));
           }
           future.result = {returnValue: result.returnValue};
+        });
+        future_.onError(function (f) {
+          log("Error in crypt-future: " + f.exeption);
+          logToApp("Could not crypt username/password: " + JSON.stringify(f.exeption));
+          future_.result = { returnValue: false };
         });
       } catch (e) {
         log("Error in decrypt: " + JSON.stringify(e));
@@ -98,12 +116,13 @@ var KeyManager = (function () {
         return future;
       }
       try {
-        PalmCall.call("palm://com.palm.keymanager/", "crypt", {
+        var future_ = PalmCall.call("palm://com.palm.keymanager/", "crypt", {
           "keyname": keyname, 
           algorithm: "AES", 
           decrypt: false, 
           data: Base64.encode(data)
-        }).then(function (f) {
+        });
+        future_.then(function (f) {
           var result = f.result;
           if (result.returnValue === true) {
             obj[name+"_enc"] = result.data;
@@ -112,6 +131,11 @@ var KeyManager = (function () {
             log(JSON.stringify(result));
           }
           future.result = {returnValue: result.returnValue};
+        });
+        future_.onError(function (f) {
+          log("Error in decrypt-future: " + f.exeption);
+          logToApp("Could not decrypt user/pass: " + JSON.stringify(f.exeption));
+          future_.result = { returnValue: false };
         });
       } catch (e) {
         log("Error in encrypt: " + JSON.stringify(e));

@@ -768,7 +768,7 @@ var iCal = (function () {
   }
 
   function parseLineIntoObject(lObj, event, afterTZ) {
-    var translation, translationQuote, transTime, year;
+    var translation, translationQuote, transTime, year, future_;
     //not in webOs: UID
     //in webos but not iCal: allDay, calendarID, parentId, parentDtStart (???)
     //string arrays: attach, exdates, rdates
@@ -807,7 +807,13 @@ var iCal = (function () {
     if (lObj.key === "TZID") {
       //log("Got TZID: " + lObj.value);
       event.tzId = lObj.value;
-      TZManager.loadTimezones([event.tzId, localTzId]).then(afterTZ); //I hope this is allowed..
+      future_ = TZManager.loadTimezones([event.tzId, localTzId]);
+      future_.then(afterTZ); //I hope this is allowed..
+      future_.onError(function (f) {
+        log("Error in TZManager.loadTimezones-future: " + f.exeption);
+        logToApp("Could not load Timezones: " + JSON.stringify(f.exeption));
+        future_.result = { returnValue: false };
+      });
     }
 
     if (translation[lObj.key]) {
@@ -830,7 +836,13 @@ var iCal = (function () {
         event.tzId = lObj.parameters.tzid;
       }
       if (event.tzId) {
-        TZManager.loadTimezones([event.tzId, localTzId], [year]).then(afterTZ);
+        future_ = TZManager.loadTimezones([event.tzId, localTzId], [year]);
+        future_.then(afterTZ);
+        future_.onError(function (f) {
+          log("Error in TZManager.loadTimezones-future: " + f.exeption);
+          logToApp("Could not load Timezones: " + JSON.stringify(f.exeption));
+          future_.result = { returnValue: false };
+        });
       } else {
         event.loadTimezones -= 1;
         //log("No Timezone in event. Assuming local.");
@@ -1345,7 +1357,8 @@ var iCal = (function () {
             years.push(new Date(event.created).getFullYear());
           }
           //for timezone mangling.
-          TZManager.loadTimezones([event.tzId, localTzId], years).then(this, function (future) {
+          var future_ = TZManager.loadTimezones([event.tzId, localTzId], years);
+          future_.then(this, function (future) {
             //log("loadTimezones returned: ");
             //log(JSON.stringify(future.result));
             try {
@@ -1354,6 +1367,11 @@ var iCal = (function () {
               log("Error in generateICal (intern): ");
               log(JSON.stringify(e));
             }
+          });
+          future_.onError(function (f) {
+            log("Error in TZManager.loadTimezones-future: " + f.exeption);
+            logToApp("Could not load Timezones: " + JSON.stringify(f.exeption));
+            future_.result = { returnValue: false };
           });
         } else {
           generateICalIntern(event, callback, serverData.serverType);
@@ -1366,7 +1384,7 @@ var iCal = (function () {
     
     intitialize: function (future) {
       log("iCal init...");
-      var PalmCallReturn, TZManagerReturn;
+      var PalmCallReturn, TZManagerReturn, future_;
       var innerFuture = new Future({});
       
       //somehow nest does not do what I want.. so I need to do this. :(
@@ -1381,7 +1399,13 @@ var iCal = (function () {
           this.haveSystemTime = true;
           innerFuture.result = { returnValue: true };
         };
-        PalmCall.call("palm://com.palm.systemservice", "time/getSystemTime", { "subscribe": true}).then(this, PalmCallReturn);
+        future_ = PalmCall.call("palm://com.palm.systemservice", "time/getSystemTime", { "subscribe": true});
+        future_.then(this, PalmCallReturn);
+        future_.onError(function (f) {
+          log("Error in getSystemTime-future: " + f.exeption);
+          logToApp("Could not get Systemtime: " + JSON.stringify(f.exeption));
+          future_.result = { returnValue: false };
+        });
       } else {
         innerFuture.result = { returnValue: true };
       }
@@ -1393,7 +1417,13 @@ var iCal = (function () {
           this.TZManagerInitialized = true;
           innerFuture.result = { returnValue: true };
         };
-        TZManager.setup().then(this, TZManagerReturn);
+        future_ = TZManager.setup();
+        future_.then(this, TZManagerReturn);
+        future_.onError(function (f) {
+          log("Error in TZManager.setup-future: " + f.exeption);
+          logToApp("Could not setup TZManager: " + JSON.stringify(f.exeption));
+          future_.result = { returnValue: false };
+        });
       } else {
         innerFuture.result = { returnValue: true };
       }

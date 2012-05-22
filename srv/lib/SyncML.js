@@ -121,13 +121,14 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
       text = msg.buildMessage({sessionId: sessionInfo.sessionId, msgId: id, target: account.url, source: DeviceProperties.id});
       log("Sending to server: " + text);
       nextMsg = msg; //just in case. :)
-      var future = AjaxCall.post(sessionInfo.url, text, 
+      var future = AjaxCallPost("post",sessionInfo.url, text, 
           { "bodyEncoding":"utf8" , 
             "headers": {"Content-Type":"application/vnd.syncml+xml", "Content-Length": text.length} } );
       future.then(function(f) {
-        log("Status of message: " + f.result.status);
-        if (f.result.status == 200) {
-//          try {
+        log("FUTURE CAME BACK!");
+        //if (f.result.returnValue) {
+          if (f.result && f.result.status == 200) {
+            log("Status of message: " + f.result.status);
             log("Request succeeded, Got: ");
             log(f.result.responseText);
             if (f.result.responseText === "") {
@@ -142,35 +143,38 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
               callback(f.result.responseText);
             }
 //          } catch (e) {
-//            log("Error in sendMessage(future):");
-//            log(e);
+//          log("Error in sendMessage(future):");
+//          log(e);
 //          }
-        } else { //request failure!
-          log("Request failed");
-          logToApp("No connection to server, retries did not help. Please check connection, Error: " + f.result.status);
-          log(JSON.stringify(f.result));
-        }
-      });
-      /*AjaxCall.post(sessionInfo.url, text,
-          { "bodyEncoding": "utf8", "headers": [{"Content-type": "application/vnd.syncml+xml"}]}).then(function (future) {
-        try {
-          if (future.result.status === 200) {
-            log("Request succeeded, Got: ");
-            log(future.result.responseText);
-            if (future.result.responseText === "" && retry < 5) {
-              log("Got empty response. Try to send message again (" + retry + ")");
-              sendToServer(msg, callback, retry + 1);
-            } else {
-              callback(future.result.responseText);
+          } else { //request failure!
+            log("Request failed");
+            var error;
+            if (f.result) {
+              error = f.result.status;
+            } 
+            if (!error) {
+              error = JSON.strinfigy(f.exception);
             }
-          } else {
-            log("Request failed. Status: " + future.result.status);
+            logToApp("No connection to server, retries did not help. Please check connection, Error: " + error);
+            if (f.result) {
+              log(JSON.stringify(f.result));
+            }
+            if (f.exception) {
+              log(JSON.stringify(f.exception));
+            }
           }
-        } catch (e) {
-          log("Error in sendMessage(future):");
-          log(JSON.stringify(e));
-        }
-      });*/
+//        } else {
+//          log("Request failed");
+//          logToApp("No connection to server. Please check connection, Error: " + JSON.stringify(f.result));
+//          log(JSON.stringify(f.result));
+//          log(JSON.stringify(f.exception));
+//        }
+      });
+      future.onError(function (f) {
+        log("Error in SendMessage future: " + JSON.stringify(f.exeption));
+        logToApp("Connection to server failed: " + JSON.stringify(f.exeption));
+        future.result = { returnValue: false };
+      });
     } catch (error) {
       log("Error in sendMessage:");
       log(JSON.stringify(error));
@@ -228,6 +232,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
         }
       }
       nextMsg = syncMLMessage();
+      nextMsg.addCredentials(account);
       if (lastMsg.getHeader().respURI) {
         sessionInfo.url = lastMsg.getHeader().respURI;
         log("Got new response URI " + sessionInfo.url);
@@ -401,17 +406,26 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
         for (i = 0; i < failed.length; i += 1) {
           if (failed[i].status.data === "207") {
             log("Conflict resolved on server side with merge, replace command will follow. Own cmd was: " + JSON.stringify(failed[i].cmd));
-            logToApp("Conflict resolved on server side with merge: " + JSON.stringify(failed[i].cmd.item.data));
+            logToApp("Conflict resolved on server side with merge: " + JSON.stringify(failed[i].cmd.items[0].data));
           } else if (failed[i].status.data === "209") {
             log("Conflict resolved on server side with duplicate, add command will follow. Own cmd was: " + JSON.stringify(failed[i].cmd));
-            logToApp("Conflict resolved on server side with duplicate: " + JSON.stringify(failed[i].cmd.item.data));
+            logToApp("Conflict resolved on server side with duplicate: " + JSON.stringify(failed[i].cmd.items[0].data));
           } else if (failed[i].status.data === "419") {
             log("Conflict resolved on server side with server data. Own cmd and status: " + JSON.stringify(failed[i]));
-            logToApp("Conflict resolved on server side with server data: " + JSON.stringify(failed[i].cmd.item.data));
+            logToApp("Conflict resolved on server side with server data: " + JSON.stringify(failed[i].cmd.items[0].data));
           } else {
-            realFailure = true;
-            logToApp("Command failed: " + failed[i].status.cmd + " error " + failed[i].status.data);
-            log(JSON.stringify(failed[i]));
+            var cmdName = failed[i].status.cmd;
+            if (!cmdName) {
+              cmdName = failed[i].status.cmdName;
+            }
+            if (cmdName == "Replace" || cmdName == "Add" || cmdName == "Delete") {
+              logToApp(cmdName + " of " + failed[i].cmd.items[0].data + " failed with " + failed[i].status.data);
+              log("failed: " + JSON.stringify(failed[i]));
+            } else {
+              realFailure = true;
+              logToApp("Command failed: " + cmdName + " error " + failed[i].status.data);
+              log("failed: " + JSON.stringify(failed[i]));
+            }
           }
         }
         if (realFailure) {
@@ -536,6 +550,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
             nextMsg.setSyncTargetSource({ source: name, target: account.datastores[name].path });
             msgQueue.push(nextMsg);
             nextMsg = syncMLMessage(); //get new message!
+            nextMsg.addCredentials(account);
           }
         }
       }

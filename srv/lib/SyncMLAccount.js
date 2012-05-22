@@ -172,6 +172,9 @@ var SyncMLAccount = (function () {
         if(b.name === account.name) {
           log("Deleting " + b.name);
           accounts.splice(account.index, 1);
+          for (var i = account.index; i < accounts.length; i += 1) {
+            accounts[i].index = i;
+          }
         }
       }
     },
@@ -235,7 +238,8 @@ var SyncMLAccount = (function () {
             if (future.result.returnValue === true) {
               log("Saving objs to db.");
               //log("PW: " + newAccts[0].password);
-              DB.merge(newAccts).then(function (future) { //this will add items without id set.
+              var future_ = DB.merge(newAccts);
+              future_.then(function (future) { //this will add items without id set.
                 result = future.result;
                 if (result.returnValue === true) {
                   log("Successfully put account obj into db.");
@@ -251,6 +255,11 @@ var SyncMLAccount = (function () {
                   log("Put account failure: Err code=" + JSON.stringify(future.result) + " and " + JSON.stringify(future.exception));
                   outerFuture.result = {returnValue: false};
                 }
+              });
+              future_.onError(function (f) {
+                log("Error in saveConfig-future: " + f.exeption);
+                logToApp("Could not load save account config: " + JSON.stringify(f.exeption));
+                future_.result = { returnValue: false };
               });
             } else { //future not successfull.
               log("Something went wrong during saveAccount: " + JSON.stringify(future.result));
@@ -353,7 +362,8 @@ var SyncMLAccount = (function () {
               }
             };
         //log("accObj: " + JSON.stringify(accObj));
-        PalmCall.call("palm://com.palm.service.accounts/", "createAccount", accObj).then(function (future) {
+        var future_ = PalmCall.call("palm://com.palm.service.accounts/", "createAccount", accObj);
+        future_.then(function (future) {
               try {
                 if (future.result.returnValue === true) {
                   log("Account created!" + JSON.stringify(future.result));
@@ -382,6 +392,11 @@ var SyncMLAccount = (function () {
                 }
               }
             });
+        future_.onError(function (f) {
+          log("Error in createAccount-future: " + f.exeption);
+          logToApp("Could not create account: " + JSON.stringify(f.exeption));
+          future_.result = { returnValue: false };
+        });
       } catch (e) { 
         log("Account creation failed, exception during PalmCall.");
         log("Exception: " + e);
@@ -409,7 +424,8 @@ var SyncMLAccount = (function () {
             ids.push(account.datastores[field].dbId);
           }
         }
-        DB.del(ids).then(function (future) {
+        var future_ = DB.del(ids);
+        future_.then(function (future) {
           if (future.result.returnValue === true) {
             log("del success!" + JSON.stringify(future.result));
             log("del #1, id=" + future.result.results[0].id + ", rev=" + future.result.results[0].rev);
@@ -422,6 +438,11 @@ var SyncMLAccount = (function () {
             log("del failure! Err = " + JSON.stringify(future.result));
             outerFuture.result = {returnValue: false};
           }
+        });
+        future_.onError(function (f) {
+          log("Error in delteAccountFromDB-future: " + f.exeption);
+          logToApp("Could not delete account from DB: " + JSON.stringify(f.exeption));
+          future_.result = { returnValue: false };
         });
       }
       return outerFuture;
@@ -436,7 +457,8 @@ var SyncMLAccount = (function () {
         }
       }
       if (account.accountId) {
-        PalmCall.call("palm://com.palm.service.accounts/", "deleteAccount", {"accountId": account.accountId}).then(function (future) {
+        var future_ = PalmCall.call("palm://com.palm.service.accounts/", "deleteAccount", {"accountId": account.accountId});
+        future_.then(function (future) {
           if (future.result.returnValue === true) {
             log("delte account success" + JSON.stringify(future.result) + "\n");
             try {
@@ -451,6 +473,11 @@ var SyncMLAccount = (function () {
           } else {
             log("Could not deleteAccount: " + JSON.stringify(future.result));
           }
+        });
+        future_.onError(function (f) {
+          log("Error in deleteAccount-future: " + f.exeption);
+          logToApp("Could not deleteAccount: " + JSON.stringify(f.exeption));
+          future_.result = { returnValue: false };
         });
       } else {
         SyncMLAccount.deleteAccountFromDB(account);
@@ -472,7 +499,8 @@ var SyncMLAccount = (function () {
           callback({success: false, account: account});
         }
       }
-      PalmCall.call("palm://com.palm.service.accounts/", "getAccountInfo", {"accountId": account.accountId}).then(function (future) {
+      var future_ = PalmCall.call("palm://com.palm.service.accounts/", "getAccountInfo", {"accountId": account.accountId});
+      future_.then(function (future) {
         if (future.result.returnValue === true) {
           log("getAccountInfo success" + JSON.stringify(future.result) + "\n");
           account.name = future.result.result.alias;
@@ -493,6 +521,11 @@ var SyncMLAccount = (function () {
         if (callback) {
           callback({success: future.result.returnValue, account: account});
         }
+      });
+      future_.onError(function (f) {
+        log("Error in getAccountInfo-future: " + f.exeption);
+        logToApp("Could not get account info: " + JSON.stringify(f.exeption));
+        future_.result = { returnValue: false };
       });
     },
 
@@ -515,7 +548,7 @@ var SyncMLAccount = (function () {
       }
       try {
         log("modifying account " + account.name);
-        PalmCall.call("palm://com.palm.service.accounts/", "modifyAccount",
+        var future_ = PalmCall.call("palm://com.palm.service.accounts/", "modifyAccount",
             {
           "accountId": account.accountId,
           object:
@@ -533,7 +566,8 @@ var SyncMLAccount = (function () {
               "datastores": account.datastores
             } //this will go to transport service...??? Why don't I get that with getAccountInfo? :(
           }
-            }).then(this, function (future) {
+            });
+        future_.then(this, function (future) {
               if (future.result.returnValue === true) {
                 log("Account modified = " + JSON.stringify(future.result));
               } else {
@@ -541,6 +575,11 @@ var SyncMLAccount = (function () {
               }
               outerFuture.result = { returnValue: future.result.returnValue};
             });
+        future_.onError(function (f) {
+          log("Error in modifyAccount-future: " + f.exeption);
+          logToApp("Could not modify account: " + JSON.stringify(f.exeption));
+          future_.result = { returnValue: false };
+        });
       } catch (error) {
         log("Error in modify account: " + error.name);
         log(JSON.stringify(error));
