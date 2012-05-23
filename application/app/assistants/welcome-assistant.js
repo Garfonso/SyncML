@@ -71,7 +71,7 @@ WelcomeAssistant.prototype.refreshAccounts = function () {
   var addToDropbox = function (result) {
     log("Got account: " + result.name + " = " + result.index);
     this.dropboxModel.choices.push({label: result.name, value: result.index});
-    if (oldValue === -1) {
+    if (oldValue === -1 || oldValue >= accounts.length) {
       oldValue = result.index;
     }
     this.dropboxModel.value = oldValue;

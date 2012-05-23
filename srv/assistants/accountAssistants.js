@@ -59,7 +59,7 @@ storeAccountsAssistant.prototype.run = function (outerFuture) {
   f.then(this, function (future) {
     if (future.result.returnValue === true) {
       log("Init complete");
-      var creates = 0, modifies = 0, wait = 0;
+      var creates = 0, modifies = 0, wait = 0, deletes = 0;
 
       var accounts = this.controller.args.accounts;
       log("Processing " + accounts.length + " accounts.");
@@ -68,8 +68,15 @@ storeAccountsAssistant.prototype.run = function (outerFuture) {
           if (accounts[i].deleteThis) {
             //TODO: check if account already existed and then delete webOs account?
             log("Deleting account " + i);
-            SyncMLAccount.removeAccount(accounts[i]);
+            SyncMLAccount.deleteAccountFromDB(accounts[i]).then(this, function (f) {
+              deletes -= 1;
+            });
+            deletes += 1;
+          } else {
+            SyncMLAccount.setAccount(accounts[i]);
           }
+        } else {
+          SyncMLAccount.addNewAccount(accounts[i]);
         }
         //this creates issues... don't know how to solve them, right now.. therefore:  deacitvated and done on first sync.
 //          SyncMLAccount.setAccount(accounts[i]);
@@ -93,13 +100,13 @@ storeAccountsAssistant.prototype.run = function (outerFuture) {
       }
 
       var checkFinish = function() {
-        if(creates === 0 && modifies === 0) {
+        if(creates === 0 && modifies === 0 && deletes === 0) {
           SyncMLAccount.saveConfig().then(function (f) {
             log("SaveConfig finished, return future");
             finishAssistant(outerFuture, { returnValue: f.result.returnValue});
           });
         } else {
-          log("Saves not finished, yet. Waiting for " + creates + " creates and " + modifies + " modifications");
+          log("Saves not finished, yet. Waiting for " + creates + " creates and " + modifies + " modifications and " + deletes + " deletes.");
           wait += 1;
           if (wait > 50) {
             log("Waited long enough, continue...");

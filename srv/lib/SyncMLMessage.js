@@ -244,7 +244,9 @@ var syncMLMessage = function () {
     if (meta.anchor) {
       m.push(nprefix);
       m.push("<Anchor xmlns='syncml:metinf'>\n");
-      writeNodeValue("Last", meta.anchor.last ? meta.anchor.last : 0, nprefix + "\t", false);
+      if (meta.anchor.last) {
+        writeNodeValue("Last", meta.anchor.last, nprefix + "\t", false);
+      }
       writeNodeValue("Next", meta.anchor.next, nprefix + "\t", false);
       m.push(nprefix);
       m.push("</Anchor>\n");

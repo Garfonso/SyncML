@@ -173,8 +173,10 @@ var SyncMLAccount = (function () {
           log("Deleting " + b.name);
           accounts.splice(account.index, 1);
           for (var i = account.index; i < accounts.length; i += 1) {
+            log("Updating index of " + accounts[i].index + " to " + i);
             accounts[i].index = i;
           }
+          log ("Now having " + accounts.length + " account.");
         }
       }
     },
@@ -429,11 +431,11 @@ var SyncMLAccount = (function () {
           if (future.result.returnValue === true) {
             log("del success!" + JSON.stringify(future.result));
             log("del #1, id=" + future.result.results[0].id + ", rev=" + future.result.results[0].rev);
+            outerFuture.result = {returnValue: true};
             if (account.index) {
-              accounts[account.index].dbId = undefined; //remember that we deleted this account from db.
+              SyncMLAccount.removeAccount(account);
             }
             account.isDeleted = true;
-            outerFuture.result = {returnValue: true};
           } else {
             log("del failure! Err = " + JSON.stringify(future.result));
             outerFuture.result = {returnValue: false};

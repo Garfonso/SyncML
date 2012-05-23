@@ -433,7 +433,7 @@ var eventCallbacks = (function () {
 					    }
 					  }
 					);
-					future_.onError(function (f) {
+					resfuture.onError(function (f) {
 	          log("Error in checkCalendar-future: " + f.exeption);
 	          logToApp("Could not create Calendar: " + JSON.stringify(f.exeption));
 	          resfuture.result = { returnValue: false };
@@ -530,8 +530,13 @@ var eventCallbacks = (function () {
 		    var updateParentId = function(events, id) {
 		      var i;
 		      try {
+		        if (!events) {
+		          log("Got no events...??");
+		          return;
+		        }
   		      if (!id || !id.result || id.result.length === 0) {
   		        log("Got no ids, can't set parentIds. Most probably we don't have that event, or something went wrong during parsing...");
+  		        return;
   		      } else if (id.result.length > 1) {
   		        log("Got " + id.result.length + " ids. Can't work with that... will take first id only.");
   		      }
@@ -553,7 +558,7 @@ var eventCallbacks = (function () {
 			  for (field in recurringEventIds) {
 			    if (recurringEventIds.hasOwnProperty(field)) {
 	          recEv = recurringEventIds[field]; 
-			      log("Processing recurring Event: " + field + " with parentId " + recEv.id + " and childs " + recEv.childs.length);
+			      log("Processing recurring Event: " + field + " with parentId " + recEv.id + " and childs " + recEv.childs ? recEv.childs.length : undefined);
 			      if (!recEv.id) {
 			        //TODO: search parent...
 			        log("Parent not processed... can't update parentId. Search in DB not implemented, yet. :(");

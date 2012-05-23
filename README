@@ -27,6 +27,9 @@ Known Issues:
 - create account does not work on touch pad.
 
 Changelog:
+2012-05-23 => 0.1.7
+- changed behaviour to not send last anchor, if not present.
+- fixed account creation / modification / deletion from app.
 2012-05-22 => 0.1.4
 - implemented "local" fix of AjaxCall to work with non standard http ports.
 - added "Delete this account" - Button to config scene to delete accounts. Deletes accounts only from the apps db. If there exists a webOS account, delete it from the accounts app (should also delete app's account object).
