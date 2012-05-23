@@ -66,9 +66,8 @@ storeAccountsAssistant.prototype.run = function (outerFuture) {
       for (var i = 0; i < accounts.length; i += 1) {
         if (accounts[i].index >= 0) { //already known account!
           if (accounts[i].deleteThis) {
-            //TODO: check if account already existed and then delete webOs account?
             log("Deleting account " + i);
-            SyncMLAccount.deleteAccountFromDB(accounts[i]).then(this, function (f) {
+            SyncMLAccount.deleteAccount(accounts[i]).then(this, function (f) {
               deletes -= 1;
             });
             deletes += 1;

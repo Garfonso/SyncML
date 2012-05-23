@@ -452,10 +452,12 @@ var SyncMLAccount = (function () {
 
     //this deletes an account from the account service!
     deleteAccount: function (account) {
+      var outerFuture = new Future();
       if (!account) {
         account = SyncMLAccount.getAccount();
         if (!account) {
-          return;
+          outerFuture.result = {returnValue: false};
+          return outerFuture;
         }
       }
       if (account.accountId) {
@@ -471,9 +473,12 @@ var SyncMLAccount = (function () {
               log("Could not remove accountId from " + account.index + ".");
               log(JSON.stringify(error));
             }
-            SyncMLAccount.deleteAccountFromDB(account);
+            SyncMLAccount.deleteAccountFromDB(account).then(function (f) {
+              outerFuture.result = f.result;
+            });
           } else {
             log("Could not deleteAccount: " + JSON.stringify(future.result));
+            outerFuture.result = {returnValue: false};
           }
         });
         future_.onError(function (f) {
@@ -482,8 +487,9 @@ var SyncMLAccount = (function () {
           future_.result = { returnValue: false };
         });
       } else {
-        SyncMLAccount.deleteAccountFromDB(account);
+        return SyncMLAccount.deleteAccountFromDB(account);
       }
+      return outerFuture;
     },
 
     getAccountInfo: function (account, callback) {

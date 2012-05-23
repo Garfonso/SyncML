@@ -22,11 +22,10 @@ Known Issues:
 - x-vcalendar implementation does not yet support b64ecoding/decoding.
 - O3SIS Server (like O2 Germany operates for its customers) does not understand our device info and therefore will not send more complicated recurring events to me.
 - Can't interpret "DAYLIGHT" string, yet. Need to extract TZID from that.
-- Modify account does not return anymore (why???)
-- checkCredentials sometimes does not return, if server refuses connection. Error message is thrown, but it seems catch clause in assistant won't happen...?
-- create account does not work on touch pad.
+- Rearrange error handling, so that service returns to app on errors. Current plan: Remove all try/catch things and only have try/catch block in assistants. throw exceptions on error callbacks. 
 
 Changelog:
+- improved account deletion, possible associated webos account will be delted, too.
 2012-05-23 => 0.1.7
 - changed behaviour to not send last anchor, if not present.
 - fixed account creation / modification / deletion from app.
