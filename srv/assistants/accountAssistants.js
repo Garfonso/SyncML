@@ -86,6 +86,7 @@ storeAccountsAssistant.prototype.run = function (outerFuture) {
             log("Waited long enough, continue...");
             creates = 0;
             modifies = 0;
+            deletes = 0;
           }
           setTimeout (checkFinish, 100);
         }
@@ -161,7 +162,7 @@ storeAccountsAssistant.prototype.run = function (outerFuture) {
               }
             } else {
               if (accounts[i].username && accounts[i].password && accounts[i].name && accounts[i].url) {
-                SyncMLAccount.addNewAccount(toAdd[i], false); //don't write directly into database.
+                SyncMLAccount.addNewAccount(accounts[i], false); //don't write directly into database.
                 toAdd.push(accounts[i]);
               } else {
                 log("Account not properly defined, ignoring.");

@@ -25,6 +25,10 @@ Known Issues:
 - Rearrange error handling, so that service returns to app on errors. Current plan: Remove all try/catch things and only have try/catch block in assistants. throw exceptions on error callbacks. 
 
 Changelog:
+2012-05-26 => 0.1.9
+- fixed issues with account creation and deletion on webOS 2.1.1.
+- hotifx: fixed issue with account management if no account was present, yet.
+- hotfix: fixed issue with keymanager if no key was present, yet.
 2012-05-26 => 0.1.8
 - hopefully solved deadlock during account creation.
 - locks for the service calls are now much less restrictive

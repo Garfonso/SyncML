@@ -398,11 +398,7 @@ var SyncMLAccount = (function () {
             "alias"               : account.name || "SyncML Account",
             "credentials"         : { "common": { "password" : account.password } }, //this is a bit strange.. account service stores this in a secure storage, but as of webOs 2.2.2 this is not accessible for me. :( So I store my own user/password.
             "beingDeleted"        : false,
-            "config"              :
-              {
-                "url": account.url,
-                "datastores": account.datastores
-              }
+            "config"              : {"url": account.url, datastores: account.datastores, name: account.name}
             };
         //log("accObj: " + JSON.stringify(accObj));
         var future_ = PalmCall.call("palm://com.palm.service.accounts/", "createAccount", accObj);
@@ -483,6 +479,7 @@ var SyncMLAccount = (function () {
 
     //this deletes an account from the account service!
     deleteAccount: function (account) {
+      log("Delete account from webOS called.");
       var outerFuture = new Future();
       if (!account) {
         account = SyncMLAccount.getAccount();
