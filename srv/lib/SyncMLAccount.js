@@ -6,7 +6,8 @@ var SyncMLAccount = (function () {
   var version = 2,
     savedFields = ["url", "name", "datastores", "accountId", "username_enc", "password_enc", "deviceName"],
     dsNames = ["calendar", "contacts"],
-    savedFieldsDS = ["path", "method", "next", "serverNext", "dbId", "lastRev", "serverType", "serverId", "enabled"],
+    savedFieldsDS = ["path", "method", "dbId", "enabled"],
+    savedFieldsDSSync = ["next", "serverNext", "lastRev", "serverType", "serverId"],
 //  currentAccount = { //account object!
 //      //keystore!
 //      //from user during account creation:
@@ -182,20 +183,69 @@ var SyncMLAccount = (function () {
     },
 
     //will save modifications to all accounts.
-    saveConfig: function () {
-      var newAccts = [], acctObj, field, i, j, k, ds, dsOrg, result, runningEnryptions = 0, innerFuture = new Future(), outerFuture = new Future();
-      var encryptionFinished = function (future) {
-        if (future.result.returnValue) {
-          log("Data got encrypted");
-        } else {
-          log("Encyption failed." + JSON.stringify(future.result));
-        }
-        runningEnryptions -= 1;
-        log("Encryptions running: " + runningEnryptions);
-        if (runningEnryptions === 0) {
-          innerFuture.result = {returnValue: true};
+    saveConfig: function (syncEnd) {
+      var newAccts = [], acctObj, field, i, j, k, ds, dsOrg, result, runningEnryptions = 0, 
+          innerFuture = new Future(), outerFuture = new Future(), encryptionFinished, doSaveObjects, finishSave;
+      encryptionFinished = function (future) {
+        try {
+          if (future.result.returnValue) {
+            //log("Data got encrypted");
+          } else {
+            log("Encyption failed." + JSON.stringify(future.result));
+          }
+          runningEnryptions -= 1;
+          log("Encryptions running: " + runningEnryptions);
+          if (runningEnryptions === 0) {
+            innerFuture.result = {returnValue: true};
+          }
+        } catch (e) {
+          logError_lib(e);
         }
       };
+      
+      finishSave = function (future) { //this will add items without id set.
+        try {
+          result = future.result;
+          if (result.returnValue === true) {
+            log("Successfully put accounts into db.");
+            if (newAccts.length !== result.results.length) {
+              log("Something is wrong, got " + result.results.length + " ids, but have " + accounts.length + " objects.");
+            } else {
+              for (i = 0; i < result.results.length; i += 1) {
+                accounts[i].dbId = result.results[i].id;
+              }
+            }
+            outerFuture.result = {returnValue: true};
+          } else {
+            log("Put account failure: Err code=" + JSON.stringify(future.result) + " and " + JSON.stringify(future.exception));
+            outerFuture.result = {returnValue: false};
+          }
+        } catch(e) {
+          logError_lib(e);
+        }
+      };
+      
+      doSaveObjects = function (future) {
+        try {
+          if (newAccts.length > 0) {
+            //log("Saving " + newAccts.length + " objects.");
+            if (future.result.returnValue === true) {
+              var future_ = DB.merge(newAccts);
+              future_.then(this, finishSave);
+              future_.onError(function (f) {
+                log("Error in saveConfig-future: " + f.exeption);
+                logToApp("Could not load save account config: " + JSON.stringify(f.exeption));
+                future_.result = { returnValue: false };
+              });
+            } else { //future not successfull.
+              log("Something went wrong during saveAccount: " + JSON.stringify(future.result));
+            }
+          } //had newAccts
+        } catch (e) {
+          logError_lib(e);
+        }
+      };
+      
       try {
         log("SaveConfig called!!!");
         //sort in modified and new,
@@ -211,6 +261,11 @@ var SyncMLAccount = (function () {
                   if (dsOrg) {
                     for (k = 0; k < savedFieldsDS.length; k += 1) {
                       ds[savedFieldsDS[k]] = dsOrg[savedFieldsDS[k]];
+                    }
+                    if (syncEnd) { //only save some of the fields, if the save comes from the end of a sync.
+                      for (k = 0; k < savedFieldsDSSync.length; k += 1) {
+                        ds[savedFieldsDSSync[k]] = dsOrg[savedFieldsDSSync[k]];
+                      }
                     }
                     acctObj.datastores[dsNames[j]] = ds;
                   }
@@ -234,40 +289,7 @@ var SyncMLAccount = (function () {
           return outerFuture;
         }
         
-        innerFuture.then(function (future) {
-          if (newAccts.length > 0) {
-            log("Saving " + newAccts.length + " objects.");
-            if (future.result.returnValue === true) {
-              log("Saving objs to db.");
-              //log("PW: " + newAccts[0].password);
-              var future_ = DB.merge(newAccts);
-              future_.then(function (future) { //this will add items without id set.
-                result = future.result;
-                if (result.returnValue === true) {
-                  log("Successfully put account obj into db.");
-                  if (newAccts.length !== result.results.length) {
-                    log("Something is wrong, got " + result.results.length + " ids, but have " + accounts.length + " objects.");
-                  }
-                  for (i = 0; i < result.results.length; i += 1) {
-                    accounts[i].dbId = result.results[i].id; //TODO: this can go VERY wrong. :(
-                  }
-                  log("save end.");
-                  outerFuture.result = {returnValue: true};
-                } else {
-                  log("Put account failure: Err code=" + JSON.stringify(future.result) + " and " + JSON.stringify(future.exception));
-                  outerFuture.result = {returnValue: false};
-                }
-              });
-              future_.onError(function (f) {
-                log("Error in saveConfig-future: " + f.exeption);
-                logToApp("Could not load save account config: " + JSON.stringify(f.exeption));
-                future_.result = { returnValue: false };
-              });
-            } else { //future not successfull.
-              log("Something went wrong during saveAccount: " + JSON.stringify(future.result));
-            }
-          } //had newAccts
-        });
+        innerFuture.then(this, doSaveObjects);
       } catch (e) {
         log("Error: " + e.message + " - " + e.stack);
         log("Error: " + JSON.stringify(e));
@@ -276,78 +298,96 @@ var SyncMLAccount = (function () {
     },
 
     //get the accounts
-    findAccounts: function (callback) {
-      var query = {"from": "info.mobo.syncml.account:1"}, i, j, field, obj, result, innerFuture, decrypts = 0;
-      var afterDecrypt = function (future) {
-        if (future.result.returnValue === true) {
-          log("Decryption success");
-        } else {
-          log("Could not decrypt password of account");
+    findAccounts: function () {
+      var query = {"from": "info.mobo.syncml.account:1"}, i, j, field, obj, result, innerFuture = undefined, decrypts = 0, 
+          outerFuture = new Future(), afterDecrypt, foundObjects, endFindAccounts;
+      afterDecrypt = function (future) {
+        try {
+          if (future.result.returnValue === true) {
+            //log("Decryption success");
+          } else {
+            log("Could not decrypt password of account");
+          }
+          decrypts -= 1;
+          //log("Decrypts running: " + decrypts);
+          if (decrypts === 0) {
+            innerFuture.result = {returnValue: true, result: "AllPWsDecrypted"};
+          }
+        } catch (e) {
+          logError_lib(e);
         }
-        decrypts -= 1;
-        log("Decrypts running: " + decrypts);
-        if (decrypts === 0) {
-          innerFuture.result = {returnValue: true, result: "AllPWsDecrypted"};
+      };
+      
+      endFindAccounts = function (future) {
+        if (future.result.returnValue === true) {
+          log("All accounts finished");
+          outerFuture.result = {returnValue: true};
+        } else {
+          log("Something went wrong: " + JSON.stringify(future.exception));
+        }
+        innerFuture.result = {returnValue: future.result.returnValue, stage: "end"};
+      };
+      
+      foundObjects = function (future) {
+        try {
+          result = future.result;
+          //log("result: " + JSON.stringify(result));
+          if (result.returnValue === true) {
+            for (i = 0; i < result.results.length; i += 1) {
+              obj = {};
+              for (j = 0; j < savedFields.length; j += 1) {
+                field = savedFields[j];
+                obj[field] = result.results[i][field]; //copy saved data.
+              }
+              obj.dbId = result.results[i]._id;
+              obj.index = accounts.length;
+              //log("Got account: " + JSON.stringify(obj));
+              accounts.push(obj);
+              //log("Passwort: " + obj.password);
+              KeyManager.decrypt("username",obj).then(afterDecrypt);
+              KeyManager.decrypt("password",obj).then(afterDecrypt);
+              decrypts += 2;
+            }
+            if (result.results.length === 0) { //no accounts found, break here.
+              outerFuture = {returnValue: true};
+            }
+            
+            innerFuture.then(endFindAccounts);
+          } else {
+            result = future.exception;
+            log("Put account failure: Err code=" + JSON.stringify(future.result) + " and " + JSON.stringify(future.exception));
+          }
+        } catch (e) {
+          logError_lib(e);
         }
       };
 
-      accounts = []; //clear accounts.
-      innerFuture = DB.find(query, false, false);
-      innerFuture.then(function (future) {
-        result = future.result;
-        //log("result: " + JSON.stringify(result));
-        if (result.returnValue === true) {
-          for (i = 0; i < result.results.length; i += 1) {
-            obj = {};
-            for (j = 0; j < savedFields.length; j += 1) {
-              field = savedFields[j];
-              obj[field] = result.results[i][field]; //copy saved data.
-            }
-            obj.dbId = result.results[i]._id;
-            obj.index = accounts.length;
-            //log("Got account: " + JSON.stringify(obj));
-            accounts.push(obj);
-            //log("Passwort: " + obj.password);
-            KeyManager.decrypt("username",obj).then(afterDecrypt);
-            KeyManager.decrypt("password",obj).then(afterDecrypt);
-            decrypts += 2;
-          }
-          if (result.results.length === 0) { //no accounts found, break here.
-            callback();
-            return;
-          }
-
-          innerFuture.then(function (future) {
-            if (future.result.returnValue === true) {
-              log("All accounts finished");
-              if (callback) {
-                callback();
-              }
-            } else {
-              log("Something went wrong: " + JSON.stringify(future.exception));
-            }
-            innerFuture.result = {returnValue: future.result.returnValue, stage: "end"};
-          });
-        } else {
-          result = future.exception;
-          log("Put account failure: Err code=" + JSON.stringify(future.result) + " and " + JSON.stringify(future.exception));
-        }
-      });
+      try {
+        accounts = []; //clear accounts.
+        innerFuture = DB.find(query, false, false);
+        innerFuture.then(this, foundObjects);
+      } catch (e) {
+        logError_lib(e);
+      }
+      return outerFuture;
     },
 
     // this is not used??
     createAccount: function (account, callback) {
+      var outerFuture = new Future();
       if (!account) {
         account = accounts[currentAccount];
       }
       if (!account.url || !account.username) {
         log("Need to specify at least url and username for syncml accounts! Won't create account");
-        return;
+        outerFuture.result = {returnValue: false};
+        return outerFuture;
       }
       if (account.accountId) {
         log("Account already exists, calling modify instead.");
         this.modifyAccount(account);
-        return;
+        outerFuture.result = {returnValue: false};
+        return outerFuture;
       }
       try {
         accObj = {
@@ -374,24 +414,14 @@ var SyncMLAccount = (function () {
                   log("Got account Id: " + account.accountId);
                   SyncMLAccount.setAccount(account);
                   SyncMLAccount.saveConfig().then(function (f) {
-                    account.success = true;
-                    if (callback) {
-                      callback(account);
-                    }
+                    outerFuture.result = {returnValue: true, account: account};
                   });
                 } else {
                   log("Account creation failed. " + JSON.stringify(future.result));
-                  if (callback) {
-                    callback({success: false});
-                  }
+                  outerFuture.result = {returnValue: false};
                 }
               } catch (e) {
-                log("Account creation failed, exception during PalmCall-callback.");
-                log("Exception: " + e);
-                log(JSON.stringify(e));    
-                if (callback) {
-                  callback({success: false});
-                }
+                logError_lib(e);
               }
             });
         future_.onError(function (f) {
@@ -400,13 +430,9 @@ var SyncMLAccount = (function () {
           future_.result = { returnValue: false };
         });
       } catch (e) { 
-        log("Account creation failed, exception during PalmCall.");
-        log("Exception: " + e);
-        log(JSON.stringify(e));
-        if (callback) {
-          callback({success: false});
-        }
+        logError_lib(e);
       }
+      return outerFuture;
     },
 
     //this deletes an account from the database!
@@ -428,17 +454,21 @@ var SyncMLAccount = (function () {
         }
         var future_ = DB.del(ids);
         future_.then(function (future) {
-          if (future.result.returnValue === true) {
-            log("del success!" + JSON.stringify(future.result));
-            log("del #1, id=" + future.result.results[0].id + ", rev=" + future.result.results[0].rev);
-            outerFuture.result = {returnValue: true};
-            if (account.index) {
-              SyncMLAccount.removeAccount(account);
+          try {
+            if (future.result.returnValue === true) {
+              log("del success!" + JSON.stringify(future.result));
+              log("del #1, id=" + future.result.results[0].id + ", rev=" + future.result.results[0].rev);
+              outerFuture.result = {returnValue: true};
+              if (account.index) {
+                SyncMLAccount.removeAccount(account);
+              }
+              account.isDeleted = true;
+            } else {
+              log("del failure! Err = " + JSON.stringify(future.result));
+              outerFuture.result = {returnValue: false};
             }
-            account.isDeleted = true;
-          } else {
-            log("del failure! Err = " + JSON.stringify(future.result));
-            outerFuture.result = {returnValue: false};
+          } catch (e) {
+            logError_lib(e);
           }
         });
         future_.onError(function (f) {
@@ -463,22 +493,26 @@ var SyncMLAccount = (function () {
       if (account.accountId) {
         var future_ = PalmCall.call("palm://com.palm.service.accounts/", "deleteAccount", {"accountId": account.accountId});
         future_.then(function (future) {
-          if (future.result.returnValue === true) {
-            log("delte account success" + JSON.stringify(future.result) + "\n");
-            try {
-              if (account.index >= 0 && account.index < accounts.length) {
-                accounts[account.index].accountId = undefined;
+          try {
+            if (future.result.returnValue === true) {
+              log("delte account success" + JSON.stringify(future.result) + "\n");
+              try {
+                if (account.index >= 0 && account.index < accounts.length) {
+                  accounts[account.index].accountId = undefined;
+                }
+              } catch (error) {
+                log("Could not remove accountId from " + account.index + ".");
+                log(JSON.stringify(error));
               }
-            } catch (error) {
-              log("Could not remove accountId from " + account.index + ".");
-              log(JSON.stringify(error));
+              SyncMLAccount.deleteAccountFromDB(account).then(function (f) {
+                outerFuture.result = f.result;
+              });
+            } else {
+              log("Could not deleteAccount: " + JSON.stringify(future.result));
+              outerFuture.result = {returnValue: false};
             }
-            SyncMLAccount.deleteAccountFromDB(account).then(function (f) {
-              outerFuture.result = f.result;
-            });
-          } else {
-            log("Could not deleteAccount: " + JSON.stringify(future.result));
-            outerFuture.result = {returnValue: false};
+          } catch (e) {
+            logError_lib(e);
           }
         });
         future_.onError(function (f) {
@@ -492,49 +526,51 @@ var SyncMLAccount = (function () {
       return outerFuture;
     },
 
-    getAccountInfo: function (account, callback) {
+    getAccountInfo: function (account) {
+      var outerFuture = new Future(), future_;
       if (!account) {
         account = SyncMLAccount.getAccount();
         if (!account) {
-          if (callback) {
-            callback({success: false});
-          }
-          return;
+          outerFuture.result = {returnValue: false, account: account};
+          return outerFuture;
         }
       } else if (!account.accountId) {
         //don't have created an account with webOs, yet.. only my object seems to exist right now.
-        if (callback) {
-          callback({success: false, account: account});
-        }
+        outerFuture.result = {returnValue: false, account: account};
+      } else {
+        future_ = PalmCall.call("palm://com.palm.service.accounts/", "getAccountInfo", {"accountId": account.accountId});
+        future_.then(function (future) {
+          try {
+            if (future.result.returnValue === true) {
+              log("getAccountInfo success" + JSON.stringify(future.result) + "\n");
+              account.name = future.result.result.alias;
+              if (future.result.result.beingDeleted) {
+                log("Account " + account.name + " marked for deletion, will remove accountId.");
+                delete account.accountId;
+              }
+              parseCapabilities(account, future.result.result.capabilityProviders);
+              if (future.result.result.username) {
+                //log("got username: " + future.result.result.username);
+                account.username = future.result.result.username;
+              }
+              SyncMLAccount.setAccount(account);
+            } else {
+              delete account.accountId;
+              log("getAccountInfo failure: " + JSON.stringify(future.result));
+            }
+            outerFuture.result = {returnValue: future.result.returnValue, account: account};
+          }
+          catch (e) {
+            logError_lib(e);
+          }
+        });
+        future_.onError(function (f) {
+          log("Error in getAccountInfo-future: " + f.exeption);
+          logToApp("Could not get account info: " + JSON.stringify(f.exeption));
+          future_.result = { returnValue: false };
+        });
       }
-      var future_ = PalmCall.call("palm://com.palm.service.accounts/", "getAccountInfo", {"accountId": account.accountId});
-      future_.then(function (future) {
-        if (future.result.returnValue === true) {
-          log("getAccountInfo success" + JSON.stringify(future.result) + "\n");
-          account.name = future.result.result.alias;
-          if (future.result.result.beingDeleted) {
-            log("Account " + account.name + " marked for deletion, will remove accountId.");
-            delete account.accountId;
-          }
-          parseCapabilities(account, future.result.result.capabilityProviders);
-          if (future.result.result.username) {
-            //log("got username: " + future.result.result.username);
-            account.username = future.result.result.username;
-          }
-          SyncMLAccount.setAccount(account);
-        } else {
-          delete account.accountId;
-          log("getAccountInfo failure: " + JSON.stringify(future.result));
-        }
-        if (callback) {
-          callback({success: future.result.returnValue, account: account});
-        }
-      });
-      future_.onError(function (f) {
-        log("Error in getAccountInfo-future: " + f.exeption);
-        logToApp("Could not get account info: " + JSON.stringify(f.exeption));
-        future_.result = { returnValue: false };
-      });
+      return outerFuture;
     },
 
     //can be used to change capabilities, too:
@@ -548,11 +584,10 @@ var SyncMLAccount = (function () {
         }
       }
       if (!account.accountId) {
-        //log("Account not created, can't modify, trying create.");
-        //SyncMLAccount.createAccount(account);
-        log("Account not created, can't modify.");
-        outerFuture.result = { returnValue: false};
-        return outerFuture;
+        log("Account not created, calling create instead of modify.");
+        return SyncMLAccount.createAccount(account);
+//      outerFuture.result = { returnValue: false};
+//      return outerFuture;
       }
       try {
         log("modifying account " + account.name);
@@ -576,13 +611,17 @@ var SyncMLAccount = (function () {
           }
             });
         future_.then(this, function (future) {
-              if (future.result.returnValue === true) {
-                log("Account modified = " + JSON.stringify(future.result));
-              } else {
-                log("modifiyAccount failure: " + JSON.stringify(future.result));
-              }
-              outerFuture.result = { returnValue: future.result.returnValue};
-            });
+          try {
+            if (future.result.returnValue === true) {
+              log("Account modified = " + JSON.stringify(future.result));
+            } else {
+              log("modifiyAccount failure: " + JSON.stringify(future.result));
+            }
+            outerFuture.result = { returnValue: future.result.returnValue};
+          } catch (e) {
+            logError_lib(e);
+          }
+        });
         future_.onError(function (f) {
           log("Error in modifyAccount-future: " + f.exeption);
           logToApp("Could not modify account: " + JSON.stringify(f.exeption));

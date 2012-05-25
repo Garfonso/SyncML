@@ -14,40 +14,48 @@ var KeyManager = (function () {
     //we just call keyInfo and generate. One will always return and the key will exist. :)
     log("Checking if key exists.");
     var f1 = PalmCall.call("palm://com.palm.keymanager/", "keyInfo", { keyname: keyname});
-    f1.then(function (future) {
-      if (future.result.returnValue === true) {
-        log("Key exists. All is fine. :) " + JSON.stringify(future.result));
-        if (callback) {
-          callback(true);
+    f1.then(function (f3) {
+      try {
+        if (f3.result.returnValue === true) {
+          log("Key exists. All is fine. :) " + JSON.stringify(f3.result));
+          if (callback) {
+            callback(true);
+          }
+        } else {
+          //will never happen, due to the bug.
+          log("No key, need to create key." + JSON.stringify(result));
+          var f2 = PalmCall.call("palm://com.palm.keymanager", "generate", { "keyname": keyname, "size": 32, "type": "AES", "nohide" : false });
+          f2.then(function(f4) {
+            try {
+              if (f4.result.returnValue === true) {
+                log("Key created. All is fine. :) " + JSON.stringify(f4.result));
+                if (callback) {
+                  callback(true);
+                }
+              } else {
+                log("Key not created. Nothing is fine. :( " + JSON.stringify(result));
+                if (callback) {
+                  callback(false);
+                }
+              }
+            } catch (e) {
+              logError_lib(e);
+            }
+          });
+          f2.onError(function (f) {
+            log("Error in generateKey-future: " + f.exeption);
+            logToApp("Could not generate Key: " + JSON.stringify(f.exeption));
+            f2.result = { returnValue: false };
+          });
         }
-      } else {
-        //will never happen, due to the bug.
-        log("No key, need to create key." + JSON.stringify(result));
+      } catch (e) {
+        logError_lib(e);
       }
     });
     f1.onError(function (f) {
       log("Error in keyInfo-future: " + f.exeption);
       logToApp("Could not get keyInfo: " + JSON.stringify(f.exeption));
       f1.result = { returnValue: false };
-    });
-    var f2 = PalmCall.call("palm://com.palm.keymanager", "generate", { "keyname": keyname, "size": 32, "type": "AES", "nohide" : false });
-    f2.then(function(future) {
-      if (future.result.returnValue === true) {
-        log("Key created. All is fine. :) " + JSON.stringify(future.result));
-        if (callback) {
-          callback(true);
-        }
-      } else {
-        log("Key not created. Nothing is fine. :( " + JSON.stringify(result));
-//        if (callback) {
-//          callback(false);
-//        }
-      }
-    });
-    f2.onError(function (f) {
-      log("Error in generateKey-future: " + f.exeption);
-      logToApp("Could not generate Key: " + JSON.stringify(f.exeption));
-      f2.result = { returnValue: false };
     });
   }
   
@@ -56,16 +64,8 @@ var KeyManager = (function () {
 
     decrypt: function (name, obj) {
       var future = new Future();
-//      setTimeout(future.callback(function () {
-//        //log("Setting result: " + data);
-//        var res = {returnValue: true};
-//        res[name] = data;
-//        future.result = res;
-//        //log("Future result is: " + future.result);
-//      }), 100);
-//      return future;
       //don't try to decrypt if already decrypted.
-      log("Trying to decrypt " + name + " = " + obj[name+"_enc"]);
+      //log("Trying to decrypt " + name + " = " + obj[name+"_enc"]);
       if (obj[name+"_enc"] === undefined || obj[name+"_enc"] == "") {
         log("No encrypted data. Return ok to be backwads compatible.");
         setTimeout(function() { future.result = {returnValue: true}; }, 100);
@@ -102,14 +102,8 @@ var KeyManager = (function () {
     
     encrypt: function (name, data, obj) {
       var future = new Future();
-//      setTimeout(future.callback(function () {
-//        //log("Setting result: " + data);
-//        future.result = {data: data, returnValue: true};
-//        //log("Future result is: " + future.result);
-//      }), 100);
-//      return future;
       //don't try to encrypt, if already encrypted.
-      log("Trying to encrypt " + name);
+      //log("Trying to encrypt " + name);
       if (typeof data == "undefined" || data == "") {
         log("No data received, return.");
         setTimeout(function() { future.result = {returnValue: false}; }, 100);

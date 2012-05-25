@@ -35,11 +35,55 @@ try {
 
 var locked = false;
 var previousOperationFuture = new Future();
+var syncingAccountIds = {};
+var outerFutures = [];
 
-var finishAssistant = function(outerFuture, result) {
-  locked = false;
+//params: outerFuture, result, accountId, name
+var finishAssistant_global = function(p) {
   previousOperationFuture.result = {go: true};
-  outerFuture.result = result;
+  if (p.name === "onDeleteAssistant" ||
+      p.name === "onCreateAssistant" ||
+      p.name === "onEnabledAssistant") {
+    locked = false;
+  }
+  p.outerFuture.result = p.result;
+  if (p.accountId) {
+    if (syncingAccountIds[p.accountId]) {
+      delete syncingAccountIds[p.accountId]; //release lock.
+    }
+  }
+};
+
+//params: name, outerFuture, accountId
+var startAssistant = function(params) {
+  if (params.name === "syncAssistant") {
+    if (params.accountId) {
+      if (syncingAccountIds[params.accountId]) {
+        log("Already syncing account " + params.accountId + ". Please wait until that is finished.");
+        return false;
+      } else {
+        syncingAccountIds[params.accountId] = true;
+        return true;
+      }
+    }
+  } else {
+    if (params.name === "onDeleteAssistant" ||
+        params.name === "onCreateAssistant" ||
+        params.name === "onEnabledAssistant") {
+      if (locked === true) {
+        log("Already doing account operation, waiting until it's finished.");
+        previousOperationFuture.then(this, function (f) {
+          log("PreviousOperation finished " + JSON.stringify(f.result) + " , starting " + params.name);
+          this.run(params.outerFuture);
+        });
+        return false;
+      }
+      else {
+        locked = true;
+      }
+    }
+  }
+  return true;
 };
 
 var stream;
@@ -49,12 +93,34 @@ var log = function (logmsg) {
 	  if (typeof stream == "undefined") {
 	    stream = fs.createWriteStream("/media/internal/.info.mobo.syncml.log", {flags:"a"});
 	  }
-	  stream.write(logmsg + "\n");
+	  stream.write(new Date() + ": " + logmsg + "\n");
 	  //stream.end();
 	} catch(e) {
 	  console.error("Unable to write to file: " + e);
 	}
 };
+
+var logError_global = function (error, name, outerFuture, accountId) {
+  if(!name && arguments && arguments.callee && arguments.callee.caller && arguments.callee.caller.name) {
+    name = arguments.callee.caller.name;
+  }
+  log("Exception in " + name);
+  log("Complete exception: " + JSON.stringify(error));
+  logToApp(error.name + ": " + error.message + ", operation stopped in " + name);
+};
+
+var logError_lib = function (error) {
+  logError_global(error);
+  for (var i = 0; i < outerFutures.length; i += 1) {
+    outerFutures[i].result = { returnValue: false, success: false, reason: "Exception " + error.name + ": " + error.message};
+  }
+  throw error; //this will stop the service from processing..
+};
+
+process.on("uncaughtException",function(e) {
+  log("Uncaought error!!!");
+  logError_lib(e);
+});
 
 var logSubscription = undefined;
 var logToApp = function (logmsg) {
@@ -80,7 +146,7 @@ var logGUI = function (controller, logInfo) {
 
 var fresult = {};
 var initialize = function(params) {
-  var future = new Future(), innerFuture = new Future(fresult), initFinishCheck;
+  var future = new Future(), innerFuture = new Future(fresult), initFinishCheck = undefined;
   log("initialize helper, status: " + JSON.stringify(fresult));
   if (params.iCal) {
     iCal.intitialize(innerFuture);
@@ -89,7 +155,10 @@ var initialize = function(params) {
   initAccounts = function (f) {
     log("Init Accounts");
     var i = 0, gotAccountInfo;
-    gotAccountInfo = function(result) {
+    gotAccountInfo = function(future) {
+      if (!future.result.returnValue) {
+        log("Could not get account info.");
+      }
       i -= 1;
       if (i === 0) {
         var res = f.result;
@@ -99,14 +168,15 @@ var initialize = function(params) {
     };
     
     log("Starting findAccounts");
-    SyncMLAccount.findAccounts(function () {
+    SyncMLAccount.findAccounts().then(this, function (future) {
+      log("Got accounts: " + future.result.returnValue);
       log("Accounts finished.");
       if (params.accountsInfo) {
         var account = SyncMLAccount.getAccount();
         while (account) {
           if (account.accountId) {
             log("Getting account info");
-            SyncMLAccount.getAccountInfo(account, gotAccountInfo);
+            SyncMLAccount.getAccountInfo(account).then(this, gotAccountInfo);
             i += 1;
           }
           account = SyncMLAccount.getNextAccount();
@@ -303,7 +373,8 @@ var Base64 = {
 };
 
 //own AjaxCall, because it is broken in webOS 2.2.4
-var AjaxCallPost = function (method, url, body, options) {
+var AjaxCallPost = function (url, body, options) {
+  var method = "POST";
   return new Future().now(this, function(future) {
     options = options || {};
     // console.log("Options: " + JSON.stringify(options));

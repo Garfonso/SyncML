@@ -15,5 +15,5 @@ onCredentialsChangedAssistant.prototype.run = function (outerFuture) {
 //  }
   
   //this assistant is not helpfull.. it only get's the accountId, but no new credentials??? Why??? :(
-  finishAssistant(outerFuture, { returnValue: false, success: false });
+  finishAssistant_global({name: "onCredentialsChangedAssistant", outerFuture: outerFuture, result: { returnValue: false, success: false }});
 };

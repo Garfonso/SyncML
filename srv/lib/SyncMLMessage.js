@@ -19,7 +19,7 @@ var syncMLMessage = function () {
       alerts: [], //contains alerts. Should be mostly just one for sync initialization...
       status: {}, //contains status reports = aks/nacks of previous commands
       sync: [ { add: [], del: [], replace: [] } ],   //contains sync commands add/replace/delete
-      map: [], //mapping used to map local ids to global ids for new items from server TODO: support dafür implementieren!
+      map: [], //mapping used to map local ids to global ids for new items from server
       cmds: [],
       isFinal: true //final needs to be specified in the last message of the "SyncML Package".. 
     },
@@ -55,7 +55,7 @@ var syncMLMessage = function () {
     //then have a <, > or & followed by any data but <, > and &. This may happen more than once, until the next </Data>.
     //this did not work.. don't know why.. just crashed without exception. webkit sucks.
     //so now we just check every data of add/replace things and just call this method, if xmlParse fails the first time.
-    var patt = /(<Add>|<Replace>)(.|\r\n)*?<Data>(.|\r\n)*?<\/Data>/gmi, endOfData, startOfData, offset, index, data, xml2;
+    var patt = /(<Add>|<Replace>)(.|\r\n)*?<Data>(.|\r\n)*?<\/Data>/gmi, endOfData, startOfData, offset, data, xml2;
     xml2 = "";
     offset = 0;
     log("Trying to clean up xml");
@@ -728,7 +728,7 @@ var syncMLMessage = function () {
 
     //returns the complete message as XML
     buildMessage: function (sessionInfo) {
-      var msgRef, cmdRef, i, j;
+      var msgRef = undefined, cmdRef = undefined, i, j;
 
       //check parameters:
       if (!sessionInfo) {
@@ -847,7 +847,7 @@ var syncMLMessage = function () {
     },
 
     buildMessageFromResponse: function (xml) {
-      var hdr, bodyXML, responseDOM, cleanXML, errors, i;
+      var hdr, bodyXML, responseDOM, cleanXML, errors;
       cleanXML = xml.replace(/>\s+</g, "><"); //remove all whitespaces between > and <
       responseDOM = xmlParser.parseFromString(cleanXML, "text/xml"); //get from XLM String to XML Dom.
       log("Parser finished");
@@ -1203,7 +1203,7 @@ var syncMLMessage = function () {
 
     //returns true if there is a status cmd in this message.
     hasStatus: function () {
-      var msgRef, cmdRef;
+      var msgRef = undefined, cmdRef = undefined;
       //first add status responses:
       for (msgRef in body.status) {
         if (body.status.hasOwnProperty(msgRef)) {

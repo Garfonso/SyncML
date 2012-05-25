@@ -12,7 +12,7 @@ WelcomeAssistant.prototype.setup = function () {
   var startSyncModel = {label: $L("Start sync"), disabled: true};
   
   PalmCall.call("palm://info.mobo.syncml.client.service", "getAccounts", {}).then(this, function (f){
-    if (f.result.returnValue === true) {
+    if (f.result.success === true) {
       log("Got accounts.");
       accounts = f.result.accounts;
       log("Now have " + accounts.length + " accounts.");
@@ -28,6 +28,7 @@ WelcomeAssistant.prototype.setup = function () {
       log("Ready to go.");
     } else {
       log("Could not get accounts..." + JSON.stringify(f.result));
+      showError(this.controller, "Service Error", "Could not get accounts. Service error: " + f.result.reason);
     }
   });
   

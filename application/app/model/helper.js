@@ -38,3 +38,12 @@ var logStatus = function (controller, logInfo) {
     this.targOutput.innerHTML = logInfo + "<br /><hr />";
   }
 };
+
+var showError = function(controller, ErrorTitle, ErrorText) {
+  controller.showAlertDialog({
+    title: $L(ErrorTitle),
+    message: JSON.stringify(ErrorText),
+    choices: [{label:$L("OK"), value:"OK"}]
+  });
+  return;
+};

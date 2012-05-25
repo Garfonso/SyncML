@@ -362,7 +362,7 @@ var iCal = (function () {
   }
 
   function buildRRULEvCalendar(rr, tzId) {
-    var text, freqType, i, j, freqMod = [], sign = "+", ordFactor = 1, rule;
+    var text, freqType = undefined, i, j, freqMod = [], sign = "+", ordFactor = 1, rule;
     for (i = 0; rr.rules && i < rr.rules.length; i += 1) {
       if (rr.rules[i].ruleType === "BYDAY") {
         freqType = "P";
@@ -640,7 +640,7 @@ var iCal = (function () {
   }
 
   function buildALARM(alarm, text) {
-    var i, field, translation;
+    var i, field = undefined, translation;
     translation = {
       "action" : "ACTION",
       //alarmTrigger will be handled extra,
@@ -670,7 +670,7 @@ var iCal = (function () {
   }
 
   function parseAttendee(lObj, attendees, organizer) {
-    var i, attendee = {}, parts, translation;
+    var i = 0, attendee = {}, parts, translation;
     if (!attendees) {
       attendees = [];
     }
@@ -731,7 +731,7 @@ var iCal = (function () {
   }
 
   function buildATTENDEE(attendee) {
-    var text = "ATTENDEE", translation, field, res;
+    var text = "ATTENDEE", translation, field = undefined, res;
     translation = {
       "commonName": "CN",
       "calendarUserType": "CUTYPE",
@@ -1272,8 +1272,7 @@ var iCal = (function () {
             callback(event);
           }
         } catch (e) {
-          log("Error in generateICal: ");
-          log(JSON.stringify(e));
+          logError_lib(e);
         }
       };
 
@@ -1334,8 +1333,7 @@ var iCal = (function () {
           callback(event);
         } //else, wait for TZManager to load up tz information.
       } catch (e) {
-        log("Error in parseICal: ");
-        log(JSON.stringify(e));
+        logError_lib(e);
       }
     },
 

@@ -2,107 +2,82 @@ var getAccountsAssistant = function (future) {};
 
 getAccountsAssistant.prototype.run = function (outerFuture) {
   log("============== getAccountsAssistant");
-  log("Params: " + JSON.stringify(this.controller.args));
-  log("Future: " + JSON.stringify(outerFuture.result));
-  
-  if (locked === true) {
-    log("Locked... already running?");
-    previousOperationFuture.then(this, function (f) {
-      log("PreviousOperation finished " + JSON.stringify(f.result) + " , starting getAccountsAssistant");
-      this.run(outerFuture);
-    });
-    return;
-  }
-  
-  locked = true;
-  //first initialize keymanager and accounts:
-  var f = initialize({keymanager: true, accounts: true, accountsInfo: true});
-  f.then(this, function (future) {
-    if (future.result.returnValue === true) {
-      log("Init complete");
-
-      var accounts = SyncMLAccount.getAccounts();
-      log("Returning " + accounts.length + " accounts");
-      finishAssistant(outerFuture, {returnValue: true, accounts: accounts});
-    } else {
-      log("Init failed" + JSON.stringify(f.result));
-      finishAssistant(outerFuture, { returnValue: false });
+  var finishAssistant, logError, initializeCallback, f;
+  try {
+    outerFutures.push(outerFuture);
+    finishAssistant = function (result) {
+      finishAssistant_global({name: "getAccountsAssistant", outerFuture: outerFuture, result: result});
+    };
+    logError = function(e) {
+      logError_global(e, "getAccountsAssistant");
+      finishAssistant({returnVaule: false, success: false});
+    };
+    log("Params: " + JSON.stringify(this.controller.args));
+    log("Future: " + JSON.stringify(outerFuture.result));
+    
+    if (!startAssistant({name: "getAccountsAssistant", outerFuture: outerFuture})){
+      return;
     }
-  });
+    
+    initializeCallback = function (future) {
+      try {
+        if (future.result.returnValue === true) {
+          log("Init complete");
+          
+          var accounts = SyncMLAccount.getAccounts();
+          log("Returning " + accounts.length + " accounts");
+          finishAssistant({returnValue: true, success: true, accounts: accounts});
+        } else {
+          log("Init failed" + JSON.stringify(future.result));
+          finishAssistant({ returnValue: false, success: false });
+        }
+      } catch (e) {
+        logError(e);
+      }
+    };
+    
+    //first initialize keymanager and accounts:
+    f = initialize({keymanager: true, accounts: true, accountsInfo: true});
+    f.then(this, initializeCallback);
+  } catch (e) {
+    logError(e);
+  }
 };
 
 var storeAccountsAssistant = function (future) {};
 
 storeAccountsAssistant.prototype.run = function (outerFuture) {
   log("============== storeAccountsAssistant");
-  //log("Params: " + JSON.stringify(this.controller.args)); //dangerous: can contain password!
-  log("Future: " + JSON.stringify(outerFuture.result));
+  var finishAssistant, logError, initializeCallback, checkFinish = undefined, toAdd = [], toDelete = [], toModify = [],
+      f, i, creates = 0, modifies = 0, wait = 0, deletes = 0, accounts = this.controller.args.accounts, saveCallback;
+  try {
+    outerFutures.push(outerFuture);
+    finishAssistant = function (result) {
+      finishAssistant_global({name: "storeAccountsAssistant", outerFuture: outerFuture, result: result});
+    };
+    logError = function(e) {
+      logError_global(e, "storeAccountsAssistant");
+      finishAssistant({returnVaule: false, success: false});
+    };
+    //log("Params: " + JSON.stringify(this.controller.args));
+    log("Future: " + JSON.stringify(outerFuture.result));
+    
+    if (!startAssistant({name: "storeAccountsAssistant", outerFuture: outerFuture})){
+      return;
+    }
   
-  if (locked === true) {
-    log("Locked... already running?");
-    previousOperationFuture.then(this, function (f) {
-      log("PreviousOperation finished " + JSON.stringify(f.result) + " , starting storeAccountsAssistant");
-      this.run(outerFuture);
-    });
-    return;
-  }
-  
-  if (typeof this.controller.args.accounts !== "object") {
-    log("Need parameter accounts to be of type object, not " + typeof this.controller.args.accounts);
-    finishAssistant(outerFuture, { returnValue: false });
-    return;    
-  }
+    if (typeof this.controller.args.accounts !== "object") {
+      log("Need parameter accounts to be of type object, not " + typeof this.controller.args.accounts);
+      finishAssistant({ returnValue: false, success: false });
+      return;    
+    }
 
-  //first initialize keymanager and accounts:
-  locked = true;
-  var f = initialize({keymanager: true, accounts: true, accountsInfo: true});
-  f.then(this, function (future) {
-    if (future.result.returnValue === true) {
-      log("Init complete");
-      var creates = 0, modifies = 0, wait = 0, deletes = 0;
-
-      var accounts = this.controller.args.accounts;
-      log("Processing " + accounts.length + " accounts.");
-      for (var i = 0; i < accounts.length; i += 1) {
-        if (accounts[i].index >= 0) { //already known account!
-          if (accounts[i].deleteThis) {
-            log("Deleting account " + i);
-            SyncMLAccount.deleteAccount(accounts[i]).then(this, function (f) {
-              deletes -= 1;
-            });
-            deletes += 1;
-          } else {
-            SyncMLAccount.setAccount(accounts[i]);
-          }
-        } else {
-          SyncMLAccount.addNewAccount(accounts[i]);
-        }
-        //this creates issues... don't know how to solve them, right now.. therefore:  deacitvated and done on first sync.
-//          SyncMLAccount.setAccount(accounts[i]);
-//          log("Account " + i + " of " + accounts.length + " already exists. Calling modify");
-//          SyncMLAccount.modifyAccount(accounts[i]).then(function (f) {
-//            modifies -= 1;
-//          });
-//          modifies += 1;
-//        } else {
-//          if (accounts[i].username && accounts[i].password && accounts[i].name && accounts[i].url) {
-//            SyncMLAccount.addNewAccount(accounts[i], false); //don't write directly into database.
-//            log("Account " + i + " of " + accounts.length + " is new. Calling create");
-//            SyncMLAccount.createAccount(accounts[i], function() {
-//              creates -= 1;
-//            });
-//            creates += 1;
-//          } else {
-//            log("Account not properly defined, ignoring.");
-//          }
-//        }
-      }
-
-      var checkFinish = function() {
+    checkFinish = function() {
+      try {
         if(creates === 0 && modifies === 0 && deletes === 0) {
           SyncMLAccount.saveConfig().then(function (f) {
             log("SaveConfig finished, return future");
-            finishAssistant(outerFuture, { returnValue: f.result.returnValue});
+            finishAssistant({ returnValue: f.result.returnValue, success: f.result.returnValue});
           });
         } else {
           log("Saves not finished, yet. Waiting for " + creates + " creates and " + modifies + " modifications and " + deletes + " deletes.");
@@ -114,19 +89,108 @@ storeAccountsAssistant.prototype.run = function (outerFuture) {
           }
           setTimeout (checkFinish, 100);
         }
-      };
-      checkFinish();
-    } else {
-      log("Init failed" + JSON.stringify(f.result));
-      finishAssistant(outerFuture, { returnValue: false });
-    }
-  });
+      } catch (e) {
+        logError(e);
+      }
+    };
+    
+    saveCallback = function (future) {
+      log("saveCallback!");
+      try {
+        for (i = 0; i < toAdd.length; i += 1) {
+          log("Account " + i + " of " + accounts.length + " is new. Calling create");
+          //this sometimes creates multiple accounts in my app... don't understand why, yet. 
+          //But it seems necessary for webOS 2.1.x to work properly.
+          SyncMLAccount.createAccount(toAdd[i]).then(this, function(future) {
+            try {
+              creates -= 1;
+              if (!future.result.returnValue) {
+                log("Could not create account...?");
+              }
+            } catch (e) {
+              logError(e);
+            }
+          });
+          creates += 1;
+        }
+        for (i = 0; i < toModify.length; i += 1) {
+          SyncMLAccount.setAccount(toModify[i]);
+          SyncMLAccount.modifyAccount(toModify[i]).then(function (f) {
+            try {
+              modifies -= 1;
+            } catch (e) {
+              logError(e);
+            }
+          });
+          modifies += 1;
+        }
+        for (i = 0; i < toDelete.length; i += 1) {
+          SyncMLAccount.deleteAccount(toDelete[i]).then(this, function (f) {
+            try {
+              deletes -= 1;
+            } catch (e) {
+              logError(e);
+            }
+          });
+          deletes += 1;
+        }
+        checkFinish();
+      } catch (e) {
+        logError(e);
+      }
+    };
+    
+    initializeCallback = function (future) {
+      try {
+        if (future.result.returnValue === true) {
+          log("Init complete");
+          
+          log("Processing " + accounts.length + " accounts.");
+          for (i = 0; i < accounts.length; i += 1) {
+            if (accounts[i].index >= 0) { //already known account!
+              if (accounts[i].deleteThis) {
+                log("Deleting account " + i + " of " + accounts.length);
+                toDelete.push(accounts[i]);
+              } else {
+                SyncMLAccount.setAccount(accounts[i]);
+                log("Account " + i + " of " + accounts.length + " already exists. Calling modify");
+                if (accounts[i].isModified) {
+                  toModify.push(accounts[i]);
+                  accounts[i].isModified = false;
+                }
+              }
+            } else {
+              if (accounts[i].username && accounts[i].password && accounts[i].name && accounts[i].url) {
+                SyncMLAccount.addNewAccount(toAdd[i], false); //don't write directly into database.
+                toAdd.push(accounts[i]);
+              } else {
+                log("Account not properly defined, ignoring.");
+              }
+            }
+          }
+          
+          SyncMLAccount.saveConfig().then(this, saveCallback);
+        } else {
+          log("Init failed" + JSON.stringify(future.result));
+          finishAssistant({ returnValue: false, success: false });
+        }
+      } catch (e) {
+        logError(e);
+      }
+    };
+    
+    //first initialize keymanager and accounts:
+    f = initialize({keymanager: true, accounts: true, accountsInfo: true});
+    f.then(this, initializeCallback);
+  } catch (e) {
+    logError(e);
+  }
 };
 
 var resetServiceAssistant = function (future) {};
 
 resetServiceAssistant.prototype.run = function (outerFuture) {
-  log("Service Locked: " + locked);
+  log("Service Locked: " + locked + " syncs: " + JSON.stringify(syncingAccountIds));
   log("Will try to exit service now.");
   process.exit(0);
   log("This should not get printed, right?");

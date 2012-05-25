@@ -89,7 +89,7 @@ var eventCallbacks = (function () {
             }
           } catch (e) {
             log("Error while adding element " + i + " of " + input.result.length + ". Error: " + JSON.stringify(e));
-            //TODO: unnotified error condition.
+            logError_lib(e);
           }
         }
       }
@@ -598,7 +598,7 @@ var eventCallbacks = (function () {
 				eventDeleted = 0;
 				eventDeleteFailed = 0;
 			} catch (exception) {
-				log("Exception in finishSync: " + exception + " - " + JSON.stringify(exception));
+				logError_lib(exception);
 			}
 		},
 

@@ -68,7 +68,7 @@ var DeviceProperties = {
 // one problem remains: make contacts/calendar nicer and more uniform.. :( make it much easier to add more datastores.
 
 var SyncML = (function () {      //lastMsg allways is the last response from the server, nextMsg allways is the message that we are currently building to send.
-  var sessionInfo, account = {}, lastMsg, nextMsg,
+  var sessionInfo, account = {}, lastMsg = undefined, nextMsg = undefined,
   //callbacks to get event / contacts data as iCal / vCard strings.
   //will all receive a callback function as parameter, that is to be called with "false" in the case of errors.
   //otherwise it needs to be supplied to the called sync function!
@@ -121,12 +121,12 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
       text = msg.buildMessage({sessionId: sessionInfo.sessionId, msgId: id, target: account.url, source: DeviceProperties.id});
       log("Sending to server: " + text);
       nextMsg = msg; //just in case. :)
-      var future = AjaxCallPost("post",sessionInfo.url, text, 
+      var future = AjaxCallPost(sessionInfo.url, text, 
           { "bodyEncoding":"utf8" , 
-            "headers": {"Content-Type":"application/vnd.syncml+xml", "Content-Length": text.length} } );
-      future.then(function(f) {
-        log("FUTURE CAME BACK!");
-        //if (f.result.returnValue) {
+        "headers": {"Content-Type":"application/vnd.syncml+xml", "Content-Length": text.length} } );
+      future.then(this, function(f) {
+        try {        
+          log("FUTURE CAME BACK!");
           if (f.result && f.result.status == 200) {
             log("Status of message: " + f.result.status);
             log("Request succeeded, Got: ");
@@ -137,38 +137,31 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
                 logToApp("Need to retry transmission " + retry + " / 5");
                 sendToServer(msg, callback, retry + 1, id);
               } else {
-                logToApp("No connection to server, retries did not help. Please check connection.");
+                logError_lib({name: "ConnectionError", message: "No connection to server."});
               }
             } else {
               callback(f.result.responseText);
             }
-//          } catch (e) {
-//          log("Error in sendMessage(future):");
-//          log(e);
-//          }
           } else { //request failure!
             log("Request failed");
-            var error;
+            var error = undefined;
             if (f.result) {
               error = f.result.status;
             } 
             if (!error) {
               error = JSON.strinfigy(f.exception);
             }
-            logToApp("No connection to server, retries did not help. Please check connection, Error: " + error);
             if (f.result) {
               log(JSON.stringify(f.result));
             }
             if (f.exception) {
               log(JSON.stringify(f.exception));
             }
+            logError_lib({name: "ConnectionError", message: "No connection to server."});
           }
-//        } else {
-//          log("Request failed");
-//          logToApp("No connection to server. Please check connection, Error: " + JSON.stringify(f.result));
-//          log(JSON.stringify(f.result));
-//          log(JSON.stringify(f.exception));
-//        }
+        } catch (e) {
+          logError_lib(e);
+        }
       });
       future.onError(function (f) {
         log("Error in SendMessage future: " + JSON.stringify(f.exeption));
@@ -176,9 +169,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
         future.result = { returnValue: false };
       });
     } catch (error) {
-      log("Error in sendMessage:");
-      log(JSON.stringify(error));
-      logToApp("Error during send: " + error.name + ", " + error.message);
+      logError_lib(e);
     }
   }
 
@@ -197,7 +188,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
   }
 
   function generalParseMsg(text) {
-    var i, j, k, failed, cmd, datastores, source, types, type;
+    var i, j, k, failed, cmd, datastores, source, types, type = undefined;
     try {
       lastMsg = syncMLMessage();
       /*i = 1;
@@ -319,9 +310,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
       logToApp("Got last message and parsed it, sync was successful.");
       resultCallback({success: true, account: account }); //return account to update next / last sync. Mode might also be set by server. Nothing else should have changed.
     } catch (e) {
-      logToApp(e.name + " during parse last response: " + e.message);
-      log("Error in parseLastResponse:");
-      log(JSON.stringify(e));
+      logError_lib(e);
     }
   }
 
@@ -384,9 +373,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
         }
       }
     } catch (e) {
-      logToApp(e.name + " in processing sync comand: " + e.message);
-      log("Error in itemActionCallback:");
-      log(JSON.stringify(e));
+      logError_lib(e);
     }
   }
 
@@ -396,7 +383,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
   //needs to be generated and send.
   //remark: we don't check item type anywhere.. this would be the right place.
   parseSyncResponse = function (responseText) {
-    var lastOwn, failed, i, j, k, sync, callbacks = ["newEntry", "delEntry", "updateEntry"], ti, item, cmd, realFailure, ds, waitingSync;
+    var lastOwn, failed, i, j, k, sync, callbacks = ["newEntry", "delEntry", "updateEntry"], ti, item, cmd, realFailure, ds, waitingSync = undefined;
     try {
       lastOwn = nextMsg;
       failed = generalParseMsg(responseText);
@@ -510,9 +497,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
       logToApp("Sync cmd parsed, now processing data.");
       itemActionCallback({}); //in case there was no action to be done, continue with sync by calling itemActionCallback.
     } catch (e) {
-      logToApp(e.name + " during parse sync cmd: " + e.message);
-      log("Error in parseSyncResponse:");
-      log(JSON.stringify(e));
+      logError_lib(e);
     }
   };
 
@@ -571,9 +556,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
       sendToServer(nextMsg, parseSyncResponse);
       account.datastores[name].state = "waitingForSyncResponse";
     } catch (e) {
-      logToApp(e.name + " during continueSync: " + e.message);
-      log("Error in continueSync:");
-      log(JSON.stringify(e));
+      logError_lib(e);
     }
   }
 
@@ -610,9 +593,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
         }
       }
     } catch (e) {
-      logToApp(e.name + " during getSyncData " + e.message);
-      log("Error in getSyncData:");
-      log(JSON.stringify(e));
+      logError_lib(e);
     }
   }
 
@@ -683,16 +664,14 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
         getSyncData();
       }
     } catch (e) {
-      logToApp(e.name + " in parse of initial message: " + e.message);
-      log("Error in parseInitMessage:");
-      log(JSON.stringify(e));
+      logError_lib(e);
     }
   }
 
   function parseCredResponse(responseText) {
     var responseMsg, status;
-
-    //try {
+    
+    try {
       responseMsg = syncMLMessage();
       responseMsg.buildMessageFromResponse(responseText);
       status = responseMsg.getBody().status[sessionInfo.msgId]["0"].data; //status of last msg and header => allways 0. 
@@ -703,10 +682,9 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
         log("Wrong credentials?, status data: " + status);
         resultCallback({success: false});
       }
-//    } catch (e) {
-//      log("Error in parseCredResponse:");
-//      log(e);
-//    }
+    } catch (e) {
+      logError_lib(e);
+    }
   }
 
   //define public interface:
@@ -752,9 +730,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
           //log("Will be known to server as " + DeviceProperties.id);
         }
 	    } catch (e) {
-	      logToApp(e.name + " in SyncML.initialize:" + e.message); 
-	      log("Error in initialize:");
-	      log(JSON.stringify(e));
+	      logError_lib(e);
 	    }
 	  },
 
@@ -769,8 +745,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
 
 		    sendToServer(nextMsg, parseCredResponse);
 		  } catch (e) {
-	      log("Error in checkCredentials:");
-	      log(JSON.stringify(e));
+	      logError_lib(e);
 	    }
 		},
 
@@ -807,8 +782,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
 		    logToApp("Sending initialization message to server.");
 		    sendToServer(nextMsg, parseInitResponse);
 		  } catch (e) {
-	      log("Error in sendSyncInitializationMsg:");
-	      log(JSON.stringify(e));
+	      logError_lib(e);
 	    }
 		},
 

@@ -25,6 +25,7 @@ ConfigSyncMLAccountAssistant.prototype.setup = function () {
 	} else {
 	  this.account = {};
 	}
+	this.account.isModified = true;
   if (!this.account.datastores) {
     this.account.datastores = { calendar: { enabled: false }, contacts: { enabled: false }};
   }
@@ -37,6 +38,9 @@ ConfigSyncMLAccountAssistant.prototype.setup = function () {
   if (!this.account.deviceName) {
     this.account.deviceName = Mojo.Environment.DeviceInfo.modelNameAscii;
   }
+  this.account.disabled = false;
+  this.account.datastores.calendar.disabled = false;
+  this.account.datastores.contacts.disabled = false;
   
   this.controller.setupWidget(Mojo.Menu.appMenu, {}, AppAssistant.prototype.MenuModel);
 
@@ -95,7 +99,7 @@ ConfigSyncMLAccountAssistant.prototype.deleteThisAccount = function () {
     PalmCall.call("palm://info.mobo.syncml.client.service", "storeAccounts", {accounts: accounts }).then(this, function (f) {
       log("Accounts stored, result: " + JSON.stringify(f.result));
       PalmCall.call("palm://info.mobo.syncml.client.service","getAccounts",{}).then(this, function(f2) {
-        if (f2.result.returnValue === true) {
+        if (f2.result.success === true) {
           accounts = f2.result.accounts;
           log("Got " + accounts.length + " accounts fresh from service");
         }
@@ -176,7 +180,7 @@ ConfigSyncMLAccountAssistant.prototype.checkCredentials = function () {
     url: this.account.url
   });
 	credFuture.then(this, function (f) {
-	  if (f.result.returnValue) {
+	  if (f.result.success) {
 	    log("Check credentials came back successful");
 	    log("Result: " + JSON.stringify(f.result));
 	    
@@ -225,17 +229,13 @@ ConfigSyncMLAccountAssistant.prototype.checkCredentials = function () {
 	    }
 	  } else {
 	    log("CheckCredentials came back, but failed.");
-	    this.showLoginError ("Credentials", "Credentials were wrong or could not be checked. Please check settings");
+	    this.showLoginError ("Credentials", "Credentials were wrong or could not be checked." + (f.result.reason ? " Message: " + f.result.reason : ""));
 	  }
 	});	
 };
 
 ConfigSyncMLAccountAssistant.prototype.showLoginError = function(ErrorTitle, ErrorText) {
-  this.controller.showAlertDialog({
-    title: $L(ErrorTitle),
-    message: JSON.stringify(ErrorText),
-    choices: [{label:$L("OK"), value:"OK"}]
-  });
+  showError(this.controller, ErrorTitle, ErrorText);
 
   //Enable all controls
   this.enableControls();
@@ -277,7 +277,7 @@ ConfigSyncMLAccountAssistant.prototype.handleCommand = function (event) {
         PalmCall.call("palm://info.mobo.syncml.client.service", "storeAccounts", {accounts: accounts }).then(this, function (f) {
           log("Accounts stored, result: " + JSON.stringify(f.result));
           PalmCall.call("palm://info.mobo.syncml.client.service","getAccounts",{}).then(this, function(f2) {
-            if (f2.result.returnValue === true) {
+            if (f2.result.success === true) {
               accounts = f2.result.accounts;
               log("Got " + accounts.length + " accounts fresh from service");
             }
