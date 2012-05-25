@@ -21,7 +21,7 @@ checkCredentialsAssistant.prototype.run = function (outerFuture) {
     //log("Args: " + JSON.stringify(args));
     log("Checking username " + args.username + " on " + args.url);
     
-    if (!startAssistant({name: "checkCredentials", outerFuture: outerFuture})){
+    if (!startAssistant({name: "checkCredentials", outerFuture: outerFuture, run: this.run.bind(this) })){
       return;
     }
     

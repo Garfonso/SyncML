@@ -15,7 +15,7 @@ onDeleteAssistant.prototype.run = function (outerFuture) {
     log("Params: " + JSON.stringify(this.controller.args));
     log("Future: " + JSON.stringify(outerFuture.result));
     
-    if (!startAssistant({name: "onDeleteAssistant", outerFuture: outerFuture})){
+    if (!startAssistant({name: "onDeleteAssistant", outerFuture: outerFuture, run: this.run.bind(this) })){
       return;
     }
     

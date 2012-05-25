@@ -15,7 +15,7 @@ onCreateAssistant.prototype.run = function (outerFuture) {
     log("Params: " + JSON.stringify(this.controller.args));
     log("Future: " + JSON.stringify(outerFuture.result));
     
-    if (!startAssistant({name: "onCreateAssistant", outerFuture: outerFuture})){
+    if (!startAssistant({name: "onCreateAssistant", outerFuture: outerFuture, run: this.run.bind(this) })){
       return;
     }
     

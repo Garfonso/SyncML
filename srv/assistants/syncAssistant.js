@@ -80,11 +80,15 @@ syncAssistant.prototype.finished = function (account) {
 syncAssistant.prototype.run = function (outerFuture, subscription) {
   log("============== syncAssistant");
   var finishAssistant, logError, initializeCallback, syncCallback, finishCallback, checkAccountCallback, 
-      f, args = this.controller.args, account = args;
+      f, args = this.controller.args, account = this.controller.args, accountId;
   try {
     outerFutures.push(outerFuture);
+    accountId = args.accountId;
+    if (!accountId) {
+      accountId = "noId";
+    }
     finishAssistant = function (result) {
-      finishAssistant_global({name: "syncAssistant", outerFuture: outerFuture, result: result, accountId: args ? args.accountId : "noId"});
+      finishAssistant_global({name: "syncAssistant", outerFuture: outerFuture, result: result, accountId: accountId});
       logSubscription = undefined; //delete subscription.
     };
     logError = function(e) {
@@ -94,8 +98,9 @@ syncAssistant.prototype.run = function (outerFuture, subscription) {
     //log("Params: " + JSON.stringify(this.controller.args));
     log("Future: " + JSON.stringify(outerFuture.result));
         
-    if (!startAssistant({name: "syncAssistant", outerFuture: outerFuture, accountId: args ? args.accountId : "noId"})){
-      logSubscription = subscription; //TODO: try if that does something useful... don't think so right now. :(
+    if (!startAssistant({name: "syncAssistant", outerFuture: outerFuture, accountId: accountId, run: this.run.bind(this) })){
+      delete outerFuture.result;
+      logSubscription = subscription; //cool, seems to work. :)
       return;
     }
     
@@ -229,11 +234,11 @@ syncAssistant.prototype.checkAccount = function (account) {
     });
   } else {
     log("Need to create account.");
-    SyncMLAccount.createAccount(account).then(this, function(future) {
-      if (future.result.returnValue) {
+    SyncMLAccount.createAccount(account).then(this, function(f1) {
+      if (f1.result.returnValue) {
         log("Account created.");
-        eventCallbacks.checkCalendar(acc).then(function (f) {
-          future.result = f.result;
+        eventCallbacks.checkCalendar(f1.result.account).then(function (f2) {
+          future.result = f2.result;
         });
       } else {
         log("Could not create account.");

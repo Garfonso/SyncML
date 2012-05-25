@@ -15,7 +15,7 @@ getAccountsAssistant.prototype.run = function (outerFuture) {
     log("Params: " + JSON.stringify(this.controller.args));
     log("Future: " + JSON.stringify(outerFuture.result));
     
-    if (!startAssistant({name: "getAccountsAssistant", outerFuture: outerFuture})){
+    if (!startAssistant({name: "getAccountsAssistant", outerFuture: outerFuture, run: this.run.bind(this) })){
       return;
     }
     
@@ -62,7 +62,7 @@ storeAccountsAssistant.prototype.run = function (outerFuture) {
     //log("Params: " + JSON.stringify(this.controller.args));
     log("Future: " + JSON.stringify(outerFuture.result));
     
-    if (!startAssistant({name: "storeAccountsAssistant", outerFuture: outerFuture})){
+    if (!startAssistant({name: "storeAccountsAssistant", outerFuture: outerFuture, run: this.run.bind(this) })){
       return;
     }
   

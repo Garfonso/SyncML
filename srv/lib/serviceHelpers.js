@@ -40,6 +40,7 @@ var outerFutures = [];
 
 //params: outerFuture, result, accountId, name
 var finishAssistant_global = function(p) {
+  //log ("Finish Assistant called with " + p.name + ", " + p.accountId + ", " + JSON.stringify(p.result));
   previousOperationFuture.result = {go: true};
   if (p.name === "onDeleteAssistant" ||
       p.name === "onCreateAssistant" ||
@@ -49,6 +50,7 @@ var finishAssistant_global = function(p) {
   p.outerFuture.result = p.result;
   if (p.accountId) {
     if (syncingAccountIds[p.accountId]) {
+      syncingAccountIds[p.accountId].outerFuture.result = p.result;
       delete syncingAccountIds[p.accountId]; //release lock.
     }
   }
@@ -58,11 +60,13 @@ var finishAssistant_global = function(p) {
 var startAssistant = function(params) {
   if (params.name === "syncAssistant") {
     if (params.accountId) {
-      if (syncingAccountIds[params.accountId]) {
+      if (syncingAccountIds[params.accountId] && syncingAccountIds[params.accountId].syncing === true) {
         log("Already syncing account " + params.accountId + ". Please wait until that is finished.");
+        syncingAccountIds[params.accountId].outerFuture = params.outerFuture;
         return false;
       } else {
-        syncingAccountIds[params.accountId] = true;
+        log("Locking account " + params.accountId + " to prevent multiple syncs.");
+        syncingAccountIds[params.accountId] = {syncing: true, outerFuture: params.outerFuture};
         return true;
       }
     }
@@ -74,7 +78,7 @@ var startAssistant = function(params) {
         log("Already doing account operation, waiting until it's finished.");
         previousOperationFuture.then(this, function (f) {
           log("PreviousOperation finished " + JSON.stringify(f.result) + " , starting " + params.name);
-          this.run(params.outerFuture);
+          params.run(params.outerFuture);
         });
         return false;
       }

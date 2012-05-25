@@ -276,7 +276,7 @@ var SyncMLAccount = (function () {
             }
             //log("Obj to save: " + JSON.stringify(acctObj));
             if (acctObj.accountId || acctObj.username || acctObj.pw || acctObj.url) {
-              log("Addind account " + acctObj.name);
+              log("Adding account " + acctObj.name);
               newAccts.push(acctObj);
               runningEnryptions += 2;
               KeyManager.encrypt("username", accounts[i].username, acctObj).then(encryptionFinished);

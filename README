@@ -25,7 +25,13 @@ Known Issues:
 - Rearrange error handling, so that service returns to app on errors. Current plan: Remove all try/catch things and only have try/catch block in assistants. throw exceptions on error callbacks. 
 
 Changelog:
-- improved account deletion, possible associated webos account will be delted, too.
+2012-05-26 => 0.1.8
+- hopefully solved deadlock during account creation.
+- locks for the service calls are now much less restrictive
+- app can even reattach to a running sync. :)
+- solved issue where all controls in configScene would be disabled if service was still running after create account from account app.
+- solved another issue with syncEvolution
+- improved account deletion, possible associated webOS accounts will be deleted again.
 2012-05-23 => 0.1.7
 - changed behaviour to not send last anchor, if not present.
 - fixed account creation / modification / deletion from app.

@@ -2,7 +2,7 @@ var onEnabledAssistant = function (future) {};
 
 onEnabledAssistant.prototype.run = function (outerFuture) {
   log("============== onEnabledAssistant");
-  var saveCallback, deleteCallback, finishAssistant, logError, initializeCallback, f;
+  var saveCallback, deleteCallback, finishAssistant, logError, initializeCallback, f, account = undefined;
   try {
     outerFutures.push(outerFuture);
     finishAssistant = function (result) {
@@ -15,7 +15,7 @@ onEnabledAssistant.prototype.run = function (outerFuture) {
     log("Params: " + JSON.stringify(this.controller.args));
     log("Future: " + JSON.stringify(outerFuture.result));
     
-    if (!startAssistant({name: "onEnabledAssistant" , "outerFuture": outerFuture})) {
+    if (!startAssistant({name: "onEnabledAssistant" , "outerFuture": outerFuture, run: this.run.bind(this) })) {
       return;
     }
     
@@ -32,10 +32,15 @@ onEnabledAssistant.prototype.run = function (outerFuture) {
         if (account.datastores.calendar.enabled) {
           //if newly enabled, start a sync:
           log("Calendar got enabled, initiating sync.");
-          finishAssistant({ returnValue: f3.result.returnValue, success: f3.result.returnValue}); //first give back lock, then trigger sync.
-          PalmCall.call("palm://info.mobo.syncml.client.service", "sync", account).then(this, function (f3) {
-            log("Sync finished: " + JSON.stringify(f3.result));
-          });
+          finishAssistant({ returnValue: f2.result.returnValue, success: f2.result.returnValue}); //first give back lock, then trigger sync.
+          if (!syncingAccountIds.noId && !syncingAccountIds[account.accountId]) {
+            log("Initiating sync...");
+            PalmCall.call("palm://info.mobo.syncml.client.service", "sync", account).then(this, function (f3) {
+              log("Sync finished.");
+            });
+          } else {
+            log("Sync seems already in progress.");
+          }
           //log("Please sync manually...");
         } else {
           //if disabled, delete all events:
@@ -54,7 +59,7 @@ onEnabledAssistant.prototype.run = function (outerFuture) {
         if (future.result.returnValue === true) {
           log("Init complete");
           
-          var account = SyncMLAccount.getAccountById(this.controller.args.accountId);
+          account = SyncMLAccount.getAccountById(this.controller.args.accountId);
           if(!account) {
             log("Could not find account! Won't do anything.");
             finishAssistant({ returnValue: false, success: false });

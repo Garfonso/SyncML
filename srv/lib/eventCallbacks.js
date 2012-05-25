@@ -35,6 +35,7 @@ var eventCallbacks = (function () {
             log(JSON.stringify(e));
             input.success = false;
             input.callback(input);
+            logError_lib(e);
           }
         }
       );
@@ -50,6 +51,7 @@ var eventCallbacks = (function () {
       log(JSON.stringify(exception));
       input.success = false;
       input.callback(input);
+      logError_lib(e);
     }
   }
 
@@ -71,6 +73,7 @@ var eventCallbacks = (function () {
         log(JSON.stringify(e));
         input.success = false;
         input.callback(input);
+        logError_lib(e);
       }
     };
     try {
@@ -101,6 +104,7 @@ var eventCallbacks = (function () {
       log(JSON.stringify(error));
       input.success = false;
       input.callback(input);
+      logError_lib(error);
     }
   }
 
@@ -199,10 +203,7 @@ var eventCallbacks = (function () {
                 input.callback(input);
               }
             } catch (e) {
-              log("Error in updateEvent(Future): ");
-              log(JSON.stringify(e));
-              input.success = false;
-              input.callback(input);
+              logError_lib(e);
             }
           });
         future_.onError(function (f) {
@@ -218,6 +219,7 @@ var eventCallbacks = (function () {
         if (input.callback) {
           input.callback(input);
         }
+        logError_lib(exception);
       }
     };
 
@@ -234,6 +236,7 @@ var eventCallbacks = (function () {
       log(JSON.stringify(e));
       input.success = false;
       input.callback(input);
+      logError_lib(e);
     }
   }
 
@@ -289,6 +292,7 @@ var eventCallbacks = (function () {
 	            log(JSON.stringify(e));
 	            input.success = false;
 	            input.callback(input);
+	            logError_lib(e);
 	          }
 				  }
 				);
@@ -303,6 +307,7 @@ var eventCallbacks = (function () {
 				log("Exception in DeleteEvent: " + exception + " - " + JSON.stringify(exception));
 				input.success = false;
         input.callback(input);
+        logError_lib(exception);
 			}
 		},
 
@@ -318,7 +323,7 @@ var eventCallbacks = (function () {
           function (future) {
             var r = future.result;
             if (r.returnValue === true) {
-              log("Successfully deleted all elements.");
+              log("Successfully deleted all elements: " + JSON.stringify(r));
               input.callback({success: true});
             } else {
               log("Error in deleteAllEvents: " + future.exception.errorText + "( " + future.exception.errorCode + ")");
@@ -336,6 +341,7 @@ var eventCallbacks = (function () {
 				log("Exception in deleteAllEvents: " + exception + " - " + JSON.stringify(exception));
 				//something went wrong, continue sync:
 				input.callback({success: false});
+				logError_lib(exception);
 			}
 		},
 
@@ -492,6 +498,7 @@ var eventCallbacks = (function () {
         }
         res.rev = true;
         outerFuture.result = res;
+        logError_lib(exception);
 			}
 		},
 
@@ -552,6 +559,7 @@ var eventCallbacks = (function () {
 		      } catch (e) {
             log("Error in updateParentId: ");
             log(JSON.stringify(e));
+            logError_lib(e);
           }
 		    };
 
@@ -605,6 +613,7 @@ var eventCallbacks = (function () {
 		//set {accountId: , calendarId: , contactsId:}
 		setAccountAndDatastoreIds: function (accountIds) {
 		  ids = accountIds;
+		  log("Got ids: " + JSON.stringify(ids));
 		},
 
 		//set { calendar: rev, contacts: rev, .... }
