@@ -5,13 +5,34 @@ var KeyManager = (function () {
 
   //check if key already exists. If not, create key.
   function checkKey(callback) {
-    //this makes sure that the key exists. This seems a bit brutal, but at least till webOs 2.2.4
-    //there is an error that, when called from node.js service, the PalmCall with keymanager does not
-    //return, if it should just return unsuccessfully. 
-    //So if the key does not exist, keyInfo will never return.
-    //But if the key  exists, generate will never return.
-    //That means, to be sure that the key exists and that something returns a callback,
-    //we just call keyInfo and generate. One will always return and the key will exist. :)
+    //this makes sure that the key exists. 
+    
+    var createKey = function () {
+      var f2 = PalmCall.call("palm://com.palm.keymanager", "generate", { "keyname": keyname, "size": 32, "type": "AES", "nohide" : false });
+      f2.then(function(f4) {
+        try {
+          if (f4.result.returnValue === true) {
+            log("Key created. All is fine. :) " + JSON.stringify(f4.result));
+            if (callback) {
+              callback(true);
+            }
+          } else {
+            log("Key not created. Nothing is fine. :( " + JSON.stringify(result));
+            if (callback) {
+              callback(false);
+            }
+          }
+        } catch (e) {
+          logError_lib(e);
+        }
+      });
+      f2.onError(function (f) {
+        log("Error in generateKey-future: " + f.exeption);
+        logToApp("Could not generate Key: " + JSON.stringify(f.exeption));
+        f2.result = { returnValue: false };
+      });
+    };
+    
     log("Checking if key exists.");
     var f1 = PalmCall.call("palm://com.palm.keymanager/", "keyInfo", { keyname: keyname});
     f1.then(function (f3) {
@@ -24,32 +45,12 @@ var KeyManager = (function () {
         } else {
           //will never happen, due to the bug.
           log("No key, need to create key." + JSON.stringify(result));
-          var f2 = PalmCall.call("palm://com.palm.keymanager", "generate", { "keyname": keyname, "size": 32, "type": "AES", "nohide" : false });
-          f2.then(function(f4) {
-            try {
-              if (f4.result.returnValue === true) {
-                log("Key created. All is fine. :) " + JSON.stringify(f4.result));
-                if (callback) {
-                  callback(true);
-                }
-              } else {
-                log("Key not created. Nothing is fine. :( " + JSON.stringify(result));
-                if (callback) {
-                  callback(false);
-                }
-              }
-            } catch (e) {
-              logError_lib(e);
-            }
-          });
-          f2.onError(function (f) {
-            log("Error in generateKey-future: " + f.exeption);
-            logToApp("Could not generate Key: " + JSON.stringify(f.exeption));
-            f2.result = { returnValue: false };
-          });
+          createKey();
         }
       } catch (e) {
-        logError_lib(e);
+        log("keyInfo threw an error, trying to create key.");
+        //logError_lib(e);
+        createKey();
       }
     });
     f1.onError(function (f) {
