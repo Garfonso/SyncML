@@ -279,11 +279,11 @@ var syncMLMessage = function () {
       case "Data":
         item.data = child.firstChild ? child.firstChild.nodeValue : "";
         if (!item.data || item.data === "" || item.data === null) {
-          /*if (child.firstChild) {
-            item.data = printNode(child.firstChild);
-          } else {
-            item.data = printNode(child); //will also add data. I don't like that.. hm.
-          }*/
+//          if (child.firstChild) {
+//            item.data = printNode(child.firstChild);
+//          } else {
+//            item.data = printNode(child); //will also add data. I don't like that.. hm.            
+//          }
           item.data = child.firstChild;
         }
         break;
@@ -849,6 +849,9 @@ var syncMLMessage = function () {
     buildMessageFromResponse: function (xml) {
       var hdr, bodyXML, responseDOM, cleanXML, errors;
       cleanXML = xml.replace(/>\s+</g, "><"); //remove all whitespaces between > and <
+      cleanXML = cleanXML.replace(/<Data><\!\[CDATA\[/g,"<Data>");
+      cleanXML = cleanXML.replace(/\]\]><\/\s*Data>/g,"</Data>");
+      log("Cleaned up: " + cleanXML);
       responseDOM = xmlParser.parseFromString(cleanXML, "text/xml"); //get from XLM String to XML Dom.
       log("Parser finished");
       errors = responseDOM.documentElement.getElementsByTagName ("parsererror");
