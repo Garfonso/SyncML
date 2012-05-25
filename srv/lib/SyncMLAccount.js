@@ -299,7 +299,7 @@ var SyncMLAccount = (function () {
 
     //get the accounts
     findAccounts: function () {
-      var query = {"from": "info.mobo.syncml.account:1"}, i, j, field, obj, result, innerFuture = undefined, decrypts = 0, 
+      var query = {"from": "info.mobo.syncml.account:1"}, i, j, field, obj, result, innerFuture = new Future(), decrypts = 0, 
           outerFuture = new Future(), afterDecrypt, foundObjects, endFindAccounts;
       afterDecrypt = function (future) {
         try {
@@ -321,7 +321,7 @@ var SyncMLAccount = (function () {
       endFindAccounts = function (future) {
         if (future.result.returnValue === true) {
           log("All accounts finished");
-          outerFuture.result = {returnValue: true};
+          outerFuture.result = {returnValue: true, success: true};
         } else {
           log("Something went wrong: " + JSON.stringify(future.exception));
         }
@@ -349,7 +349,9 @@ var SyncMLAccount = (function () {
               decrypts += 2;
             }
             if (result.results.length === 0) { //no accounts found, break here.
-              outerFuture = {returnValue: true};
+              log("No accounts, return.");
+              outerFuture.result = {returnValue: true, success: true};
+              return outerFuture;
             }
             
             innerFuture.then(endFindAccounts);
@@ -364,8 +366,7 @@ var SyncMLAccount = (function () {
 
       try {
         accounts = []; //clear accounts.
-        innerFuture = DB.find(query, false, false);
-        innerFuture.then(this, foundObjects);
+        DB.find(query, false, false).then(this, foundObjects);
       } catch (e) {
         logError_lib(e);
       }
