@@ -208,12 +208,13 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
             logToApp("Credentials not accepted by server. Can't sync! Please check credentials and try again.");
             resultCallback({success: false});
           } else {
-            log(JSON.stringify(failed[i]));
-          }
-          if (failed[i].status.data == "406") {
-            logToApp("Warning: Server said to not support optional command " + JSON.stringify(failed[i]));
-            failed.splice(i, 1);
-            i -= 1;
+            if (failed[i].status && failed[i].status.data == "406") {
+              logToApp("Warning: Server said to not support optional command " + JSON.stringify(failed[i]));
+              failed.splice(i, 1);
+              i -= 1;
+            } else {
+              log(JSON.stringify(failed[i]));
+            }
           }
         }
       }

@@ -1066,109 +1066,107 @@ var syncMLMessage = function () {
         devInfo.push("<SupportLargeObjs/>\n"); //tell server to support large objects.
       }
 
-      //add info about local data stores.
-      for (i = 0; i < datastores.length; i += 1) {
-        devInfo.push("<DataStore>\n");
-        devInfo.push("<SourceRef>" + datastores[i].name + "</SourceRef>\n");
-        devInfo.push("<Rx-Pref>\n");
-        devInfo.push("<CTType>" + datastores[i].type + "</CTType>\n");
-        if (datastores[i].type.indexOf("x-v") >= 0) {
-          devInfo.push("<VerCT>1.0</VerCT>\n");
-        } else {
-          devInfo.push("<VerCT>2.0</VerCT>\n");
-        }
-        devInfo.push("</Rx-Pref>\n");
-        devInfo.push("<Tx-Pref>\n");
-        devInfo.push("<CTType>" + datastores[i].type + "</CTType>\n");
-        if (datastores[i].type.indexOf("x-v") >= 0) {
-          devInfo.push("<VerCT>1.0</VerCT>\n");
-        } else {
-          devInfo.push("<VerCT>2.0</VerCT>\n");
-        }
-        devInfo.push("</Tx-Pref>\n");
-        devInfo.push("<CTCap>\n");
-        devInfo.push("<CTType>text/vcalendar</CTType>\n");
-        devInfo.push("<VerCT>2.0</VerCT>\n");
-        devInfo.push("<Property>\n");
-        devInfo.push("<PropName>BEGIN</PropName><ValEnum>VCALENDAR</ValEnum><ValEnum>VALARM</ValEnum><ValEnum>VEVENT</ValEnum></Property>\n");
-        devInfo.push("<Property><PropName>END</PropName><ValEnum>VCALENDAR</ValEnum><ValEnum>VALARM</ValEnum><ValEnum>VEVENT</ValEnum></Property>\n");
-        devInfo.push("<Property><PropName>VERSION</PropName><ValEnum>2.0</ValEnum><MaxOccur>1</MaxOccur></Property>\n");
-        devInfo.push("<Property><PropName>PRODID</PropName><MaxOccur>1</MaxOccur></Property>\n");
-        devInfo.push("<Property><PropName>TZID</PropName></Property>\n");
-        devInfo.push("<Property><PropName>DTSTART</PropName></Property>\n");
-        devInfo.push("<Property><PropName>RRULE</PropName></Property>\n");
-        devInfo.push("<Property><PropName>LAST-MODIFIED</PropName><MaxOccur>1</MaxOccur></Property>\n");
-        devInfo.push("<Property><PropName>DTSTAMP</PropName><MaxOccur>1</MaxOccur></Property>\n");
-        devInfo.push("<Property><PropName>CREATED</PropName><MaxOccur>1</MaxOccur></Property>\n");
-        devInfo.push("<Property><PropName>UID</PropName><MaxOccur>1</MaxOccur></Property>\n");
-        devInfo.push("<Property><PropName>SEQUENCE</PropName><MaxOccur>1</MaxOccur></Property>\n");
-        devInfo.push("<Property><PropName>GEO</PropName><MaxOccur>1</MaxOccur></Property>\n");
-        devInfo.push("<Property><PropName>CATEGORIES</PropName></Property>\n");
-        devInfo.push("<Property><PropName>CLASS</PropName><MaxOccur>1</MaxOccur></Property>\n");
-        devInfo.push("<Property><PropName>SUMMARY</PropName><MaxOccur>1</MaxOccur></Property>\n");
-        devInfo.push("<Property><PropName>DESCRIPTION</PropName><MaxOccur>1</MaxOccur></Property>\n");
-        devInfo.push("<Property><PropName>LOCATION</PropName><MaxOccur>1</MaxOccur></Property>\n");
-        devInfo.push("<Property><PropName>URL</PropName><MaxOccur>1</MaxOccur></Property>\n");
-        devInfo.push("<Property><PropName>PRIORITY</PropName><MaxOccur>1</MaxOccur></Property>\n");
-        devInfo.push("<Property><PropName>RELATED-TO</PropName><MaxOccur>1</MaxOccur><PropParam><ParamName>RELTYPE</ParamName><ValEnum>PARENT</ValEnum></PropParam></Property>\n");
-        devInfo.push("<Property><PropName>TRIGGER</PropName><MaxOccur>1</MaxOccur><PropParam><ParamName>VALUE</ParamName></PropParam><PropParam><ParamName>RELATED</ParamName><ValEnum>START</ValEnum><ValEnum>END</ValEnum></PropParam></Property>\n");
-        devInfo.push("<Property><PropName>ACTION</PropName><MaxOccur>1</MaxOccur></Property>\n");
-        devInfo.push("<Property><PropName>REPEAT</PropName><MaxOccur>1</MaxOccur></Property>\n");
-        devInfo.push("<Property><PropName>TRANSP</PropName><MaxOccur>1</MaxOccur></Property>\n");
-        devInfo.push("<Property><PropName>RECURRENCE-ID</PropName><MaxOccur>1</MaxOccur><PropParam><ParamName>VALUE</ParamName></PropParam></Property>\n");
-        devInfo.push("<Property><PropName>EXDATE</PropName></Property>\n");
-        devInfo.push("<Property><PropName>DTEND</PropName><MaxOccur>1</MaxOccur></Property>\n");
-        devInfo.push("<Property><PropName>DURATION</PropName><MaxOccur>1</MaxOccur></Property>\n");
-        devInfo.push("<Property><PropName>ATTENDEE</PropName>" +
-        		"<PropParam><ParamName>CN</ParamName></PropParam>" +
-        		"<PropParam><ParamName>PARTSTAT</ParamName>" +
-        		  "<ValEnum>NEEDS-ACTION</ValEnum>" +
-        		  "<ValEnum>ACCEPTED</ValEnum>" +
-        		  "<ValEnum>DECLINED</ValEnum>" +
-        		  "<ValEnum>TENTATIVE</ValEnum>" +
-        		  "<ValEnum>DELEGATED</ValEnum></PropParam>" +
-        		"<PropParam><ParamName>ROLE</ParamName><ValEnum>CHAIR</ValEnum><ValEnum>REQ-PARTICIPANT</ValEnum><ValEnum>OPT-PARTICIPANT</ValEnum><ValEnum>NON-PARTICIPANT</ValEnum></PropParam>" +
-        		"<PropParam><ParamName>RSVP</ParamName><ValEnum>TRUE</ValEnum><ValEnum>FALSE</ValEnum></PropParam>" +
-        		"<PropParam><ParamName>LANGUAGE</ParamName></PropParam>" +
-        		"<PropParam><ParamName>CUTYPE</ParamName><ValEnum>INDIVIDUAL</ValEnum><ValEnum>GROUP</ValEnum><ValEnum>RESOURCE</ValEnum><ValEnum>ROOM</ValEnum><ValEnum>UNKNOWN</ValEnum></PropParam></Property>" +
-        		"<Property><PropName>ORGANIZER</PropName><MaxOccur>1</MaxOccur><PropParam><ParamName>CN</ParamName></PropParam></Property>\n");
-        devInfo.push("</CTCap>\n");
-        devInfo.push("<CTCap>\n");
-        devInfo.push("<CTType>text/x-vcalendar</CTType><VerCT>1.0</VerCT>\n");
-        devInfo.push("<Property><PropName>BEGIN</PropName><ValEnum>VCALENDAR</ValEnum><ValEnum>VEVENT</ValEnum></Property>\n");
-        devInfo.push("<Property><PropName>END</PropName><ValEnum>VCALENDAR</ValEnum><ValEnum>VEVENT</ValEnum></Property>\n");
-        devInfo.push("<Property><PropName>VERSION</PropName><ValEnum>1.0</ValEnum><MaxOccur>1</MaxOccur></Property>\n");
-        devInfo.push("<Property><PropName>GEO</PropName><MaxOccur>1</MaxOccur></Property>\n");
-        devInfo.push("<Property><PropName>LAST-MODIFIED</PropName><MaxOccur>1</MaxOccur></Property>\n");
-        devInfo.push("<Property><PropName>UID</PropName><MaxOccur>1</MaxOccur></Property>\n");
-        devInfo.push("<Property><PropName>SEQUENCE</PropName><MaxOccur>1</MaxOccur></Property>\n");
-        devInfo.push("<Property><PropName>CATEGORIES</PropName></Property>\n");
-        devInfo.push("<Property><PropName>CLASS</PropName><MaxOccur>1</MaxOccur></Property>\n");
-        devInfo.push("<Property><PropName>SUMMARY</PropName><MaxOccur>1</MaxOccur></Property>\n");
-        devInfo.push("<Property><PropName>DESCRIPTION</PropName><MaxOccur>1</MaxOccur></Property>\n");
-        devInfo.push("<Property><PropName>LOCATION</PropName><MaxOccur>1</MaxOccur></Property>\n");
-        devInfo.push("<Property><PropName>URL</PropName><MaxOccur>1</MaxOccur></Property>\n");
-        devInfo.push("<Property><PropName>DTSTART</PropName><MaxOccur>1</MaxOccur></Property>\n");
-        devInfo.push("<Property><PropName>PRIORITY</PropName><MaxOccur>1</MaxOccur></Property>\n");
-        devInfo.push("<Property><PropName>AALARM</PropName><MaxOccur>1</MaxOccur></Property>\n");
-        //devInfo.push("<Property><PropName>DALARM</PropName><MaxOccur>1</MaxOccur></Property>\n");
-        devInfo.push("<Property><PropName>RELATED-TO</PropName><MaxOccur>1</MaxOccur></Property>\n");
-        devInfo.push("<Property><PropName>TRANSP</PropName><MaxOccur>1</MaxOccur></Property>\n");
-        devInfo.push("<Property><PropName>RRULE</PropName><MaxOccur>1</MaxOccur></Property>\n");
-        devInfo.push("<Property><PropName>EXDATE</PropName></Property>\n");
-        devInfo.push("<Property><PropName>DTEND</PropName><MaxOccur>1</MaxOccur></Property>\n");
-        devInfo.push("<Property><PropName>ATTENDEE</PropName><PropParam><ParamName>ROLE</ParamName><ValEnum>ORGANIZER</ValEnum></PropParam><PropParam><ParamName>STATUS</ParamName><ValEnum>NEEDS ACTION</ValEnum><ValEnum>ACCEPTED</ValEnum><ValEnum>DECLINED</ValEnum><ValEnum>TENTATIVE</ValEnum><ValEnum>DELEGATED</ValEnum></PropParam></Property>\n");
-        devInfo.push("</CTCap>\n");
-        devInfo.push("<SyncCap>\n");
-        devInfo.push("<SyncType>1</SyncType>\n"); //two-way sync
-        devInfo.push("<SyncType>2</SyncType>\n"); //slow two-way sync
-        devInfo.push("<SyncType>3</SyncType>\n");
-        devInfo.push("<SyncType>4</SyncType>\n");
-        devInfo.push("<SyncType>5</SyncType>\n");
-        //devInfo.push("<SyncType>7</SyncType>\n"); //sever alerted sync TODO: have a look if we can support that. Does a server exist that does this?? Why is this 7 and not 6??
-        devInfo.push("</SyncCap>\n");
-        devInfo.push("</DataStore>\n</DevInf>\n");
-      }
+      //add info about calendar:
+      devInfo.push("<DataStore>\n");
+      devInfo.push("<SourceRef>calendar</SourceRef>\n");
+      devInfo.push("<Rx-Pref>\n");
+      devInfo.push("<CTType>text/calendar</CTType>\n");
+      devInfo.push("<VerCT>2.0</VerCT>\n");
+      devInfo.push("</Rx-Pref>\n");
+      devInfo.push("<Rx>\n");
+      devInfo.push("<CTType>text/x-vcalendar</CTType>\n");
+      devInfo.push("<VerCT>1.0</VerCT>\n");
+      devInfo.push("</Rx>\n");
+      devInfo.push("<Tx-Pref>\n");
+      devInfo.push("<CTType>text/calendar</CTType>\n");      
+      devInfo.push("<VerCT>2.0</VerCT>\n");
+      devInfo.push("</Tx-Pref>\n");
+      devInfo.push("<Tx>\n");
+      devInfo.push("<CTType>text/x-vcalendar</CTType>\n");      
+      devInfo.push("<VerCT>1.0</VerCT>\n");
+      devInfo.push("</Tx>\n");
+      devInfo.push("<CTCap>\n");
+      devInfo.push("<CTType>" + MimeTypes.calendar.pref + "</CTType>\n");
+      devInfo.push("<VerCT>2.0</VerCT>\n");
+      devInfo.push("<Property>\n");
+      devInfo.push("<PropName>BEGIN</PropName><ValEnum>VCALENDAR</ValEnum><ValEnum>VALARM</ValEnum><ValEnum>VEVENT</ValEnum></Property>\n");
+      devInfo.push("<Property><PropName>END</PropName><ValEnum>VCALENDAR</ValEnum><ValEnum>VALARM</ValEnum><ValEnum>VEVENT</ValEnum></Property>\n");
+      devInfo.push("<Property><PropName>VERSION</PropName><ValEnum>2.0</ValEnum><MaxOccur>1</MaxOccur></Property>\n");
+      devInfo.push("<Property><PropName>PRODID</PropName><MaxOccur>1</MaxOccur></Property>\n");
+      devInfo.push("<Property><PropName>TZID</PropName></Property>\n");
+      devInfo.push("<Property><PropName>DTSTART</PropName></Property>\n");
+      devInfo.push("<Property><PropName>RRULE</PropName></Property>\n");
+      devInfo.push("<Property><PropName>LAST-MODIFIED</PropName><MaxOccur>1</MaxOccur></Property>\n");
+      devInfo.push("<Property><PropName>DTSTAMP</PropName><MaxOccur>1</MaxOccur></Property>\n");
+      devInfo.push("<Property><PropName>CREATED</PropName><MaxOccur>1</MaxOccur></Property>\n");
+      devInfo.push("<Property><PropName>UID</PropName><MaxOccur>1</MaxOccur></Property>\n");
+      devInfo.push("<Property><PropName>SEQUENCE</PropName><MaxOccur>1</MaxOccur></Property>\n");
+      devInfo.push("<Property><PropName>GEO</PropName><MaxOccur>1</MaxOccur></Property>\n");
+      devInfo.push("<Property><PropName>CATEGORIES</PropName></Property>\n");
+      devInfo.push("<Property><PropName>CLASS</PropName><MaxOccur>1</MaxOccur></Property>\n");
+      devInfo.push("<Property><PropName>SUMMARY</PropName><MaxOccur>1</MaxOccur></Property>\n");
+      devInfo.push("<Property><PropName>DESCRIPTION</PropName><MaxOccur>1</MaxOccur></Property>\n");
+      devInfo.push("<Property><PropName>LOCATION</PropName><MaxOccur>1</MaxOccur></Property>\n");
+      devInfo.push("<Property><PropName>URL</PropName><MaxOccur>1</MaxOccur></Property>\n");
+      devInfo.push("<Property><PropName>PRIORITY</PropName><MaxOccur>1</MaxOccur></Property>\n");
+      devInfo.push("<Property><PropName>RELATED-TO</PropName><MaxOccur>1</MaxOccur><PropParam><ParamName>RELTYPE</ParamName><ValEnum>PARENT</ValEnum></PropParam></Property>\n");
+      devInfo.push("<Property><PropName>TRIGGER</PropName><MaxOccur>1</MaxOccur><PropParam><ParamName>VALUE</ParamName></PropParam><PropParam><ParamName>RELATED</ParamName><ValEnum>START</ValEnum><ValEnum>END</ValEnum></PropParam></Property>\n");
+      devInfo.push("<Property><PropName>ACTION</PropName><MaxOccur>1</MaxOccur></Property>\n");
+      devInfo.push("<Property><PropName>REPEAT</PropName><MaxOccur>1</MaxOccur></Property>\n");
+      devInfo.push("<Property><PropName>TRANSP</PropName><MaxOccur>1</MaxOccur></Property>\n");
+      devInfo.push("<Property><PropName>RECURRENCE-ID</PropName><MaxOccur>1</MaxOccur><PropParam><ParamName>VALUE</ParamName></PropParam></Property>\n");
+      devInfo.push("<Property><PropName>EXDATE</PropName></Property>\n");
+      devInfo.push("<Property><PropName>DTEND</PropName><MaxOccur>1</MaxOccur></Property>\n");
+      devInfo.push("<Property><PropName>DURATION</PropName><MaxOccur>1</MaxOccur></Property>\n");
+      devInfo.push("<Property><PropName>ATTENDEE</PropName>" +
+          "<PropParam><ParamName>CN</ParamName></PropParam>" +
+          "<PropParam><ParamName>PARTSTAT</ParamName>" +
+          "<ValEnum>NEEDS-ACTION</ValEnum>" +
+          "<ValEnum>ACCEPTED</ValEnum>" +
+          "<ValEnum>DECLINED</ValEnum>" +
+          "<ValEnum>TENTATIVE</ValEnum>" +
+          "<ValEnum>DELEGATED</ValEnum></PropParam>" +
+          "<PropParam><ParamName>ROLE</ParamName><ValEnum>CHAIR</ValEnum><ValEnum>REQ-PARTICIPANT</ValEnum><ValEnum>OPT-PARTICIPANT</ValEnum><ValEnum>NON-PARTICIPANT</ValEnum></PropParam>" +
+          "<PropParam><ParamName>RSVP</ParamName><ValEnum>TRUE</ValEnum><ValEnum>FALSE</ValEnum></PropParam>" +
+          "<PropParam><ParamName>LANGUAGE</ParamName></PropParam>" +
+          "<PropParam><ParamName>CUTYPE</ParamName><ValEnum>INDIVIDUAL</ValEnum><ValEnum>GROUP</ValEnum><ValEnum>RESOURCE</ValEnum><ValEnum>ROOM</ValEnum><ValEnum>UNKNOWN</ValEnum></PropParam></Property>" +
+      "<Property><PropName>ORGANIZER</PropName><MaxOccur>1</MaxOccur><PropParam><ParamName>CN</ParamName></PropParam></Property>\n");
+      devInfo.push("</CTCap>\n");
+      devInfo.push("<CTCap>\n");
+      devInfo.push("<CTType>" + MimeTypes.calendar.fallback + "</CTType><VerCT>1.0</VerCT>\n");
+      devInfo.push("<Property><PropName>BEGIN</PropName><ValEnum>VCALENDAR</ValEnum><ValEnum>VEVENT</ValEnum></Property>\n");
+      devInfo.push("<Property><PropName>END</PropName><ValEnum>VCALENDAR</ValEnum><ValEnum>VEVENT</ValEnum></Property>\n");
+      devInfo.push("<Property><PropName>VERSION</PropName><ValEnum>1.0</ValEnum><MaxOccur>1</MaxOccur></Property>\n");
+      devInfo.push("<Property><PropName>GEO</PropName><MaxOccur>1</MaxOccur></Property>\n");
+      devInfo.push("<Property><PropName>LAST-MODIFIED</PropName><MaxOccur>1</MaxOccur></Property>\n");
+      devInfo.push("<Property><PropName>UID</PropName><MaxOccur>1</MaxOccur></Property>\n");
+      devInfo.push("<Property><PropName>SEQUENCE</PropName><MaxOccur>1</MaxOccur></Property>\n");
+      devInfo.push("<Property><PropName>CATEGORIES</PropName></Property>\n");
+      devInfo.push("<Property><PropName>CLASS</PropName><MaxOccur>1</MaxOccur></Property>\n");
+      devInfo.push("<Property><PropName>SUMMARY</PropName><MaxOccur>1</MaxOccur></Property>\n");
+      devInfo.push("<Property><PropName>DESCRIPTION</PropName><MaxOccur>1</MaxOccur></Property>\n");
+      devInfo.push("<Property><PropName>LOCATION</PropName><MaxOccur>1</MaxOccur></Property>\n");
+      devInfo.push("<Property><PropName>URL</PropName><MaxOccur>1</MaxOccur></Property>\n");
+      devInfo.push("<Property><PropName>DTSTART</PropName><MaxOccur>1</MaxOccur></Property>\n");
+      devInfo.push("<Property><PropName>PRIORITY</PropName><MaxOccur>1</MaxOccur></Property>\n");
+      devInfo.push("<Property><PropName>AALARM</PropName><MaxOccur>1</MaxOccur></Property>\n");
+      //devInfo.push("<Property><PropName>DALARM</PropName><MaxOccur>1</MaxOccur></Property>\n");
+      devInfo.push("<Property><PropName>RELATED-TO</PropName><MaxOccur>1</MaxOccur></Property>\n");
+      devInfo.push("<Property><PropName>TRANSP</PropName><MaxOccur>1</MaxOccur></Property>\n");
+      devInfo.push("<Property><PropName>RRULE</PropName><MaxOccur>1</MaxOccur></Property>\n");
+      devInfo.push("<Property><PropName>EXDATE</PropName></Property>\n");
+      devInfo.push("<Property><PropName>DTEND</PropName><MaxOccur>1</MaxOccur></Property>\n");
+      devInfo.push("<Property><PropName>ATTENDEE</PropName><PropParam><ParamName>ROLE</ParamName><ValEnum>ORGANIZER</ValEnum></PropParam><PropParam><ParamName>STATUS</ParamName><ValEnum>NEEDS ACTION</ValEnum><ValEnum>ACCEPTED</ValEnum><ValEnum>DECLINED</ValEnum><ValEnum>TENTATIVE</ValEnum><ValEnum>DELEGATED</ValEnum></PropParam></Property>\n");
+      devInfo.push("</CTCap>\n");
+      devInfo.push("<SyncCap>\n");
+      devInfo.push("<SyncType>1</SyncType>\n"); //two-way sync
+      devInfo.push("<SyncType>2</SyncType>\n"); //slow two-way sync
+      devInfo.push("<SyncType>3</SyncType>\n");
+      devInfo.push("<SyncType>4</SyncType>\n");
+      devInfo.push("<SyncType>5</SyncType>\n");
+      //devInfo.push("<SyncType>7</SyncType>\n"); //sever alerted sync TODO: have a look if we can support that. Does a server exist that does this?? Why is this 7 and not 6??
+      devInfo.push("</SyncCap>\n");
+      devInfo.push("</DataStore>\n</DevInf>\n");
 
       m = [];
       if (cmd && cmd.type === "Results") {

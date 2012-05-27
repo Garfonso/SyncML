@@ -25,6 +25,10 @@ Known Issues:
 - Rearrange error handling, so that service returns to app on errors. Current plan: Remove all try/catch things and only have try/catch block in assistants. throw exceptions on error callbacks. 
 
 Changelog:
+2012-05-27 => 0.1.10
+- fixed possible failure if put device info is not supported.
+- set delete event not to purge db to prevent alarms from sticking.
+- cleaned up MimeTypes in device info (thanks to Matthias)
 2012-05-26 => 0.1.9
 - fixed issues with account creation and deletion on webOS 2.1.1.
 - hotifx: fixed issue with account management if no account was present, yet.

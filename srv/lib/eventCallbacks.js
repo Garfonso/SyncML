@@ -23,7 +23,7 @@ var eventCallbacks = (function () {
             var r = future.result;
             if (r.returnValue === true) {
               input.result = r.results;
-              log("Got " + r.results.length + " events to send to server.");
+              log("Got " + r.results.length + " events from calendar db.");
               input.success = true;
             } else {
               log("Error in getAllEvents: " + JSON.stringify(future.exception));
@@ -267,7 +267,7 @@ var eventCallbacks = (function () {
 			try {
 				var ids = [input.localId];
 				//delete with purge=true.
-				var future_ = DB.del(ids, true);
+				var future_ = DB.del(ids, false);
 				future_.then(
 				  function (future) {
 				    try {
@@ -317,8 +317,7 @@ var eventCallbacks = (function () {
 		deleteAllEvents: function (input) {
 		  log("DeleteAll events called.");
       try {
-        //delete with purge=true.
-        var future_ = DB.del({from: "info.mobo.syncml.calendarevent:1", where: [{prop: "accountId", op: "=", val: ids.accountId}] }, true);
+        var future_ = DB.del({from: "info.mobo.syncml.calendarevent:1", where: [{prop: "accountId", op: "=", val: ids.accountId}] }, false);
         future_.then(
           function (future) {
             var r = future.result;
@@ -565,8 +564,8 @@ var eventCallbacks = (function () {
 
 			  for (field in recurringEventIds) {
 			    if (recurringEventIds.hasOwnProperty(field)) {
-	          recEv = recurringEventIds[field]; 
-			      log("Processing recurring Event: " + field + " with parentId " + recEv.id + " and childs " + recEv.childs ? recEv.childs.length : undefined);
+	          recEv = recurringEventIds[field];
+			      log("Processing recurring Event: " + field + " with parentId " + recEv.id + " and childs " + (recEv.childs ? recEv.childs.length : undefined));
 			      if (!recEv.id) {
 			        //TODO: search parent...
 			        log("Parent not processed... can't update parentId. Search in DB not implemented, yet. :(");
