@@ -67,6 +67,11 @@ var DeviceProperties = {
 //    continueSyncCalendar/Contacts => parseSyncResponse => itemActionCalendar/ContactsCallback => parseLastResponse => callback :)
 // one problem remains: make contacts/calendar nicer and more uniform.. :( make it much easier to add more datastores.
 
+var MimeTypes = {
+    calendar: { pref: "text/calendar", fallback: "text/x-vcalendar" },
+    contacts: { pref: "text/vcard", fallback: "text/x-vcard"}
+};
+
 var SyncML = (function () {      //lastMsg allways is the last response from the server, nextMsg allways is the message that we are currently building to send.
   var sessionInfo, account = {}, lastMsg = undefined, nextMsg = undefined,
   //callbacks to get event / contacts data as iCal / vCard strings.
@@ -87,7 +92,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
       //Param: { type: del, callback, localId: ... }. Call callback with { type: del, globalId: ..., localId: ... success: true/false }. 
       //delEntry: function () { throw ({name: "LogicError", message: "Need to set calendar.delEntry callback to something."}); },
       //status variables:
-    dsNames = ["calendar", "contacts"], dsTypes = ["text/vcalendar", "text/vcard"],
+    dsNames = ["calendar", "contacts"], dsTypes = [MimeTypes.calendar.pref, MimeTypes.contacts.pref],
     types = ["add", "del", "replace"], willBeSynced = [],
     secondTry = false,
     resultCallback, parseSyncResponse,
@@ -174,16 +179,6 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
   }
 
   function putDevInfo(msg, datastores, cmd) {
-    var ds, i;
-    if (!datastores) {
-      datastores = [];
-      for (i = 0; i < dsNames.length; i += 1) {
-        ds = account.datastores[dsNames[i]];
-        if (ds) {
-          datastores.push({name: ds.name, type: ds.type});
-        }
-      }
-    }
     msg.addPutDevInfo(DeviceProperties, datastores, cmd);
   }
 
@@ -250,7 +245,8 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
               for (k = 0; k < types.length; k += 1) {
                 type = types.item(k).firstChild.nodeValue;
                 log("Testing type " + type);
-                if (type !== "text/vcard" && type !== "text/x-vcalendar" && type !== "text/x-vcard" && type !== "text/calendar" && type !== "text/x-vcalendar") {
+                if (type !== MimeTypes.calendar.pref && type !== MimeTypes.calendar.fallback && 
+                    type !== MimeTypes.contacts.pref && type !== MimeTypes.contacts.fallback) {
                   log("Don't support type " + type + " right now. Please report back with log file.");
                   type = undefined;
                 } else {
