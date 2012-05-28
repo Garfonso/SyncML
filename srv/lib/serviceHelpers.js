@@ -116,9 +116,11 @@ var logError_global = function (error, name, outerFuture, accountId) {
 var logError_lib = function (error) {
   logError_global(error);
   for (var i = 0; i < outerFutures.length; i += 1) {
-    outerFutures[i].result = { returnValue: false, success: false, reason: "Exception " + error.name + ": " + error.message};
+    outerFutures[i].result = { returnValue: false, finalResult: true, success: false, reason: "Exception " + error.name + ": " + error.message};
   }
-  throw error; //this will stop the service from processing..
+  syncingAccountIds = {}; //release sync lock.
+  throw error; //this will stop the service from processing..?
+  //process.exit(-1); don't do that. App won't get our results.. *sigh*
 };
 
 process.on("uncaughtException",function(e) {
