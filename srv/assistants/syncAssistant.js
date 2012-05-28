@@ -101,6 +101,7 @@ syncAssistant.prototype.run = function (outerFuture, subscription) {
     if (!startAssistant({name: "syncAssistant", outerFuture: outerFuture, accountId: accountId, run: this.run.bind(this) })){
       delete outerFuture.result;
       logSubscription = subscription; //cool, seems to work. :)
+      logToApp("Sync of this account already running, connecting output to app.");
       return;
     }
     
