@@ -131,7 +131,6 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
         "headers": {"Content-Type":"application/vnd.syncml+xml", "Content-Length": text.length} } );
       future.then(this, function(f) {
         try {        
-          log("FUTURE CAME BACK!");
           if (f.result && f.result.status == 200) {
             log("Status of message: " + f.result.status);
             log("Request succeeded, Got: ");
@@ -246,12 +245,25 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
               for (k = 0; k < types.length; k += 1) {
                 type = types.item(k).firstChild.nodeValue;
                 log("Testing type " + type);
-                if (type !== MimeTypes.calendar.pref && type !== MimeTypes.calendar.fallback && 
-                    type !== MimeTypes.contacts.pref && type !== MimeTypes.contacts.fallback) {
-                  log("Don't support type " + type + " right now. Please report back with log file.");
+                if (type !== MimeTypes.calendar.pref && type !== MimeTypes.contacts.pref) {
+                  log("Skipping type " + type + ".");
                   type = undefined;
                 } else {
                   break;
+                }
+              }
+              if (type === undefined) {
+                log("Preferred type not found, testing fallback.");
+                for (k = 0; k < types.length; k += 1) {
+                  type = types.item(k).firstChild.nodeValue;
+                  log("Testing type " + type);
+                  if (type !== MimeTypes.calendar.pref && type !== MimeTypes.calendar.fallback && 
+                      type !== MimeTypes.contacts.pref && type !== MimeTypes.contacts.fallback) {
+                    log("Don't support type " + type + " right now. Please report back with log file.");
+                    type = undefined;
+                  } else {
+                    break;
+                  }
                 }
               }
               log("Datastore: " + source);
@@ -630,7 +642,11 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
             if (account.datastores[alert.items[0].target]) {
               if (alert.data) {
                 log("Got " + alert.items[0].target + " method: " + alert.data);
-                account.datastores[alert.items[0].target].method = SyncMLAlertCodes[alert.data];
+                if (account.datastores[alert.items[0].target].method && alert.data === "201") {
+                  log("Requested refresh from server, won't switch to slow sync.");
+                } else {
+                  account.datastores[alert.items[0].target].method = SyncMLAlertCodes[alert.data];
+                }
                 log("adding " + alert.items[0].target + " to will be synced.");
                 willBeSynced.push(alert.items[0].target);
                 account.datastores[alert.items[0].target].state = "receivedInit";
