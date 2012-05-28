@@ -22,9 +22,14 @@ Known Issues:
 - x-vcalendar implementation does not yet support b64ecoding/decoding.
 - O3SIS Server (like O2 Germany operates for its customers) does not understand our device info and therefore will not send more complicated recurring events to me.
 - Can't interpret "DAYLIGHT" string, yet. Need to extract TZID from that.
-- Rearrange error handling, so that service returns to app on errors. Current plan: Remove all try/catch things and only have try/catch block in assistants. throw exceptions on error callbacks. 
+- Rearrange error handling, so that service returns to app on errors. Current plan: Remove all try/catch things and only have try/catch block in assistants. throw exceptions on error callbacks.
+- 500 internal server error for onemediahub.com during check credentials. Hm. How to resolve that? 
 
 Changelog:
+2012-05-28 => 0.1.11
+- fixed reset service
+- added some hacks to support Syncfriend.com
+- added some fixes to support alarm parsing from OCS server.
 2012-05-27 => 0.1.10
 - fixed possible failure if put device info is not supported.
 - set delete event not to purge db to prevent alarms from sticking.
