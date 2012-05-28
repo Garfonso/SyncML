@@ -142,7 +142,9 @@ var syncMLMessage = function () {
       //log("Anchor-child: " + child.nodeName);
       switch (child.nodeName) {
       case "Last":
-        anchor.last = child.firstChild.nodeValue;
+        if (child.firstChild) {
+          anchor.last = child.firstChild.nodeValue;
+        }
         break;
       case "Next":
         anchor.next = child.firstChild.nodeValue;
