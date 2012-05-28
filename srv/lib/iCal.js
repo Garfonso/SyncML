@@ -89,7 +89,7 @@ var iCal = (function () {
   //it could also be a comma seperated list of dates / date times. But we don't support that, yet.. ;)
     recurringEvents = [], //this is used to try to get parentIds. This will only work, if the recurring event is processed in the same session as the exception..
     //used to try timeZone correction... 
-    localTzId = "UTC", TZManager = Calendar.TimezoneManager(), shiftAllDay = true;
+    localTzId = "UTC", TZManager = Calendar.TimezoneManager(), shiftAllDay = true, calendarVersion = 2;
 
   function decode_utf8(s)
   {
@@ -556,7 +556,7 @@ var iCal = (function () {
       //process trigger.
       alarm.trigger = lObj.line; //save complete trigger string.
       //TODO: try to repair some deficiencies of webOs here... for example related end could be easily repaired if dtend and dtstart are known.
-      alarm.alarmTrigger = { value: lObj.value, valueType: lObj.parameters.value }; //decode string a bit for webOs.
+      alarm.alarmTrigger = { value: lObj.value, valueType: lObj.parameters.value || "DURATION" }; //decode string a bit for webOs.
       if (alarm.alarmTrigger.valueType === "DATE-TIME") {
         //docs say webos wants "DATETIME" not "DATE-TIME" like iCal... :(
         alarm.alarmTrigger.valueType = "DATETIME";
@@ -640,7 +640,7 @@ var iCal = (function () {
   }
 
   function buildALARM(alarm, text) {
-    var i, field = undefined, translation;
+    var i, field = undefined, translation, value;
     translation = {
       "action" : "ACTION",
       //alarmTrigger will be handled extra,
@@ -660,7 +660,11 @@ var iCal = (function () {
                   (alarm[i].alarmTrigger.valueType === "DATETIME" ? ";VALUE=DATE-TIME" : ";VALUE=DURATION") + //only other mode supported by webOs is DURATION which is the default. 
                   ":" + alarm[i].alarmTrigger.value);
           } else if (translation[field]) { //ignore trigger field and other unkown things..
-            text.push(translation[field] + ":" + alarm[i][field]); //just copy most values.
+            value = alarm[i][field]; 
+            if (field === "action") {
+               value = alarm[i][field].toUpperCase();
+            }
+            text.push(translation[field] + ":" + value); //just copy most values.
           }
         }
       }
@@ -819,7 +823,7 @@ var iCal = (function () {
     if (translation[lObj.key]) {
       event[translation[lObj.key]] = lObj.value;
     } else if (translationQuote[lObj.key]) {
-      if (lObj.parameters.encoding === "QUOTED-PRINTABLE") {
+      if (lObj.parameters.encoding === "QUOTED-PRINTABLE" || calendarVersion === 1) {
         lObj.value = quoted_printable_decode(lObj.value);
       }
       event[translationQuote[lObj.key]] = unquote(lObj.value);
@@ -885,8 +889,15 @@ var iCal = (function () {
       case "RRULE":
         event.rrule = parseRRULE(lObj.value);
         break;
+      case "VERSION":
+        if (lObj.value === "1.0") {
+          calendarVersion = 1;
+        } else {
+          calendarVersion = 2;
+        }
+        break;
       default:
-        if (lObj.key !== "VERSION" && lObj.key !== "PRODID" && lObj.key !== "METHOD" && lObj.key !== "END") {
+        if (lObj.key !== "PRODID" && lObj.key !== "METHOD" && lObj.key !== "END") {
           log("My translation from iCal to webOs event does not understand " + lObj.key + " yet. Will skip line " + lObj.line);
         }
         break;
@@ -1279,6 +1290,8 @@ var iCal = (function () {
       try {
         proc = ical.replace(/\r\n /g, ""); //remove line breaks in key:value pairs.
         proc = proc.replace(/\n /g, ""); //remove line breaks in key:value pairs.
+        proc = proc.replace(/=\r\n/g, ""); //remove old line breaks in key:value pairs.
+        proc = proc.replace(/=\n/g, ""); //remove old line breaks in key:value pairs.
         //log("Incomming iCal: " + ical);
         lines = proc.split("\r\n"); //now every line contains a key:value pair => split them. somehow the \r seems to get lost somewhere?? is this always the case?
         for (i = 0; i < lines.length; i += 1) {
