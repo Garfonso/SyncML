@@ -148,7 +148,7 @@ storeAccountsAssistant.prototype.run = function (outerFuture) {
           
           log("Processing " + accounts.length + " accounts.");
           for (i = 0; i < accounts.length; i += 1) {
-            if (accounts[i].index >= 0) { //already known account!
+            if (accounts[i].index >= 0 && accounts[i].accountId) { //already known account!
               if (accounts[i].deleteThis) {
                 log("Deleting account " + i + " of " + accounts.length);
                 toDelete.push(accounts[i]);
@@ -162,7 +162,9 @@ storeAccountsAssistant.prototype.run = function (outerFuture) {
               }
             } else {
               if (accounts[i].username && accounts[i].password && accounts[i].name && accounts[i].url) {
-                SyncMLAccount.addNewAccount(accounts[i], false); //don't write directly into database.
+                if (!accounts[i].index || accounts[i].index < 0) {
+                  SyncMLAccount.addNewAccount(accounts[i], false); //don't write directly into database.
+                }
                 toAdd.push(accounts[i]);
               } else {
                 log("Account not properly defined, ignoring.");
@@ -191,7 +193,7 @@ storeAccountsAssistant.prototype.run = function (outerFuture) {
 var resetServiceAssistant = function (future) {};
 
 resetServiceAssistant.prototype.run = function (outerFuture) {
-  log("Service Locked: " + locked + " syncs: " + JSON.stringify(syncingAccountIds));
+  log("Service Locked: " + locked + " syncs.");
   log("Will try to exit service now.");
   process.exit(0);
   log("This should not get printed, right?");
