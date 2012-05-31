@@ -26,6 +26,7 @@ Known Issues:
 - 500 internal server error for onemediahub.com during check credentials. Hm. How to resolve that? 
 
 Changelog:
+- changed behaviour of old log files to not truncate but move them.
 2012-05-28 => 0.1.11
 - fixed reset service
 - added some hacks to support Syncfriend.com
