@@ -1,6 +1,6 @@
 //JSLint things:
 /*global log, PalmCall, Calendar, decodeURIComponent, escape, unescape, encodeURIComponent */
-"use strict";
+'use strict';
 
 // This is a small iCal to webOs event parser.
 // Its meant to be simple and has some deficiencies.
@@ -117,8 +117,8 @@ var iCal = (function () {
     // *    example 4: quoted_printable_decode("Lorem ipsum dolor sit amet=23, consectetur adipisicing elit");
     // *    returns 4: Lorem ipsum dolor sit amet#, consectetur adipisicing elit
     // Removes softline breaks
-    var RFC2045Decode1 = /=\r\n/gm,        // Decodes all equal signs followed by two hex digits
-        RFC2045Decode2IN = /=([0-9A-F]{2})/gim,
+    var RFC2045Decode1 = /\=\r\n/gm,        // Decodes all equal signs followed by two hex digits
+        RFC2045Decode2IN = /\=([0-9A-F]{2})/gim,
         // the RFC states against decoding lower case encodings, but following apparent PHP behavior
         // RFC2045Decode2IN = /=([0-9A-F]{2})/gm,
         RFC2045Decode2OUT = function (sMatch, sHex) {
@@ -255,8 +255,11 @@ var iCal = (function () {
     return t;
   }
 
-  function webOsTimeToICal(time, allDay, tzId) {
+  function webOsTimeToICal(time, allDay, tzId, addTZIDParam) {
     var t = "", date, time2, offset;
+//    tzId = "UTC"; //we can't provide VTIMEZONE entries that are needed if a TZID parameter is set, so let's just transfer everything to UTC, it's the savest bet.
+                  //"Floating" time would be possible, too, but seems to be ignored by some servers (??)
+
     date = new Date(time);
     if (!tzId) {
       tzId = localTzId; //if nothing is specified, take "floating time" which means no timezone at all.
@@ -283,7 +286,7 @@ var iCal = (function () {
         offset = (time2 - time) * 2;
         time2 -= offset;
       }
-      t = webOsTimeToICal(time2, allDay, localTzId);
+      t = webOsTimeToICal(time2, allDay, localTzId, addTZIDParam);
       //t = webOsTimeToICal(time,allDay,localTzId);
     }
     return t;
@@ -332,7 +335,7 @@ var iCal = (function () {
       text += "COUNT=" + rr.count + ";";
     }
     if (rr.until) {
-      text += "UNTIL=" + webOsTimeToICal(rr.until, false, tzId, rr.untilOffset) + ";";
+      text += "UNTIL=" + webOsTimeToICal(rr.until, false, tzId) + ";";
     }
     if (rr.wkst || rr.wkst === 0 || rr.wkst === "0") {
       text += "WKST=" + numToDay(rr.wkst) + ";";
@@ -405,7 +408,7 @@ var iCal = (function () {
       text += " #" + (rr.count ? rr.count : "0");
     }
     if (rr.until) {
-      text += " " + webOsTimeToICal(rr.until, false, tzId, rr.untilOffset);
+      text += " " + webOsTimeToICal(rr.until, false, tzId);
     }
     return text;
   }
@@ -1103,7 +1106,7 @@ var iCal = (function () {
             log("Unsupported duration: " + parts[3] + " of length " + parts[2] + " in alarm " + JSON.stringify(event.alarm[i]));
             continue;
           }
-          event.aalarm = webOsTimeToICal(ts, false, event.tzId ? event.tzId : localTzId, 0);
+          event.aalarm = webOsTimeToICal(ts, false, event.tzId ? event.tzId : localTzId);
           //log("Found alarm: " + JSON.stringify(event.alarm[i]) + ", created: " + event.aalarm);
           break;
         }
@@ -1135,7 +1138,7 @@ var iCal = (function () {
     return event;
   }
 
-  function generateICalIntern(event, callback, type) {
+  function generateICalIntern(event, callback) {
     var field = "", i, line, offset, text = [], translation, translationQuote, transTime, allDay, quoted;
     //not in webOs: UID
     //in webos but not iCal: allDay, calendarID, parentId, parentDtStart (???)
@@ -1152,7 +1155,7 @@ var iCal = (function () {
       "resources"           :   "RESOURCES",
       "sequence"            :   "SEQUENCE",
       //"transp"              :   "TRANSP", //intentionally skip this to let server decide...
-      "tzId"                :   "TZID",
+      "tzId"                :   "TZID", //skip this. It's not used anyway by most, and we now transmit everything using UTC.
       "url"                 :   "URL",
       "recurrenceId"        :   "RECURRENCE-ID;VALUE=DATE-TIME",
       "aalarm"              :   "AALARM",
@@ -1178,7 +1181,7 @@ var iCal = (function () {
       event.tzId = localTzId;
     }*/
     text.push("<![CDATA[BEGIN:VCALENDAR");
-    if (type === "text/x-vcalendar") {
+    if (calendarVersion === 1) {
       text.push("VERSION:1.0");
     } else {
       text.push("VERSION:2.0");
@@ -1191,7 +1194,7 @@ var iCal = (function () {
         if (translation[field]) {
           text.push(translation[field] + ":" + event[field]);
         } else if (translationQuote[field] && event[field] !== "") {
-          if (type === "text/x-vcalendar") {
+          if (calendarVersion === 1) {
             quoted = quoted_printable_encode(event[field]);
             if (quoted !== event[field]) {
               text.push(translationQuote[field] + ";CHARSET=UTF-8;ENCODING=QUOTED-PRINTABLE:" + quoted);
@@ -1206,7 +1209,9 @@ var iCal = (function () {
           if (field !== "dtstart" && field !== "dtend") {
             allDay = false;
           }
-          text.push(transTime[field] + (allDay ? ";VALUE=DATE:" : ":") + webOsTimeToICal(event[field], allDay, event.tzId));
+          text.push(transTime[field] + 
+                          ((calendarVersion === 2 && event.tzId && event.tzID !== "UTC") ? ";TZID="+event.tzId : "" ) +
+                          (allDay ? ";VALUE=DATE:" : ":") + webOsTimeToICal(event[field], allDay, event.tzId));
         } else { //more complex fields.
           switch (field) {
           case "attach":
@@ -1230,7 +1235,7 @@ var iCal = (function () {
             break;
           case "rrule":
             if (event.rrule) {
-              if (type === "text/x-vcalendar") {
+              if (calendarVersion === 1) {
                 text.push(buildRRULEvCalendar(event.rrule, event.tzId));
               } else {
                 text.push(buildRRULE(event.rrule, event.tzId)); //tzId needed for until date.
@@ -1253,7 +1258,7 @@ var iCal = (function () {
     text.push("END:VCALENDAR]]>");
 
     //lines "should not" be longer than 75 chars in icalendar spec.
-    if (type !== "text/x-vcalendar") { //vcalendar spec read like this is optional. But breaks are only allowed in whitespaces. => ignore that.
+    if (calendarVersion !== 1) { //vcalendar spec read like this is optional. But breaks are only allowed in whitespaces. => ignore that.
       for (i = 0; i < text.length; i += 1) {
         line = text[i];
         offset = 0;
@@ -1373,7 +1378,12 @@ var iCal = (function () {
             //log("loadTimezones returned: ");
             //log(JSON.stringify(future.result));
             try {
-              generateICalIntern(event, callback, serverData.serverType);
+	      if (serverData.serverType === MimeTypes.calendar.fallback) {
+                calendarVersion = 1;
+	      } else {
+                calendarVersion = 2;
+              }
+              generateICalIntern(event, callback);
             } catch (e) {
               log("Error in generateICal (intern): ");
               log(JSON.stringify(e));
