@@ -18,12 +18,10 @@ try {
 
   try {
     var stats = fs.statSync("/media/internal/.info.mobo.syncml.log");
-    if (stats.size > 2097152) {
-      console.error("Truncating log file, size was " + stats.size);
-      var fd = fs.openSync("/media/internal/.info.mobo.syncml.log","a");
-      fs.truncateSync(fd, 2097152); //truncate log to 2MB.
-      fs.closeSync(fd);
-    }
+      if (stats.size > 2097152) {
+        console.error("Moving log file, size was " + stats.size);
+        fs.renameSync("/media/internal/.info.mobo.syncml.log","/media/internal/.info.mobo.syncml.log.old");
+      }
   } catch (error) {
     console.error("No logfile present, yet? " + error);
   }

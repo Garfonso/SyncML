@@ -257,6 +257,9 @@ var iCal = (function () {
 
   function webOsTimeToICal(time, allDay, tzId) {
     var t = "", date, time2, offset;
+    tzId = "UTC"; //we can't provide VTIMEZONE entries that are needed if a TZID parameter is set, so let's just transfer everything to UTC, it's the savest bet.
+                  //"Floating" time would be possible, too, but seems to be ignored by some servers (??)
+
     date = new Date(time);
     if (!tzId) {
       tzId = localTzId; //if nothing is specified, take "floating time" which means no timezone at all.
@@ -1152,7 +1155,7 @@ var iCal = (function () {
       "resources"           :   "RESOURCES",
       "sequence"            :   "SEQUENCE",
       //"transp"              :   "TRANSP", //intentionally skip this to let server decide...
-      "tzId"                :   "TZID",
+      //"tzId"                :   "TZID", //skip this. It's not used anyway by most, and we now transmit everything using UTC.
       "url"                 :   "URL",
       "recurrenceId"        :   "RECURRENCE-ID;VALUE=DATE-TIME",
       "aalarm"              :   "AALARM",

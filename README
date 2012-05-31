@@ -1,17 +1,19 @@
 SyncML on webOs 2.x
 
-This is an implementation of a SyncML client in JavaScript together with an iCal parser to allow webOs to sync a calendar with a SyncML server. Currently this is only tested with eGroupware 1.8 (and 1.9svn). You should now what you are doing if you test this. Be sure to have a decent backup for your data!
-The sync of contacts is to be added later. Maybe also more datastore types. You could theoretically use SyncML to sync any type of data, also possibly just in one direction. This could be used for a synergy integrated multimedia sync. 
+This is an implementation of a SyncML client in JavaScript together with an iCal parser to allow webOs to sync a calendar with a SyncML server. Currently this is tested with some SyncML servers, including syncevolution, libsynthesis based stuff, horde/eGroupware, funambol/myFunambol/oneMediahub, Syncfriend.com. Reported to be basically working are O3SIS Server (used by O2 Germany) and Oracle OCS. 
 
-The synergy integration is not done yet, but the JavaScript SyncML Client and iCal parser work. So synergy integration is just a formal thing now... I'll be workin on that, next. 
+This is also released into the webos-nation feeds and can be installed OTA with Preware. A submission into the app catalog is unlikely at the current time. Maybe in a distant future that might be possibel.
+
+Be sure to have a decent backup for your data! I am not responsible for any data loss or messup of data! The data on your phone "should" be save, a new calendar & addressbook is created, everything else can not be touched by this app. The data on the server can be messed up, if there are misunderstanding between the app and the server. Especially timezone issues might arise. If that happens, please report back!
+After the first sync, that puts everything from the server into the device, be sure to check the presentation of the data on the device. If something is awkward, better *NOT* sync back, but report back with a log. 
+
+The sync of contacts is to be added later. Maybe also more datastore types (I'd like notes or todos). You could theoretically use SyncML to sync any type of data, also possibly just in one direction. This could be used for a synergy integrated multimedia sync.
+
+The synergy integration is quite done. The JavaScript SyncML Client and iCal parser work. 
 
 My list of Todo's
-- Move login data to key manager!
-- Build synergy integration
-- Build service for that
-- Rebuild App to use the service (for easier debugging)
-- Test the service
-- Implement contacts sync (will require new or extended parser)
+- Complete synergy integration (only create is an issue now)
+- Implement contacts sync (will require new or extended parser or use webOS integrated stuff)
 - Optimize old eventCallback structure to be more database optimized and collect all adds, updates and deletes to do them in one batch.
 
 Pull requests are welcome! :)
@@ -22,10 +24,13 @@ Known Issues:
 - x-vcalendar implementation does not yet support b64ecoding/decoding.
 - O3SIS Server (like O2 Germany operates for its customers) does not understand our device info and therefore will not send more complicated recurring events to me.
 - Can't interpret "DAYLIGHT" string, yet. Need to extract TZID from that.
-- Rearrange error handling, so that service returns to app on errors. Current plan: Remove all try/catch things and only have try/catch block in assistants. throw exceptions on error callbacks.
+- Still some errors won't return from service to caller...
 - 500 internal server error for onemediahub.com during check credentials. Hm. How to resolve that? 
 
 Changelog:
+2012-05-31 => 0.1.12
+- fixed tz issue, now transfering everything as UTC.
+- changed behaviour of old log files to not truncate but move them.
 2012-05-28 => 0.1.11
 - fixed reset service
 - added some hacks to support Syncfriend.com
