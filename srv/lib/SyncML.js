@@ -114,7 +114,17 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
 
   //sends a message to the server.
   function sendToServer(msg, callback, retry, id) {
-    var text;
+    var text, retrySend;
+    retrySend = function (e) {
+      if (retry <= 5) {
+        log("Got " + e.name + ": " + e.message + ". Retrying (" + retry + ")");
+        log("Complete exception: " + JSON.stringify(e));
+        logToApp("Got " + e.name + ": " + e.message + ". Retrying (" + retry + ")");
+        sendToServer(msg, callback, retry + 1, id);
+      } else {
+        logError_lib({name: "ConnectionError", message: "No connection to server, even after retries."});
+      }
+    }
     try {
       if (!retry) {
         retry = 0;
@@ -136,13 +146,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
             log("Request succeeded, Got: ");
             log(f.result.responseText);
             if (f.result.responseText === "") {
-              if (retry <= 5) {
-                log("Got empty response. Try to send message again (" + retry + ")");
-                logToApp("Need to retry transmission " + retry + " / 5");
-                sendToServer(msg, callback, retry + 1, id);
-              } else {
-                logError_lib({name: "ConnectionError", message: "No connection to server."});
-              }
+              retrySend({name:"ConnectionError", message:"Got empty response, this indicates connection problem."});
             } else {
               callback(f.result.responseText);
             }
@@ -161,10 +165,11 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
             if (f.exception) {
               log(JSON.stringify(f.exception));
             }
-            logError_lib({name: "ConnectionError", message: "No connection to server."});
+            retrySend({name: "ConnectionError", message: "No connection to server."});
           }
         } catch (e) {
-          logError_lib(e);
+          //logError_lib(e); don't fail here, let retry mechanism work.
+          retrySend(e);
         }
       });
       future.onError(function (f) {
@@ -173,7 +178,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
         future.result = { returnValue: false };
       });
     } catch (error) {
-      logError_lib(e);
+      retrySend(error);
     }
   }
 
@@ -642,7 +647,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
             if (account.datastores[alert.items[0].target]) {
               if (alert.data) {
                 log("Got " + alert.items[0].target + " method: " + alert.data);
-                if (account.datastores[alert.items[0].target].method && alert.data === "201") {
+                if (account.datastores[alert.items[0].target].method === "205" && alert.data === "201") {
                   log("Requested refresh from server, won't switch to slow sync.");
                 } else {
                   account.datastores[alert.items[0].target].method = SyncMLAlertCodes[alert.data];
