@@ -257,7 +257,7 @@ var iCal = (function () {
 
   function webOsTimeToICal(time, allDay, tzId, addTZIDParam) {
     var t = "", date, time2, offset;
-//    tzId = "UTC"; //we can't provide VTIMEZONE entries that are needed if a TZID parameter is set, so let's just transfer everything to UTC, it's the savest bet.
+    tzId = "UTC"; //we can't provide VTIMEZONE entries that are needed if a TZID parameter is set, so let's just transfer everything to UTC, it's the savest bet.
                   //"Floating" time would be possible, too, but seems to be ignored by some servers (??)
 
     date = new Date(time);
@@ -272,12 +272,18 @@ var iCal = (function () {
         t += (date.getSeconds() < 10 ? "0" : "") + date.getSeconds();
       }
     } else if (tzId === "UTC") {
-      t = date.getUTCFullYear() + (date.getUTCMonth() + 1 < 10 ? "0" : "") + (date.getUTCMonth() + 1) + (date.getUTCDate() < 10 ? "0" : "") + date.getUTCDate();
-      if (!allDay) {
-        t += "T" + (date.getUTCHours() < 10 ? "0" : "") + date.getUTCHours();
-        t += (date.getUTCMinutes() < 10 ? "0" : "") + date.getUTCMinutes();
-        t += (date.getUTCSeconds() < 10 ? "0" : "") + date.getUTCSeconds();
-        t += "Z"; //is a hint that time is in UTC.
+      if (allDay && shiftAllDay) {
+        t = date.getFullYear() + (date.getMonth() + 1 < 10 ? "0" : "") + (date.getMonth() + 1) + (date.getDate() < 10 ? "0" : "") + date.getDate();
+        log("UTC, allDay" + date + " => " + t);
+      } else {
+        t = date.getUTCFullYear() + (date.getUTCMonth() + 1 < 10 ? "0" : "") + (date.getUTCMonth() + 1) + (date.getUTCDate() < 10 ? "0" : "") + date.getUTCDate();
+        if (!allDay) {
+          t += "T" + (date.getUTCHours() < 10 ? "0" : "") + date.getUTCHours();
+          t += (date.getUTCMinutes() < 10 ? "0" : "") + date.getUTCMinutes();
+          t += (date.getUTCSeconds() < 10 ? "0" : "") + date.getUTCSeconds();
+          t += "Z"; //is a hint that time is in UTC.
+        }
+        log("UTC, NOT allDay" + date + " => " + t);
       }
     } else {
       //log("EventTZ and Local TZ differ: " + localTzId + " != " + tzId);
@@ -899,6 +905,20 @@ var iCal = (function () {
           calendarVersion = 2;
         }
         break;
+      case "X-FUNAMBOL-ALLDAY":
+        if (lObj.value === "1") {
+	  event.allDay = true;
+	} else {
+	  event.allDay = false;
+	}
+        break;
+      case "X-MICROSOFT-CDO-ALLDAYEVENT":
+        if (lObj.value.toLowerCase() === "true") {
+	  event.allDay = true;
+	} else {
+	  event.allDay = false;
+	}
+        break;
       default:
         if (lObj.key !== "PRODID" && lObj.key !== "METHOD" && lObj.key !== "END") {
           log("My translation from iCal to webOs event does not understand " + lObj.key + " yet. Will skip line " + lObj.line);
@@ -950,6 +970,7 @@ var iCal = (function () {
 
   function convertTimestamps(event) {
     var t, i, directTS = ["dtstart", "dtstamp", "dtend", "created", "lastModified"], makeAllDay = false;
+    makeAllDay = event.allDay; //keep allDay setting from possible other cues.
     //log("Converting timestamps for " + event.subject);
     if (!event.tz) {
       if (event.tzId) {
@@ -1155,7 +1176,7 @@ var iCal = (function () {
       "resources"           :   "RESOURCES",
       "sequence"            :   "SEQUENCE",
       //"transp"              :   "TRANSP", //intentionally skip this to let server decide...
-      "tzId"                :   "TZID", //skip this. It's not used anyway by most, and we now transmit everything using UTC.
+      //"tzId"                :   "TZID", //skip this. It's not used anyway by most, and we now transmit everything using UTC.
       "url"                 :   "URL",
       "recurrenceId"        :   "RECURRENCE-ID;VALUE=DATE-TIME",
       "aalarm"              :   "AALARM",
@@ -1254,6 +1275,8 @@ var iCal = (function () {
       }
     } //field loop
 
+    text.push("X-FUNAMBOL-ALLDAY:" + (event.allDay ? "1" : "0"));
+    text.push("X-MICROSOFT-CDO-ALLDAYEVENT:" + (event.allDay ? "TRUE" : "FALSE"));
     text.push("END:VEVENT");
     text.push("END:VCALENDAR]]>");
 
