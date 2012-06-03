@@ -274,6 +274,9 @@ var iCal = (function () {
     } else if (tzId === "UTC") {
       if (allDay && shiftAllDay) {
         t = date.getFullYear() + (date.getMonth() + 1 < 10 ? "0" : "") + (date.getMonth() + 1) + (date.getDate() < 10 ? "0" : "") + date.getDate();
+        if (calendarVersion === 1) {
+          t += "T000000";
+        }
         log("UTC, allDay" + date + " => " + t);
       } else {
         t = date.getUTCFullYear() + (date.getUTCMonth() + 1 < 10 ? "0" : "") + (date.getUTCMonth() + 1) + (date.getUTCDate() < 10 ? "0" : "") + date.getUTCDate();
@@ -907,17 +910,18 @@ var iCal = (function () {
         break;
       case "X-FUNAMBOL-ALLDAY":
         if (lObj.value === "1") {
-	  event.allDay = true;
-	} else {
-	  event.allDay = false;
-	}
+          event.allDay = true;
+        } else {
+          event.allDay = false;
+        }
         break;
       case "X-MICROSOFT-CDO-ALLDAYEVENT":
+      case "X-AllDayEvent":
         if (lObj.value.toLowerCase() === "true") {
-	  event.allDay = true;
-	} else {
-	  event.allDay = false;
-	}
+          event.allDay = true;
+        } else {
+          event.allDay = false;
+        }
         break;
       default:
         if (lObj.key !== "PRODID" && lObj.key !== "METHOD" && lObj.key !== "END") {
@@ -1141,7 +1145,7 @@ var iCal = (function () {
 
     //I hate this.. :(
     if (event.allDay) {
-      event.allDay = false;
+      //event.allDay = false;
       date = new Date(event.dtstart);
       date.setHours(0);
       date.setMinutes(0);
@@ -1201,7 +1205,8 @@ var iCal = (function () {
     /*if (!event.tzId) {
       event.tzId = localTzId;
     }*/
-    text.push("<![CDATA[BEGIN:VCALENDAR");
+    log("Generating iCal for event " + JSON.stringify(event)); 
+    text.push("BEGIN:VCALENDAR");
     if (calendarVersion === 1) {
       text.push("VERSION:1.0");
     } else {
@@ -1213,7 +1218,9 @@ var iCal = (function () {
     for (field in event) {
       if (event.hasOwnProperty(field)) {
         if (translation[field]) {
-          text.push(translation[field] + ":" + event[field]);
+          if (field !== "aalarm" || calendarVersion === 1) {
+            text.push(translation[field] + ":" + event[field]);
+          }
         } else if (translationQuote[field] && event[field] !== "") {
           if (calendarVersion === 1) {
             quoted = quoted_printable_encode(event[field]);
@@ -1231,7 +1238,7 @@ var iCal = (function () {
             allDay = false;
           }
           text.push(transTime[field] + 
-                          ((calendarVersion === 2 && event.tzId && event.tzID !== "UTC") ? ";TZID="+event.tzId : "" ) +
+                          //((calendarVersion === 2 && event.tzId && event.tzId !== "UTC") ? ";TZID="+event.tzId : "" ) + Not used, because we do everthing in UTC.
                           (allDay ? ";VALUE=DATE:" : ":") + webOsTimeToICal(event[field], allDay, event.tzId));
         } else { //more complex fields.
           switch (field) {
@@ -1247,7 +1254,9 @@ var iCal = (function () {
             text.push("RDATE:" + event.rdates.join(","));
             break;
           case "alarm":
-            text = buildALARM(event.alarm, text);
+            if (calendarVersion === 2) {
+              text = buildALARM(event.alarm, text);
+            }
             break;
           case "attendees":
             for (i = 0; event.attendees && i < event.attendees.length; i += 1) {
@@ -1277,8 +1286,9 @@ var iCal = (function () {
 
     text.push("X-FUNAMBOL-ALLDAY:" + (event.allDay ? "1" : "0"));
     text.push("X-MICROSOFT-CDO-ALLDAYEVENT:" + (event.allDay ? "TRUE" : "FALSE"));
+    text.push("X-AllDayEvent:" + (event.allDay ? "TRUE" : "FALSE"));
     text.push("END:VEVENT");
-    text.push("END:VCALENDAR]]>");
+    text.push("END:VCALENDAR");
 
     //lines "should not" be longer than 75 chars in icalendar spec.
     if (calendarVersion !== 1) { //vcalendar spec read like this is optional. But breaks are only allowed in whitespaces. => ignore that.

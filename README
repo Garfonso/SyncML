@@ -29,6 +29,11 @@ Known Issues:
 - No VTIMEZONE entries are generated for events that set a TZID param in DTSTART/DTEND.
 
 Changelog:
+2012-06-02 => 0.1.15
+- enabled b64 encoding of iCal data. Helps with not confusing XML parsers.
+- added X-AlldayEvent cue for syncfriend.com.
+- no VALARM for x-vcalendar.
+- tried to fix allday for x-vcalendar.
 2012-06-01 => 0.1.14
 - again doing UTC behaviour. TZID=... seems to be ignored if VTIMEZONE is not there. This should be perfectly fine for all normal events with start/endtime. Issues might arise with allday events, though. Need to test more servers with our shift allDay behaviour (eGroupware works ;)).
 - implemented support for X-FUNAMBOL-ALLDAY and X-MICROSOFT-CDO-ALLDAYEVENT allday cues.

@@ -488,7 +488,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
               if (types[ti] !== "del") {
                 item = cmd.items[k].data;
                 if (cmd.items[k].format === "b64") {
-                  item = Base64.decode(item); //TODO: this most probably won't work, get rid of "CDATA" things first... :(
+                  item = Base64.decode(item); //CDATA needs to be removed in SyncMLMessage.
                 }
               }
               ds[callbacks[ti]](
@@ -529,12 +529,12 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
           nextMsg.addSyncCmd({
             type: types[ti],
             item: {
-              data: obj.data,
+              data:  "<![CDATA[" + Base64.encode(obj.data) + "]]>",
               source: obj.localId,
               //target: obj.uid,
               meta: {
-                type: account.datastores[name].serverType ? account.datastores[name].serverType : account.datastores[name].type 
-                //format: "b64" //do we want b64? First try without, maybe.. easier to debug.
+                type: account.datastores[name].serverType ? account.datastores[name].serverType : account.datastores[name].type,
+                format: "b64", //do we want b64? First try without, maybe.. easier to debug.
               }
             }
           });
