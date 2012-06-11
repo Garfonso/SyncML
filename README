@@ -26,9 +26,11 @@ Known Issues:
 - Can't interpret "DAYLIGHT" string, yet. Need to extract TZID from that.
 - Still some errors won't return from service to caller...
 - 500 internal server error for onemediahub.com during check credentials. Hm. How to resolve that? 
-- No VTIMEZONE entries are generated for events that set a TZID param in DTSTART/DTEND.
+- shiftAllday won't work if server and client are in different timezones.
 
 Changelog:
+2012-06-11 => 0.1.16
+- fixed possible service crash during delete on server.
 2012-06-02 => 0.1.15
 - enabled b64 encoding of iCal data. Helps with not confusing XML parsers.
 - added X-AlldayEvent cue for syncfriend.com.
@@ -39,7 +41,6 @@ Changelog:
 - implemented support for X-FUNAMBOL-ALLDAY and X-MICROSOFT-CDO-ALLDAYEVENT allday cues.
 - fixed bug that prevented slow sync from working at all :(
 - fixed retry send message mechanism
->>>>>>> cfef2cf6bb03a3388285f9d69ddab5cd61812eef
 2012-05-31 => 0.1.13
 - reverted the UTC behaviour. Now sending TZID=... parameter. Issue: ical rfc requests VTIMEZONE for that also. I'm not sure if we can create that one... issue with UTC is allday events. Always the same trouble. :(
 2012-05-31 => 0.1.12

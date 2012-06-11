@@ -529,7 +529,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
           nextMsg.addSyncCmd({
             type: types[ti],
             item: {
-              data:  "<![CDATA[" + Base64.encode(obj.data) + "]]>",
+              data:  obj.data ? "<![CDATA[" + Base64.encode(obj.data) + "]]>" : undefined,
               source: obj.localId,
               //target: obj.uid,
               meta: {

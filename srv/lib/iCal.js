@@ -1303,7 +1303,9 @@ var iCal = (function () {
         }
       }
     }
-    callback(text.join("\r\n"));
+    var result = text.join("\r\n");
+    log("Resulting iCal: " + result);
+    callback(result);
   }
 
   return {
