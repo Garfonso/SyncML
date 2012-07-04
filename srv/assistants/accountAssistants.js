@@ -151,12 +151,15 @@ storeAccountsAssistant.prototype.run = function (outerFuture) {
             if (accounts[i].index >= 0 && accounts[i].accountId) { //already known account!
               if (accounts[i].deleteThis) {
                 log("Deleting account " + i + " of " + accounts.length);
+                accounts[i].syncInterval = "disabled";
+                checkActivities(accounts[i]);
                 toDelete.push(accounts[i]);
               } else {
                 SyncMLAccount.setAccount(accounts[i]);
                 log("Account " + i + " of " + accounts.length + " already exists. Calling modify");
                 if (accounts[i].isModified) {
                   toModify.push(accounts[i]);
+                  checkActivities(accounts[i]);
                   accounts[i].isModified = false;
                 }
               }
@@ -166,6 +169,7 @@ storeAccountsAssistant.prototype.run = function (outerFuture) {
                   SyncMLAccount.addNewAccount(accounts[i], false); //don't write directly into database.
                 }
                 toAdd.push(accounts[i]);
+                checkActivities(accounts[i]);
               } else {
                 log("Account not properly defined, ignoring.");
               }

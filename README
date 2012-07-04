@@ -29,6 +29,9 @@ Known Issues:
 - shiftAllday won't work if server and client are in different timezones.
 
 Changelog:
+2012-07-04 => 0.1.17
+- Implemented automatic sync. There is a periodic sync and a db watch. Both can be enabled/disabled in the config scene for each account. db watch is pretty experimental.
+- Changed device info behaviour: Own device info is only send if no device info from server is present or if we are doing a refresh or slow sync.
 2012-06-11 => 0.1.16
 - fixed possible service crash during delete on server.
 2012-06-02 => 0.1.15

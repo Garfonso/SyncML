@@ -81,6 +81,12 @@ syncAssistant.prototype.run = function (outerFuture, subscription) {
   log("============== syncAssistant");
   var finishAssistant, logError, initializeCallback, syncCallback, finishCallback, checkAccountCallback, 
       f, args = this.controller.args, account = this.controller.args, accountId;
+  log("Activity: " + JSON.stringify(this.controller.args.$activity));
+  //log("args: " + JSON.stringify(args));
+  if (args.$activity && args.$activity.trigger && args.$activity.trigger.returnValue === false) {
+    log("Error with activity: " + JSON.stringify(args));
+    return;
+  }
   try {
     outerFutures.push(outerFuture);
     accountId = args.accountId;
@@ -114,8 +120,8 @@ syncAssistant.prototype.run = function (outerFuture, subscription) {
     
     finishCallback = function (f) {
       if (f.result.returnValue === true) {
-        //config will be passed to onCreate.
         log("Success, returning to client");
+		
         finishAssistant({ finalResult: true, success: true, reason: "All went well, updates", account: account});
       } else {
         log("Failure, returning to client");
@@ -181,13 +187,17 @@ syncAssistant.prototype.run = function (outerFuture, subscription) {
         log("initialize.result: " + JSON.stringify(f2.result));
         
         log("Starting sync");
-        if (account.accountId) {
-          account = SyncMLAccount.getAccountById(args.accountId);
+        if (account && account.accountId) {
+          account = SyncMLAccount.getAccountById(account.accountId);
         } else if (account.index >= 0) {
-          account = SyncMLAccount.getAccount(args.index);
+          account = SyncMLAccount.getAccount(account.index);
         } else if (account.name) {
-          account = SyncMLAccount.getAccountByName(args.name);
+          account = SyncMLAccount.getAccountByName(account.name);
         }
+        if(args.$activity) {
+          args.$activity.account = account;
+        }
+
         
         if(!account.username || !account.password || !account.url) {
           log("Account seems to be not fully configured. Can't sync.");
@@ -248,4 +258,39 @@ syncAssistant.prototype.checkAccount = function (account) {
     });
   }
   return future;
+};
+
+syncAssistant.prototype.complete = function() {
+	var args = this.controller.args;
+	var activity = args.$activity;
+  log("============== Sync.complete");
+  if (activity && activity.trigger && activity.trigger.returnValue === false && activity.account.syncInterval && activity.account.syncInterval !== "disabled") {
+    log("Error with activity " + activity.activityName + ": " + JSON.stringify(activity.trigger));
+    return;
+  }
+  if (activity && activity.trigger) {
+    log("Sync was because: " + activity.activityName + " with trigger " + JSON.stringify(activity.trigger));
+  }
+	// log("sync complete starting, activity: " + activity.activityName);
+	// if (activity && activity.trigger && activity.trigger.returnValue) { //we were run by an activity, restart it.
+    // var trigger = undefined;
+    // if (activity.trigger && activity.trigger.params && activity.trigger.params.query && activity.trigger.params.query.where
+         // && (activity.trigger.params.query.where[1].val >= 0)) {
+      // trigger = activity.trigger;
+      // if (trigger.params.query.from === "info.mobo.syncml.contact:1") {
+        // trigger.params.query.where[1].val = account.datastores.contacts.lastRev;
+      // } else {
+        // trigger.params.query.where[1].val = account.datastores.calendar.lastRev;
+      // }
+    // }
+		// return PalmCall.call("palm://com.palm.activitymanager/", "complete", {
+			// activityId: activity.activityId, //hopefully this does NOT need the trigger to be defined again...? :(
+      // trigger: trigger,
+			// restart: true }).then(function(f) {
+				// log("sync complete completed", JSON.stringify(f.result));
+				// f.result = { returnValue: true };
+			// });
+	// } else { //no activity yet.
+		checkActivities(activity.account); //hopefully that works ok. :(
+	// }
 };

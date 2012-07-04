@@ -768,7 +768,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
 		},
 
 		sendSyncInitializationMsg: function (callback) {
-		  var i, ds, datastores = [];
+		  var i, ds, datastores = [], doPutDevInfo = false;
 		  try {
 		    nextMsg = syncMLMessage();
 		    nextMsg.addCredentials(account);
@@ -791,11 +791,18 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
 		        datastores.push({name: ds.name, type: ds.type});
 
 		        if (!ds.serverType || !ds.serverId) {
+              doPutDevInfo = true;
 		          nextMsg.doGetDevInfo();
 		        }
+            if (ds.method === 201 || ds.method === 203 || ds.method === 205) {
+              doPutDevInfo = true;
+            }
 		      }
 		    }
-		    putDevInfo(nextMsg, datastores, {type: "Put"});
+        if (doPutDevInfo) { //devInfo will be send, if we don't know anything about the server 
+                          //or if we need to do slow sync, or refresh from client/server.
+          putDevInfo(nextMsg, datastores, {type: "Put"});
+        }
 
 		    logToApp("Sending initialization message to server.");
 		    sendToServer(nextMsg, parseInitResponse);

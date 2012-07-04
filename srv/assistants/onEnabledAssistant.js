@@ -14,8 +14,20 @@ onEnabledAssistant.prototype.run = function (outerFuture) {
     };
     log("Params: " + JSON.stringify(this.controller.args));
     log("Future: " + JSON.stringify(outerFuture.result));
+    var args = this.controller.args;
     
     if (!startAssistant({name: "onEnabledAssistant" , "outerFuture": outerFuture, run: this.run.bind(this) })) {
+      return;
+    }
+    
+    var ds = "calendar";
+    if (args.capabilityProviderId === "info.mobo.syncml.calendar") {
+      ds = "calendar";
+    } else if (args.capabilityProviderId === "info.mobo.syncml.contact") {
+      ds = "contacts";
+    } else {
+      finishAssistant({ returnValue: false, success: false });
+      log("Unsupported capabilityProviderId: " + args.capabilityProviderId);
       return;
     }
     
@@ -29,9 +41,9 @@ onEnabledAssistant.prototype.run = function (outerFuture) {
     saveCallback = function (f2) {
       try {
         //save changes came back, now react to the change.
-        if (account.datastores.calendar.enabled) {
+        if (account.datastores[ds].enabled) {
           //if newly enabled, start a sync:
-          log("Calendar got enabled, initiating sync.");
+          log(ds + " got enabled, initiating sync.");
           finishAssistant({ returnValue: f2.result.returnValue, success: f2.result.returnValue}); //first give back lock, then trigger sync.
           if (!syncingAccountIds.noId && !syncingAccountIds[account.accountId]) {
             log("Initiating sync...");
@@ -44,9 +56,14 @@ onEnabledAssistant.prototype.run = function (outerFuture) {
           //log("Please sync manually...");
         } else {
           //if disabled, delete all events:
-          log("Calendar got disabled, deleting calendar entries.");
-          eventCallbacks.setAccountAndDatastoreIds({accountId: account.accountId, calendarId: account.datastores.calendar.dbId});
-          eventCallbacks.deleteAllEvents({ callback: deleteCallback.bind(this) });
+          log(ds + " got disabled, deleting calendar entries.");
+          if (ds === "calendar") {
+            eventCallbacks.setAccountAndDatastoreIds({accountId: account.accountId, calendarId: account.datastores.calendar.dbId});
+            eventCallbacks.deleteAllEvents({ callback: deleteCallback.bind(this) });
+          } else {
+            log("!!!!!!!!!!!!!!!!!!!!!! - ISSUE: Don't have delete all for contacts yet!!!");
+            finishAssistant({ returnValue: false, success: false});
+          }
         }
       } catch(e) {
         logError(e);
@@ -59,27 +76,28 @@ onEnabledAssistant.prototype.run = function (outerFuture) {
         if (future.result.returnValue === true) {
           log("Init complete");
           
-          account = SyncMLAccount.getAccountById(this.controller.args.accountId);
+          log("Args: " + JSON.stringify(args));
+          account = SyncMLAccount.getAccountById(args.accountId);
           if(!account) {
             log("Could not find account! Won't do anything.");
             finishAssistant({ returnValue: false, success: false });
             return;
           }
-          if (this.controller.args.capabilityProviderId === "info.mobo.syncml.calendar") {
-            if (account.datastores.calendar.enabled != this.controller.args.enabled || this.controller.args.enabled === true) {
-              account.datastores.calendar.enabled = this.controller.args.enabled;
-              log("Changed account " + account.name);
-              
-              //save the changed setting in the db:
-              SyncMLAccount.setAccount(account);
-              SyncMLAccount.saveConfig().then(this, saveCallback);
-            } else {
-              log("Should disable calendar, but was already disabled: " + account.datastores.calendar.enabled + " == " + this.controller.args.enabled);
-              finishAssistant({ returnValue: true, success: true });
-            }
+          
+          if (account.datastores[ds].enabled != args.enabled || args.enabled === true) {
+            account.datastores[ds].enabled = args.enabled;
+            log("Changed account " + account.name);
+
+            //save the changed setting in the db:
+            SyncMLAccount.setAccount(account);
+            SyncMLAccount.saveConfig().then(this, saveCallback);
           } else {
-            log("Only calendar supported right now.");
+            log("Should disable " + ds + ", but was already disabled: " + account.datastores[ds].enabled + " == " + args.enabled);
+            finishAssistant({ returnValue: true, success: true });
           }
+		  
+          log("Checking acitivies");
+          checkActivities(account);
         } else {
           log("Init failed" + JSON.stringify(future.result));
           finishAssistant({ returnValue: false, success: false });

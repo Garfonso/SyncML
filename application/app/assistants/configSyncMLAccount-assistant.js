@@ -41,6 +41,9 @@ ConfigSyncMLAccountAssistant.prototype.setup = function () {
   this.account.disabled = false;
   this.account.datastores.calendar.disabled = false;
   this.account.datastores.contacts.disabled = false;
+  if (!this.account.syncInterval) {
+    this.account.syncInterval = "disabled";
+  }
   
   this.controller.setupWidget(Mojo.Menu.appMenu, {}, AppAssistant.prototype.MenuModel);
 
@@ -73,6 +76,16 @@ ConfigSyncMLAccountAssistant.prototype.setup = function () {
   this.controller.setupWidget("txtContactsPath", { modelProperty: "path", hintText: $L("Datastore Path"), textCase: Mojo.Widget.steModeLowerCase}, this.account.datastores.contacts);
 	
   this.controller.setupWidget("txtDeviceName", { modelProperty: "deviceName", hintText: $L("Name of this device on server"), textCase: Mojo.Widget.steModeLowerCase}, this.account);
+  this.controller.setupWidget("lsPeriodicSync", { choices: [ 
+    { label: $L("1 Minutes"), value: "1m"},
+    { label: $L("15 Minutes"), value: "15m"},
+    { label: $L("1 Hour"), value: "1h"},
+    { label: $L("3 Hour"), value: "3h"},
+    { label: $L("6 Hour"), value: "6h"},
+    { label: $L("12 Hour"), value: "12h"},
+    { label: $L("1 Day"), value: "1d"},
+    { label: $L("Disable"), value: "disabled"} ], label: $L("Automatic Sync"), modelProperty: "syncInterval"}, this.account);
+  this.controller.setupWidget("ckDBWatch", { modelProperty: "dbWatch"}, this.account);
 	
 	this.btnSaveModel = { buttonClass:'primary', label: $L("Check Credentials"), disabled: false};
 	this.controller.setupWidget("btnSave", {type: Mojo.Widget.activityButton}, this.btnSaveModel);

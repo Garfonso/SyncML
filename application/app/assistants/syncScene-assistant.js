@@ -39,8 +39,10 @@ SyncSceneAssistant.prototype.startSync = function ()
   this.controller.modelChanged(this.buttonModel);
   
   var oldMsg = "";
+  var future;
   var getResult = function (f) {
     if (f.result.finalResult) {
+      //log("FINAL RESULT!!");
       log(oldMsg);
       //sync finished.
       if (f.result.success) {
@@ -72,6 +74,7 @@ SyncSceneAssistant.prototype.startSync = function ()
       this.controller.modelChanged(this.buttonModel);
       this.locked = false;
       f.cancel();
+      future.cancel();
     } else {
       f.then(this, getResult);
     }
@@ -93,7 +96,7 @@ SyncSceneAssistant.prototype.startSync = function ()
     var account = accounts[currentAccount];
     account.subscribe = true;
     log("Calling service.");
-    var future = PalmCall.call("palm://info.mobo.syncml.client.service/", "sync", account);
+    future = PalmCall.call("palm://info.mobo.syncml.client.service/", "sync", account);
     future.then(this, getResult);
     var keepInTouch = function () {
       if (this.locked) {

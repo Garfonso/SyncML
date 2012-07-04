@@ -41,5 +41,5 @@
 		"props": [{
 			"name": "remoteId"
 		}]
-	}]
+	}, { "name":"accountIdRevision", "incDel": true, "props": [{"name": "accountId"}, {"name": "_rev"}]} ]
 }
