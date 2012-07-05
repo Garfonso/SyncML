@@ -653,7 +653,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
                   account.datastores[alert.items[0].target].method = SyncMLAlertCodes[alert.data];
                 }
                 log("adding " + alert.items[0].target + " to will be synced.");
-                willBeSynced.push(alert.items[0].target);
+                willBeSynced.push(alert.items[0].target + " method " + SyncMLAlertCodes[alert.data]);
                 account.datastores[alert.items[0].target].state = "receivedInit";
                 log("willbesynced: " + JSON.stringify(willBeSynced));
                 needRefresh = false;
@@ -790,13 +790,10 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
 		        });
 		        datastores.push({name: ds.name, type: ds.type});
 
-		        if (!ds.serverType || !ds.serverId) {
-              doPutDevInfo = true;
+		        if (!ds.serverType || !ds.serverId || ds.method === "slow" || ds.method === "refresh-from-client" || ds.method === "refresh-from-server") {
+              		  doPutDevInfo = true;
 		          nextMsg.doGetDevInfo();
 		        }
-            if (ds.method === 201 || ds.method === 203 || ds.method === 205) {
-              doPutDevInfo = true;
-            }
 		      }
 		    }
         if (doPutDevInfo) { //devInfo will be send, if we don't know anything about the server 
