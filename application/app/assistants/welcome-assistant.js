@@ -7,36 +7,15 @@ function WelcomeAssistant() {
 	   that needs the scene controller should be done in the setup function below. */
 }
 
-WelcomeAssistant.prototype.setup = function () {
-  var configModel = {label: $L("Configure"), disabled: true};
-  var startSyncModel = {label: $L("Start sync"), disabled: true};
-  
-  PalmCall.call("palm://info.mobo.syncml.client.service", "getAccounts", {}).then(this, function (f){
-    if (f.result.success === true) {
-      log("Got accounts.");
-      accounts = f.result.accounts;
-      log("Now have " + accounts.length + " accounts.");
-      if (accounts.length > 0) {
-        currentAccount = 0;
-      }
-      this.initialized = true;
-      configModel.disabled = false;
-      startSyncModel.disabled = false;
-      this.controller.modelChanged(configModel);
-      this.controller.modelChanged(startSyncModel);
-      this.refreshAccounts();
-      log("Ready to go.");
-    } else {
-      log("Could not get accounts..." + JSON.stringify(f.result));
-      showError(this.controller, "Service Error", "Could not get accounts. Service error: " + f.result.reason);
-    }
-  });
-  
+WelcomeAssistant.prototype.setup = function () { 
+	this.configModel = {label: $L("Configure"), disabled: true};
+  this.startSyncModel = {label: $L("Start sync"), disabled: true};
+
   this.controller.setupWidget(Mojo.Menu.appMenu, {}, AppAssistant.prototype.MenuModel);
   	
 	/* setup widgets here */
-	this.controller.setupWidget("btnConfig", {}, configModel);
-	this.controller.setupWidget("btnStartSync", {}, startSyncModel);
+	this.controller.setupWidget("btnConfig", {}, this.configModel);
+	this.controller.setupWidget("btnStartSync", {}, this.startSyncModel);
 
 	this.dropboxModel = {value: -1, choices: [ {label: $L("New"), value: -1}], disabled: true };
 	this.dropBox = this.controller.setupWidget("lsAccounts", {label: $L("Account")}, this.dropboxModel);
@@ -87,11 +66,30 @@ WelcomeAssistant.prototype.refreshAccounts = function () {
 };
 
 WelcomeAssistant.prototype.activate = function (event) {
-	/* put in event handlers here that should only be in effect when this scene is active. For
-	   example, key handlers that are observing the document */
-  if (this.initialized) {
-    this.refreshAccounts();
-  }
+	this.configModel.disabled = true;
+  this.startSyncModel.disabled = true;
+  this.controller.modelChanged(this.configModel);
+  this.controller.modelChanged(this.startSyncModel);
+  
+  PalmCall.call("palm://info.mobo.syncml.client.service", "getAccounts", {}).then(this, function (f){
+    if (f.result.success === true) {
+      log("Got accounts.");
+      accounts = f.result.accounts;
+      log("Now have " + accounts.length + " accounts.");
+      if (accounts.length > 0) {
+        currentAccount = 0;
+      }
+      this.configModel.disabled = false;
+      this.startSyncModel.disabled = false;
+      this.controller.modelChanged(this.configModel);
+      this.controller.modelChanged(this.startSyncModel);
+      this.refreshAccounts();
+      log("Ready to go.");
+    } else {
+      log("Could not get accounts..." + JSON.stringify(f.result));
+      showError(this.controller, "Service Error", "Could not get accounts. Service error: " + f.result.reason);
+    }
+  });
 };
 
 WelcomeAssistant.prototype.deactivate = function (event) {
