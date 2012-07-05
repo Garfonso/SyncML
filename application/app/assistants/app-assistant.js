@@ -11,11 +11,15 @@ AppAssistant.prototype.setup = function() {
 AppAssistant.prototype.handleLaunch = function(launchParams) {
   Mojo.Log.info("--> AppAssistant.prototype.handleLaunch");
   log("LaunchParams: " + JSON.stringify(launchParams));
+  var cardStageController = this.controller.getStageController("stage");
+  log("Stage controller: " + cardStageController);
+  if (!cardStageController) {
+    this.controller.createStageWithCallback("stage", function(r) { log("Stage created."); r.pushScene({name: "welcome"}); } );
+  }
   Mojo.Log.info("<-- AppAssistant.prototype.handleLaunch");
 };
 
 function email() {
-
   var request = new Mojo.Service.Request("palm://com.palm.applicationManager",
   {
     method: 'open',

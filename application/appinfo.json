@@ -6,5 +6,6 @@
 	"plug-ins": false,
 	"main": "index.html",
 	"title": "SyncML Client",
-	"icon": "icon.png"
+	"icon": "icon.png",
+	"noWindow": true
 }
