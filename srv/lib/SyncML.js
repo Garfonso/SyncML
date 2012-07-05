@@ -612,7 +612,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
   }
 
   function parseInitResponse(responseText) {
-    var failed, numProblems = 0, i, alert, needRefresh = false;
+    var failed, numProblems = 0, i, alert, needRefresh = false, syncAndMethod = [];
     try {
       failed = generalParseMsg(responseText);
       if (failed && failed.length > 0) {
@@ -654,8 +654,9 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
                 }
                 log("adding " + alert.items[0].target + " to will be synced.");
                 willBeSynced.push(alert.items[0].target);
+		syncAndMethod.push(alert.items[0].target + " method " + SyncMLAlertCodes[alert.data]);
                 account.datastores[alert.items[0].target].state = "receivedInit";
-                log("willbesynced: " + JSON.stringify(willBeSynced));
+                log("willbesynced: " + alert.items[0].target + " method " + SyncMLAlertCodes[alert.data]);
                 needRefresh = false;
               }
               if (alert.items && alert.items[0] && alert.items[0].meta && alert.items[0].meta.anchor && alert.items[0].meta.anchor.last) {
@@ -678,7 +679,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
           resultCallback({success: false});
           return;
         }
-        logToApp("Will sync " + JSON.stringify(willBeSynced));
+        logToApp("Will sync " + JSON.stringify(syncAndMethod));
         getSyncData();
       }
     } catch (e) {
@@ -790,13 +791,10 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
 		        });
 		        datastores.push({name: ds.name, type: ds.type});
 
-		        if (!ds.serverType || !ds.serverId) {
-              doPutDevInfo = true;
+		        if (!ds.serverType || !ds.serverId || ds.method === "slow" || ds.method === "refresh-from-client" || ds.method === "refresh-from-server") {
+              		  doPutDevInfo = true;
 		          nextMsg.doGetDevInfo();
 		        }
-            if (ds.method === 201 || ds.method === 203 || ds.method === 205) {
-              doPutDevInfo = true;
-            }
 		      }
 		    }
         if (doPutDevInfo) { //devInfo will be send, if we don't know anything about the server 
