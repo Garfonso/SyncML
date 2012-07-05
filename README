@@ -26,9 +26,12 @@ Known Issues:
 - Can't interpret "DAYLIGHT" string, yet. Need to extract TZID from that.
 - Still some errors won't return from service to caller...
 - 500 internal server error for onemediahub.com during check credentials. Hm. How to resolve that? 
-- shiftAllday won't work if server and client are in different timezones.
+- shiftAllday won't work if server and client are in different timezones, causes issues with alarms disappearing. I need to get rid of that.
 
 Changelog:
+2012-07-XX => 0.1.18
+- now shows what sources are synced with what method in the app/log.
+- fixed push device info (check for refreshs did not work), also changed that we now also request the device info on refreshs/slow sync.
 2012-07-04 => 0.1.17
 - Implemented automatic sync. There is a periodic sync and a db watch. Both can be enabled/disabled in the config scene for each account. db watch is pretty experimental.
 - Changed device info behaviour: Own device info is only send if no device info from server is present or if we are doing a refresh or slow sync.

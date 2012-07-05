@@ -612,7 +612,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
   }
 
   function parseInitResponse(responseText) {
-    var failed, numProblems = 0, i, alert, needRefresh = false;
+    var failed, numProblems = 0, i, alert, needRefresh = false, syncAndMethod = [];
     try {
       failed = generalParseMsg(responseText);
       if (failed && failed.length > 0) {
@@ -653,9 +653,10 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
                   account.datastores[alert.items[0].target].method = SyncMLAlertCodes[alert.data];
                 }
                 log("adding " + alert.items[0].target + " to will be synced.");
-                willBeSynced.push(alert.items[0].target + " method " + SyncMLAlertCodes[alert.data]);
+                willBeSynced.push(alert.items[0].target);
+                syncAndMethod.push(alert.items[0].target + " method " + SyncMLAlertCodes[alert.data]);
                 account.datastores[alert.items[0].target].state = "receivedInit";
-                log("willbesynced: " + JSON.stringify(willBeSynced));
+                log("willbesynced: " + alert.items[0].target + " method " + SyncMLAlertCodes[alert.data]);
                 needRefresh = false;
               }
               if (alert.items && alert.items[0] && alert.items[0].meta && alert.items[0].meta.anchor && alert.items[0].meta.anchor.last) {
@@ -678,7 +679,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
           resultCallback({success: false});
           return;
         }
-        logToApp("Will sync " + JSON.stringify(willBeSynced));
+        logToApp("Will sync " + JSON.stringify(syncAndMethod));
         getSyncData();
       }
     } catch (e) {
