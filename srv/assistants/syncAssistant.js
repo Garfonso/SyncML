@@ -265,11 +265,11 @@ syncAssistant.prototype.complete = function() {
 	var activity = args.$activity;
   log("============== Sync.complete");
   if (activity && activity.trigger && activity.trigger.returnValue === false && activity.account.syncInterval && activity.account.syncInterval !== "disabled") {
-    log("Error with activity " + activity.activityName + ": " + JSON.stringify(activity.trigger));
+    log("Error with activity " + activity.name + ": " + JSON.stringify(activity.trigger));
     return;
   }
   if (activity && activity.trigger) {
-    log("Sync was because: " + activity.activityName + " with trigger " + JSON.stringify(activity.trigger));
+    log("Sync was because: " + activity.name + " with trigger " + JSON.stringify(activity.trigger));
   }
 	// log("sync complete starting, activity: " + activity.activityName);
 	// if (activity && activity.trigger && activity.trigger.returnValue) { //we were run by an activity, restart it.
