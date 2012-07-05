@@ -2,7 +2,7 @@
   "id": "info.mobo.syncml",
   "package_format_version": 2,
   "loc_name": "SyncML Client for WebOS",
-  "version": "0.1.17",
+  "version": "0.1.18",
   "icon": "icon48.png",
   "miniicon": "icon48.png",
   "vendor": "Garfonso",
