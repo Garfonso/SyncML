@@ -187,7 +187,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
   }
 
   function generalParseMsg(text) {
-    var i, j, k, failed, cmd, datastores, source, types, type = undefined;
+    var i, j, k, failed, cmd, datastores, source, types, type = undefined, ds;
     try {
       lastMsg = syncMLMessage();
       /*i = 1;
@@ -228,6 +228,36 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
         sessionInfo.url = lastMsg.getHeader().respURI;
         log("Got new response URI " + sessionInfo.url);
       }
+      
+      //if the map command got acknowledged, we can delete the old map...
+      //log("got " + lastMsg.getBody().status.length + " stati in other msg.");
+      try {
+        for (i in lastMsg.getBody().status) {
+          if (lastMsg.getBody().status.hasOwnProperty(i)) {
+            for (j in lastMsg.getBody().status[i]) {
+              if (lastMsg.getBody().status[i].hasOwnProperty(j)) {
+                cmd = lastMsg.getBody().status[i][j];
+                if (cmd.cmdName === "Map") {
+                  log("Got map status");
+                  if (cmd.data === "200") {
+                    log("Map cmd was ok. DS: " + cmd.sourceRef);
+                    ds = account.datastores[cmd.sourceRef];
+                    if (ds) {
+                      log("Deleting old mapping.");
+                      delete ds.oldMapping;
+                    }
+                  } else {
+                    log("Map command failed: " + cmd.data);
+                  }
+                }
+              }
+            }
+          }
+        }
+      } catch (e) {
+        log("Other msg had no status? " + JSON.stringify(e));
+      }
+      
       //server may ask for device info, answer to that: 
       for (i = 0; i < lastMsg.getBody().cmds.length; i += 1) {
         cmd = lastMsg.getBody().cmds[i];
@@ -239,6 +269,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
           cmd.msgId = lastMsg.getHeader().msgId;
           cmd.type = "Results";
           putDevInfo(nextMsg, undefined, cmd);
+        //end of Get
         } else if ((cmd.type === "Results" || cmd.type === "Put") && cmd.items && cmd.items[0] && cmd.items[0].source === "./devinf12") {
           log("Got devInfo from server.");
           if (typeof cmd.items[0].data === "object") {
@@ -289,7 +320,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
               } //account.datastores.loop
             } //datastores loop
           }
-        } //results cmd.
+        } //end of results cmd.
       }
       return failed;
     } catch (e) {
@@ -363,9 +394,12 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
           message = nextMsg;
         }
         //only add mappings to last msg.
-        if (lastMsg.isFinal() && msgQueue.length === 0) {
+        //if (lastMsg.isFinal() && msgQueue.length === 0) {
           for (i = 0; i < willBeSynced.length; i += 1) {
             ds = account.datastores[willBeSynced[i]];
+            if (ds.oldMapping) {
+              ds.mapping = ds.oldMapping.concat(ds.mapping);
+            }
             message.addMap({source: ds.name, target: ds.path, mapItems: ds.mapping });
             if (ds.mapping.length === 0 && msgQueue.length === 0 && (!message.getBody().sync || message.getBody().sync.length === 0)) {
               log("message is empty => add alert 222"); //this might happen to often or even to few times... hm.
@@ -373,8 +407,10 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
               log("add alert ok");
             }
             ds.state = "sendMapping";
+            ds.oldMapping = ds.mapping;
+            ds.mapping = [];
           }
-        }
+        //}
 
         log("lastMsg.isFinal = " + lastMsg.isFinal() + " msgQueue: " + msgQueue.length);
         if (lastMsg.isFinal() && msgQueue.length === 0) {
@@ -797,10 +833,10 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
 		        }
 		      }
 		    }
-        if (doPutDevInfo) { //devInfo will be send, if we don't know anything about the server 
+        //if (doPutDevInfo) { //devInfo will be send, if we don't know anything about the server 
                           //or if we need to do slow sync, or refresh from client/server.
           putDevInfo(nextMsg, datastores, {type: "Put"});
-        }
+        //}
 
 		    logToApp("Sending initialization message to server.");
 		    sendToServer(nextMsg, parseInitResponse);
