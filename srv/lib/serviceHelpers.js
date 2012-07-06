@@ -59,7 +59,7 @@ var startAssistant = function(params) {
   if (params.name === "syncAssistant") {
     if (params.accountId) {
       if (syncingAccountIds[params.accountId] && syncingAccountIds[params.accountId].syncing === true) {
-        log("Already syncing account " + params.accountId + ". Please wait until that is finished.");
+        log("Already syncing account " + params.accountId + ". Waiting until that is finished and will then return.");
         syncingAccountIds[params.accountId].outerFuture = params.outerFuture;
         return false;
       } else {
@@ -133,6 +133,7 @@ var logToApp = function (logmsg) {
   log("To App: " + logmsg);
   log("==============================================");
   if (!logSubscription || ! logmsg) {
+    log("Could not log to app: " + logSubscription + " and " + logmsg);
     return;
   }
   var f = logSubscription.get();
@@ -532,7 +533,7 @@ var AjaxCallPost = function (url, body, options) {
 };
 
 var checkActivities = function (account) {
-  if (account.syncInterval && account.syncInterval !== "disabled") {
+  if (account && account.syncInterval && account.syncInterval !== "disabled") {
     try {
     var activityType = 	{
                 //foreground: true,

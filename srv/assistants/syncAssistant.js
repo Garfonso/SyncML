@@ -90,6 +90,7 @@ syncAssistant.prototype.run = function (outerFuture, subscription) {
   try {
     outerFutures.push(outerFuture);
     accountId = args.accountId;
+    this.controller.args.$activity.accountId = accountId;
     if (!accountId) {
       accountId = "noId";
     }
@@ -106,8 +107,10 @@ syncAssistant.prototype.run = function (outerFuture, subscription) {
         
     if (!startAssistant({name: "syncAssistant", outerFuture: outerFuture, accountId: accountId, run: this.run.bind(this) })){
       delete outerFuture.result;
-      logSubscription = subscription; //cool, seems to work. :)
-      logToApp("Sync of this account already running, connecting output to app.");
+      if (subscription) {
+        logSubscription = subscription; //cool, seems to work. :)
+        logToApp("Sync of this account already running, connecting output to app.");
+      }
       return;
     }
     
@@ -117,11 +120,13 @@ syncAssistant.prototype.run = function (outerFuture, subscription) {
       return;
     }
 
+    //disable activities until we are finished with sync:
+    //checkActivities({name: account.name}); //TODO: move this to initialization and wait for the callbacks to return. Here VERY wrong for activities themselfes!!! :(
+
     
     finishCallback = function (f) {
       if (f.result.returnValue === true) {
         log("Success, returning to client");
-		
         finishAssistant({ finalResult: true, success: true, reason: "All went well, updates", account: account});
       } else {
         log("Failure, returning to client");
@@ -195,7 +200,7 @@ syncAssistant.prototype.run = function (outerFuture, subscription) {
           account = SyncMLAccount.getAccountByName(account.name);
         }
         if(args.$activity) {
-          args.$activity.account = account;
+          args.$activity.accountId = account.accountId;
         }
 
         
@@ -263,34 +268,31 @@ syncAssistant.prototype.checkAccount = function (account) {
 syncAssistant.prototype.complete = function() {
 	var args = this.controller.args;
 	var activity = args.$activity;
+  var account = SyncMLAccount.getAccountById(activity.accountId);
   log("============== Sync.complete");
-  if (activity && activity.trigger && activity.trigger.returnValue === false && activity.account.syncInterval && activity.account.syncInterval !== "disabled") {
+  log("Activity was: " + JSON.stringify(activity));
+  if (activity && activity.trigger && activity.trigger.returnValue === false) {
     log("Error with activity " + activity.name + ": " + JSON.stringify(activity.trigger));
     return;
   }
-  if (activity && activity.trigger) {
-    log("Sync was because: " + activity.name + " with trigger " + JSON.stringify(activity.trigger));
+  if (activity && activity.trigger && activity.trigger.returnValue) {
+    var trigger = undefined;
+    if (activity.name === "info.mobo.syncml:" + account.name + ".watchCalendar") {
+      trigger = { method: "palm://com.palm.db/watch", key: "fired",
+            params: { subscribe: true, query: {
+                from: "info.mobo.syncml.calendarevent:1",  //it's necessary that the comparison with _rev is at index 1 to update the rev value in complete.
+                where: [ {prop: "accountId", op: "=", val: account.accountId}, { prop: "_rev", op: ">", val: account.datastores.calendar.lastRev || 0 } ],	incDel: true}}};
+    } else if (activity.name === "info.mobo.syncml:" + account.name + ".watchContacts") {
+      trigger = { method: "palm://com.palm.db/watch", key: "fired",
+              params: { subscribe: true, query: {
+                from: "info.mobo.syncml.contact:1", //it's necessary that the comparison with _rev is at index 1 to update the rev value in complete.
+                where: [ {prop: "accountId", op: "=", val: account.accountId}, { prop: "_rev", op: ">", val: account.datastores.contacts.lastRev || 0 } ],	incDel: true}}};
+    }
+    return PalmCall.call("palm://com.palm.activitymanager/", "complete", { activityId: activity.activityId, trigger: trigger, restart: true }).then(function (f) {
+      log("activity restarted: ", JSON.stringify(f.result));
+      f.result = { returnValue: true };
+    });
+  } else {
+    //checkActivities(activity.account); //hopefully that works ok. :(
   }
-	// log("sync complete starting, activity: " + activity.activityName);
-	// if (activity && activity.trigger && activity.trigger.returnValue) { //we were run by an activity, restart it.
-    // var trigger = undefined;
-    // if (activity.trigger && activity.trigger.params && activity.trigger.params.query && activity.trigger.params.query.where
-         // && (activity.trigger.params.query.where[1].val >= 0)) {
-      // trigger = activity.trigger;
-      // if (trigger.params.query.from === "info.mobo.syncml.contact:1") {
-        // trigger.params.query.where[1].val = account.datastores.contacts.lastRev;
-      // } else {
-        // trigger.params.query.where[1].val = account.datastores.calendar.lastRev;
-      // }
-    // }
-		// return PalmCall.call("palm://com.palm.activitymanager/", "complete", {
-			// activityId: activity.activityId, //hopefully this does NOT need the trigger to be defined again...? :(
-      // trigger: trigger,
-			// restart: true }).then(function(f) {
-				// log("sync complete completed", JSON.stringify(f.result));
-				// f.result = { returnValue: true };
-			// });
-	// } else { //no activity yet.
-		checkActivities(activity.account); //hopefully that works ok. :(
-	// }
 };
