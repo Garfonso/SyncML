@@ -319,7 +319,7 @@ var syncMLMessage = function () {
       addMetaToMsg(item.meta, nprefix);
     }
     if (item.data) {
-      m.push("\n<Data>" + item.data + "</Data>\n");
+      m.push("<Data>\n" + item.data + "</Data>\n");
       //writeNodeValue("Data", item.data, "");
     }
     m.push(prefix);
@@ -760,7 +760,8 @@ var syncMLMessage = function () {
       addTargetSource(header, "\t\t"); //source and target paths. Source = on device, target = on server.
       //add optional credentials:
       addCredentialsToHeader();
-      m.push("\t<Meta><MaxMsgSize xmlns=\"syncml:metinf\">512000</MaxMsgSize></Meta>\n");
+      m.push("\t<Meta><MaxMsgSize xmlns=\"syncml:metinf\">512000</MaxMsgSize>");
+      m.push("\t<MaxObjSize xmlns=\"syncml:metinf\">4000000</MaxObjSize></Meta>\n");
       m.push("\t</SyncHdr>\n");
 
       //body:
@@ -1051,14 +1052,14 @@ var syncMLMessage = function () {
 
     addPutDevInfo: function (DeviceInfo, datastores, cmd) {
       var devInfo = [], i, c = {};
-      devInfo.push("\n<DevInf xmlns=\"syncml:devinf\"><VerDTD>1.2</VerDTD>\n");
-      devInfo.push("<DevID>" + DeviceInfo.devID + "</DevID>\n");
+      devInfo.push("<DevInf xmlns='syncml:devinf'><VerDTD>1.2</VerDTD>\n");
       devInfo.push("<Man>" + DeviceInfo.man + "</Man>\n");
       devInfo.push("<Mod>" + DeviceInfo.mod + "</Mod>\n");
       devInfo.push("<OEM>" + DeviceInfo.oem + "</OEM>\n");
       devInfo.push("<FwV>" + DeviceInfo.fwv + "</FwV>\n");
       devInfo.push("<SwV>" + DeviceInfo.swv + "</SwV>\n");
       devInfo.push("<HwV>" + DeviceInfo.hwv + "</HwV>\n");
+      devInfo.push("<DevID>" + DeviceInfo.devID + "</DevID>\n");
       devInfo.push("<DevTyp>" + DeviceInfo.devType + "</DevTyp>\n");
       //devInfo.push("<UTC/>\n"); //tell server to send in time UTC.
       devInfo.push("<UTC/>\n");
@@ -1071,6 +1072,7 @@ var syncMLMessage = function () {
       //add info about calendar:
       devInfo.push("<DataStore>\n");
       devInfo.push("<SourceRef>calendar</SourceRef>\n");
+      devInfo.push("<DisplayName>calendar</DisplayName>\n");
       devInfo.push("<Rx-Pref>\n");
       devInfo.push("<CTType>text/calendar</CTType>\n");
       devInfo.push("<VerCT>2.0</VerCT>\n");
@@ -1091,8 +1093,8 @@ var syncMLMessage = function () {
       devInfo.push("<CTType>" + MimeTypes.calendar.pref + "</CTType>\n");
       devInfo.push("<VerCT>2.0</VerCT>\n");
       devInfo.push("<Property>\n");
-      devInfo.push("<PropName>BEGIN</PropName><ValEnum>VCALENDAR</ValEnum><ValEnum>VALARM</ValEnum><ValEnum>VEVENT</ValEnum></Property>\n");
-      devInfo.push("<Property><PropName>END</PropName><ValEnum>VCALENDAR</ValEnum><ValEnum>VALARM</ValEnum><ValEnum>VEVENT</ValEnum></Property>\n");
+      devInfo.push("<PropName>BEGIN</PropName><ValEnum>VCALENDAR</ValEnum><ValEnum>VALARM</ValEnum><ValEnum>VEVENT</ValEnum><ValEnum>VTIMEZONE</ValEnum><ValEnum>DAYLIGHT</ValEnum><ValEnum>STANDARD</ValEnum></Property>\n");
+      devInfo.push("<Property><PropName>END</PropName><ValEnum>VCALENDAR</ValEnum><ValEnum>VALARM</ValEnum><ValEnum>VEVENT</ValEnum><ValEnum>VTIMEZONE</ValEnum><ValEnum>DAYLIGHT</ValEnum><ValEnum>STANDARD</ValEnum></Property>\n");
       devInfo.push("<Property><PropName>VERSION</PropName><ValEnum>2.0</ValEnum><MaxOccur>1</MaxOccur></Property>\n");
       devInfo.push("<Property><PropName>PRODID</PropName><MaxOccur>1</MaxOccur></Property>\n");
       devInfo.push("<Property><PropName>TZID</PropName></Property>\n");
@@ -1158,7 +1160,7 @@ var syncMLMessage = function () {
       devInfo.push("<Property><PropName>RRULE</PropName><MaxOccur>1</MaxOccur></Property>\n");
       devInfo.push("<Property><PropName>EXDATE</PropName></Property>\n");
       devInfo.push("<Property><PropName>DTEND</PropName><MaxOccur>1</MaxOccur></Property>\n");
-      devInfo.push("<Property><PropName>ATTENDEE</PropName><PropParam><ParamName>ROLE</ParamName><ValEnum>ORGANIZER</ValEnum></PropParam><PropParam><ParamName>STATUS</ParamName><ValEnum>NEEDS ACTION</ValEnum><ValEnum>ACCEPTED</ValEnum><ValEnum>DECLINED</ValEnum><ValEnum>TENTATIVE</ValEnum><ValEnum>DELEGATED</ValEnum></PropParam></Property>\n");
+      devInfo.push("<Property><PropName>ATTENDEE</PropName><PropParam><ParamName>ROLE</ParamName><ValEnum>CHAIR</ValEnum><ValEnum>REQ-PARTICIPANT</ValEnum><ValEnum>OPT-PARTICIPANT</ValEnum><ValEnum>NON-PARTICIPANT</ValEnum></PropParam><PropParam><ParamName>STATUS</ParamName><ValEnum>NEEDS ACTION</ValEnum><ValEnum>ACCEPTED</ValEnum><ValEnum>DECLINED</ValEnum><ValEnum>TENTATIVE</ValEnum><ValEnum>DELEGATED</ValEnum></PropParam></Property>\n");
       devInfo.push("</CTCap>\n");
       devInfo.push("<SyncCap>\n");
       devInfo.push("<SyncType>1</SyncType>\n"); //two-way sync
