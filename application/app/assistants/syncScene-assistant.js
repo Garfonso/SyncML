@@ -18,11 +18,11 @@ SyncSceneAssistant.prototype.setup = function () {
 	this.controller.setupWidget(Mojo.Menu.appMenu, {}, AppAssistant.prototype.MenuModel);
 	
 	/* use Mojo.View.render to render view templates and add them to the scene, if needed */
-	
+	  
 	/* setup widgets here */
   this.buttonModel = { disabled: true, label: $L("Start sync") };
 	this.controller.setupWidget("btnStart", { type : Mojo.Widget.activityButton }, this.buttonModel );
-	
+  
 	/* add event handlers to listen to events from widgets */
 	Mojo.Event.listen(this.controller.get("btnStart"), Mojo.Event.tap, this.startSync.bind(this));
 	setTimeout(this.startSync.bind(this),100);
@@ -73,8 +73,10 @@ SyncSceneAssistant.prototype.startSync = function ()
       this.buttonModel.disabled = false;
       this.controller.modelChanged(this.buttonModel);
       this.locked = false;
+      log("Canceling futures: ");
       f.cancel();
-      future.cancel();
+      PalmCall.cancel(future);
+      log("Ok.");
     } else {
       f.then(this, getResult);
     }
