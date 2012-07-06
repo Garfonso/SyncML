@@ -20,6 +20,10 @@ WelcomeAssistant.prototype.setup = function () {
 	this.dropboxModel = {value: -1, choices: [ {label: $L("New"), value: -1}], disabled: true };
 	this.dropBox = this.controller.setupWidget("lsAccounts", {label: $L("Account")}, this.dropboxModel);
 	
+  this.spinnerModel = { spinning: false };
+	this.controller.setupWidget("saveSpinner", this.attributes = { spinnerSize: "large" }, this.spinnerModel);
+	this.controller.get('Scrim').hide();
+  
 	/* add event handlers to listen to events from widgets */
 	Mojo.Event.listen(this.controller.get("btnConfig"), Mojo.Event.tap, this.pushConfig.bind(this));
 	Mojo.Event.listen(this.controller.get("btnStartSync"), Mojo.Event.tap, this.startSync.bind(this));
@@ -46,7 +50,7 @@ WelcomeAssistant.prototype.startSync = function (event) {
 };
 
 WelcomeAssistant.prototype.refreshAccounts = function () {
-  var oldValue = this.dropboxModel.value;
+  var oldValue = this.dropboxModel.value, c = 0;
   this.dropboxModel.choices = [{label: $L("New"), value: -1}];
   var addToDropbox = function (result) {
     log("Got account: " + result.name + " = " + result.index);
@@ -54,14 +58,37 @@ WelcomeAssistant.prototype.refreshAccounts = function () {
     if (oldValue === -1 || oldValue >= accounts.length) {
       oldValue = result.index;
     }
-    this.dropboxModel.value = oldValue;
-    this.dropboxModel.disabled = false;
-    this.controller.modelChanged(this.dropboxModel);
+    c -= 1;
+    
+    if (c == 0) {
+      this.dropboxModel.value = oldValue;
+      this.dropboxModel.disabled = false;
+      this.controller.modelChanged(this.dropboxModel);
+      this.controller.get('Scrim').hide();
+      this.controller.get('saveSpinner').mojo.stop();
+      this.configModel.disabled = false;
+      this.startSyncModel.disabled = false;
+      this.controller.modelChanged(this.configModel);
+      this.controller.modelChanged(this.startSyncModel);
+    }
     log("added account");
   }.bind(this);
   
   for(var i = 0; i < accounts.length; i += 1) {
     addToDropbox(accounts[i]);
+    c += 1;
+  }
+  
+  if (c == 0) {
+    this.dropboxModel.value = oldValue;
+    this.dropboxModel.disabled = false;
+    this.controller.modelChanged(this.dropboxModel);
+    this.controller.get('Scrim').hide();
+    this.controller.get('saveSpinner').mojo.stop();
+    this.configModel.disabled = false;
+    this.startSyncModel.disabled = false;
+    this.controller.modelChanged(this.configModel);
+    this.controller.modelChanged(this.startSyncModel);
   }
 };
 
@@ -70,6 +97,8 @@ WelcomeAssistant.prototype.activate = function (event) {
   this.startSyncModel.disabled = true;
   this.controller.modelChanged(this.configModel);
   this.controller.modelChanged(this.startSyncModel);
+  this.controller.get('Scrim').show();
+  this.controller.get('saveSpinner').mojo.start();
   
   PalmCall.call("palm://info.mobo.syncml.client.service", "getAccounts", {}).then(this, function (f){
     if (f.result.success === true) {
@@ -79,10 +108,6 @@ WelcomeAssistant.prototype.activate = function (event) {
       if (accounts.length > 0) {
         currentAccount = 0;
       }
-      this.configModel.disabled = false;
-      this.startSyncModel.disabled = false;
-      this.controller.modelChanged(this.configModel);
-      this.controller.modelChanged(this.startSyncModel);
       this.refreshAccounts();
       log("Ready to go.");
     } else {
