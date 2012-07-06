@@ -77,7 +77,7 @@ ConfigSyncMLAccountAssistant.prototype.setup = function () {
 	
   this.controller.setupWidget("txtDeviceName", { modelProperty: "deviceName", hintText: $L("Name of this device on server"), textCase: Mojo.Widget.steModeLowerCase}, this.account);
   this.controller.setupWidget("lsPeriodicSync", { choices: [ 
-    { label: $L("1 Minutes"), value: "1m"},
+    { label: $L("5 Minutes"), value: "5m"},
     { label: $L("15 Minutes"), value: "15m"},
     { label: $L("1 Hour"), value: "1h"},
     { label: $L("3 Hour"), value: "3h"},
