@@ -1,6 +1,6 @@
 {
 	"id": "info.mobo.syncml.client",
-	"version": "0.1.17",
+	"version": "0.1.19",
 	"vendor": "Mobo WebOS",
 	"type": "web",
 	"plug-ins": false,

@@ -12,9 +12,10 @@ The sync of contacts is to be added later. Maybe also more datastore types (I'd 
 The synergy integration is quite done. The JavaScript SyncML Client and iCal parser work. 
 
 My list of Todo's
-- Complete synergy integration (only create is an issue now)
 - Implement contacts sync (will require new or extended parser or use webOS integrated stuff)
 - Optimize old eventCallback structure to be more database optimized and collect all adds, updates and deletes to do them in one batch.
+- Look into Todo or Note sync that will sync with the onboard tasks / memos apps.
+- Abuse multiple calendars as replacement for category support in the calendar app (maybe not necessary if a newer, more fancy calendar app of Open webOS will support categories? ;))
 
 Pull requests are welcome! :)
 Released under MIT license.
@@ -27,9 +28,18 @@ Known Issues:
 - Still some errors won't return from service to caller...
 - 500 internal server error for onemediahub.com during check credentials. Hm. How to resolve that? 
 - shiftAllday won't work if server and client are in different timezones, causes issues with alarms disappearing. I need to get rid of that.
+- Create account from the account app won't work on TouchPad.
 
 Changelog:
-2012-07-XX => 0.1.18
+2012-07-10 => 0.1.19
+- fixed offset for allday alarms, was wrong sometimes.
+- fixed activities, they don't need to be deleted anymore.
+- fixed issue where for one account there could be multiple calendars.
+- fixed issue that prevented service from shutting down after sync if the app was still open.
+2012-07-05 => 0.1.18
+- "Sync Now" in calendar app works
+- a back from sync did overwrite data in the accounts after a successful sync. This could trigger unecessary slow syncs and duplication on the server.
+- fixed that app pops up during configuration of a new account in account manager
 - now shows what sources are synced with what method in the app/log.
 - fixed push device info (check for refreshs did not work), also changed that we now also request the device info on refreshs/slow sync.
 2012-07-04 => 0.1.17
