@@ -207,7 +207,7 @@ var iCal = (function () {
   }
 
   function iCalTimeToWebOsTime(time, tz) {
-    var t = {}, result, date, offset, ts2;
+    var t = { offset: 0}, result, date, offset, ts2;
     t.allDayCue = !DATETIME.test(time);
     if (!tz || !tz.tzId) {
       if (time.charAt(time.length - 1) === "Z") {
@@ -233,16 +233,21 @@ var iCal = (function () {
     } else {
       //have date and time:
       result = DATETIME.exec(time);
-    }
+    }+  function buildALARM(alarm, text, allday, ts) {
++    var i, j, field = undefined, translation, value, sign = 1, num, seconds;
+     translation = {
+
     //look at tzId. Shift whole thing that we have all day events on the right day, no matter the TZ.
     date = new Date(result[1], result[2] - 1, result[3], result[4], result[5], result[6]);
+    t.offset = date.getTimezoneOffset() * 60000;
     if (localTzId === tz.tzId) { 
       //for times in the local tz, this will be ok in any case.
       t.ts = date.getTime();
     } else if (tz.tzId === "UTC") { //got UTC time, we can easily correct that:
       t.ts = Date.UTC(result[1], result[2] - 1, result[3], result[4], result[5], result[6]); //get UTC timestamp from UTC date values :)
-      if (t.allDayCue) { //move to 0:00 in local timeZone.
+      if (t.allDayCue && shiftAllDay) { //move to 0:00 in local timeZone.
         t.ts += date.getTimezoneOffset() * 60000;
+        t.offset = date.getTimezoneOffset() * 60000;
       }
     } else { //this relies on a framework function from webOs.
       ts2 = date.getTime();
@@ -250,6 +255,7 @@ var iCal = (function () {
       if (t.allDayCue && shiftAllDay) {
         offset = (t.ts - ts2) * 2;
         t.ts -= offset;
+        t.offset = -offset;
       }
     }
     return t;
@@ -1013,7 +1019,7 @@ var iCal = (function () {
   }
 
   function applyHacks(event, ical, serverId) { //TODO: read product from id to have an idea which hacks to apply.. or similar.
-    var i, val, start, diff, tz, parts;
+    var i, val, start, diff, tz, parts, tsStruct;
 
     /*if (event.tzId && event.tzId !== "UTC") {
       log("ERROR: Event was not specified in UTC. Can't currently handle anything else than UTC! Expect problems!!!! :(");
@@ -1051,7 +1057,9 @@ var iCal = (function () {
           }
         }
         //log("Calling iCalTimeToWebOsTime with " + event.alarm[i].alarmTrigger.value + " and " + {tzId: event.tzId});
-        val = iCalTimeToWebOsTime(event.alarm[i].alarmTrigger.value, {tzId: event.tzId}).ts;
+        tsStruct = iCalTimeToWebOsTime(event.alarm[i].alarmTrigger.value, {tzId: event.tzId});
+        val = tsStruct.ts;
+        val -= tsStruct.offset;
         //log("Hacking alarm, got alarm TS: " + val);
         //log("Value: " + event.alarm[i].alarmTrigger.value);
         //log("Val: " + val);
