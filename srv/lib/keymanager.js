@@ -6,10 +6,10 @@ var KeyManager = (function () {
   //check if key already exists. If not, create key.
   function checkKey(callback) {
     //this makes sure that the key exists. 
-    
+
     var createKey = function () {
       var f2 = PalmCall.call("palm://com.palm.keymanager", "generate", { "keyname": keyname, "size": 32, "type": "AES", "nohide" : false });
-      f2.then(function(f4) {
+      f2.then(function (f4) {
         try {
           if (f4.result.returnValue === true) {
             log("Key created. All is fine. :) " + JSON.stringify(f4.result));
@@ -17,7 +17,7 @@ var KeyManager = (function () {
               callback(true);
             }
           } else {
-            log("Key not created. Nothing is fine. :( " + JSON.stringify(result));
+            log("Key not created. Nothing is fine. :( " + JSON.stringify(f4.result));
             if (callback) {
               callback(false);
             }
@@ -32,7 +32,7 @@ var KeyManager = (function () {
         f2.result = { returnValue: false };
       });
     };
-    
+
     log("Checking if key exists.");
     var f1 = PalmCall.call("palm://com.palm.keymanager/", "keyInfo", { keyname: keyname});
     f1.then(function (f3) {
@@ -44,7 +44,7 @@ var KeyManager = (function () {
           }
         } else {
           //will never happen, due to the bug.
-          log("No key, need to create key." + JSON.stringify(result));
+          log("No key, need to create key." + JSON.stringify(f3.result));
           createKey();
         }
       } catch (e) {
@@ -67,9 +67,9 @@ var KeyManager = (function () {
       var future = new Future();
       //don't try to decrypt if already decrypted.
       //log("Trying to decrypt " + name + " = " + obj[name+"_enc"]);
-      if (obj[name+"_enc"] === undefined || obj[name+"_enc"] == "") {
+      if (obj[name + "_enc"] === undefined || obj[name + "_enc"] === "") {
         log("No encrypted data. Return ok to be backwads compatible.");
-        setTimeout(function() { future.result = {returnValue: true}; }, 100);
+        setTimeout(function () { future.result = {returnValue: true}; }, 100);
         return future;
       }
       try {
@@ -80,14 +80,20 @@ var KeyManager = (function () {
           "data": obj[name+"_enc"]
         });
         future_.then(function (f) {
-          var result = f.result;
-          if (result.returnValue === true) {
-            obj[name] = Base64.decode(result.data);
-          } else {
-            log("Problem during decryption of " + name + ": ");
-            log(JSON.stringify(result));
+          try {
+            var result = f.result;
+            if (result.returnValue === true) {
+              obj[name] = Base64.decode(result.data);
+            } else {
+              log("Problem during decryption of " + name + ": ");
+              log(JSON.stringify(result));
+            }
+            future.result = {returnValue: result.returnValue};
+          } catch (e) {
+            log("Exception in decrypt. Assuming account restore from Palm-Backup.");
+            log(e);
+            future.result = {returnValue: false, resetData: true};
           }
-          future.result = {returnValue: result.returnValue};
         });
         future_.onError(function (f) {
           log("Error in crypt-future: " + f.exeption);
@@ -105,9 +111,9 @@ var KeyManager = (function () {
       var future = new Future();
       //don't try to encrypt, if already encrypted.
       //log("Trying to encrypt " + name);
-      if (typeof data == "undefined" || data == "") {
+      if (typeof data === "undefined" || data === "") {
         log("No data received, return.");
-        setTimeout(function() { future.result = {returnValue: false}; }, 100);
+        setTimeout(function () { future.result = {returnValue: false}; }, 100);
         return future;
       }
       try {
@@ -118,14 +124,20 @@ var KeyManager = (function () {
           data: Base64.encode(data)
         });
         future_.then(function (f) {
-          var result = f.result;
-          if (result.returnValue === true) {
-            obj[name+"_enc"] = result.data;
-          } else {
-            log("Problem during encryption of " + name + ": ");
-            log(JSON.stringify(result));
+          try {
+            var result = f.result;
+            if (result.returnValue === true) {
+              obj[name + "_enc"] = result.data;
+            } else {
+              log("Problem during encryption of " + name + ": ");
+              log(JSON.stringify(result));
+            }
+            future.result = {returnValue: result.returnValue};
+          } catch (e) {
+            log(e);
+            log("Exception during encryption");
+            future.result = {returnValue: false };
           }
-          future.result = {returnValue: result.returnValue};
         });
         future_.onError(function (f) {
           log("Error in decrypt-future: " + f.exeption);
@@ -139,7 +151,7 @@ var KeyManager = (function () {
     },
     
     initialize: function (future) {
-      checkKey(function(success) {
+      checkKey(function (success) {
         var res = future.result;
         res.keymanager = success;
         future.result = res;

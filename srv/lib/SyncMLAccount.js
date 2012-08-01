@@ -1,5 +1,5 @@
 //nomen: true needed to accept _id.
-/*global DB, log, PalmCall, KeyManager, Future */
+/*global DB, log, PalmCall, KeyManager, Future, logError_lib, logToApp */
 
 
 var SyncMLAccount = (function () {
@@ -79,7 +79,7 @@ var SyncMLAccount = (function () {
     if (!account.datastores.contacts) {
       account.datastores.contacts = {};
     }
-    
+
     account.datastores.calendar.enabled = false;
     account.datastores.contacts.enabled = false;
     for (i = 0; i < caps.length; i += 1) {
@@ -113,12 +113,13 @@ var SyncMLAccount = (function () {
       } else {
         //return a new account.
         //log("Returning new account with index " + accounts.length);
-        return undefined; 
+        return undefined;
       }
     },
-    
-    getAccountById: function(id) {
-      for (var i = 0; i  < accounts.length; i += 1) {
+
+    getAccountById: function (id) {
+      var i;
+      for (i = 0; i  < accounts.length; i += 1) {
         if (accounts[i].accountId === id) {
           currentAccount = i;
           return accounts[i];
@@ -126,9 +127,10 @@ var SyncMLAccount = (function () {
       }
       //return {index: accounts.length};
     },
-    
-    getAccountByName: function(name) {
-      for (var i = 0; i  < accounts.length; i += 1) {
+
+    getAccountByName: function (name) {
+      var i;
+      for (i = 0; i  < accounts.length; i += 1) {
         if (accounts[i].name === name) {
           currentAccount = i;
           return accounts[i];
@@ -137,7 +139,7 @@ var SyncMLAccount = (function () {
       //return {index: accounts.length};
     },
 
-    getAccounts: function() {
+    getAccounts: function () {
       return accounts;
     },
 
@@ -158,7 +160,7 @@ var SyncMLAccount = (function () {
         return accounts[currentAccount];
       }
     },
-    
+
     addNewAccount: function (account, saveAccounts) {
       account.index = accounts.length;
       accounts[accounts.length] = account;
@@ -166,26 +168,26 @@ var SyncMLAccount = (function () {
         return this.saveConfig();
       }
     },
-    
+
     removeAccount: function (account) {
       if (account.index >= 0 && account.index < accounts.length) {
-        var b = accounts[account.index];
-        if(b.name === account.name) {
+        var b = accounts[account.index], i;
+        if (b.name === account.name) {
           log("Deleting " + b.name);
           accounts.splice(account.index, 1);
-          for (var i = account.index; i < accounts.length; i += 1) {
+          for (i = account.index; i < accounts.length; i += 1) {
             log("Updating index of " + accounts[i].index + " to " + i);
             accounts[i].index = i;
           }
-          log ("Now having " + accounts.length + " account.");
+          log("Now having " + accounts.length + " account.");
         }
       }
     },
 
     //will save modifications to all accounts.
     saveConfig: function (syncEnd) {
-      var newAccts = [], acctObj, field, i, j, k, ds, dsOrg, result, runningEnryptions = 0, 
-          innerFuture = new Future(), outerFuture = new Future(), encryptionFinished, doSaveObjects, finishSave;
+      var newAccts = [], acctObj, field, i, j, k, ds, dsOrg, result, runningEnryptions = 0,
+        innerFuture = new Future(), outerFuture = new Future(), encryptionFinished, doSaveObjects, finishSave;
       encryptionFinished = function (future) {
         try {
           if (future.result.returnValue) {
@@ -202,7 +204,7 @@ var SyncMLAccount = (function () {
           logError_lib(e);
         }
       };
-      
+
       finishSave = function (future) { //this will add items without id set.
         try {
           result = future.result;
@@ -220,22 +222,22 @@ var SyncMLAccount = (function () {
             log("Put account failure: Err code=" + JSON.stringify(future.result) + " and " + JSON.stringify(future.exception));
             outerFuture.result = {returnValue: false};
           }
-        } catch(e) {
+        } catch (e) {
           logError_lib(e);
         }
       };
-      
+
       doSaveObjects = function (future) {
         try {
           if (newAccts.length > 0) {
             //log("Saving " + newAccts.length + " objects.");
             if (future.result.returnValue === true) {
-              var future_ = DB.merge(newAccts);
-              future_.then(this, finishSave);
-              future_.onError(function (f) {
+              var callFuture = DB.merge(newAccts);
+              callFuture.then(this, finishSave);
+              callFuture.onError(function (f) {
                 log("Error in saveConfig-future: " + f.exeption);
                 logToApp("Could not load save account config: " + JSON.stringify(f.exeption));
-                future_.result = { returnValue: false };
+                callFuture.result = { returnValue: false };
               });
             } else { //future not successfull.
               log("Something went wrong during saveAccount: " + JSON.stringify(future.result));
@@ -245,12 +247,12 @@ var SyncMLAccount = (function () {
           logError_lib(e);
         }
       };
-      
+
       try {
         log("SaveConfig called!!!");
         //sort in modified and new,
         for (i = 0; i < accounts.length; i += 1) {
-          if (!accounts[i].isDeleted) {  
+          if (!accounts[i].isDeleted) {
             acctObj = {"_kind": "info.mobo.syncml.account:1", "_id": accounts[i].dbId};
             for (field = 0; field < savedFields.length; field += 1) {
               if (savedFields[field] === "datastores") {
@@ -288,7 +290,7 @@ var SyncMLAccount = (function () {
           outerFuture.result = {returnValue: true};
           return outerFuture;
         }
-        
+
         innerFuture.then(this, doSaveObjects);
       } catch (e) {
         log("Error: " + e.message + " - " + e.stack);
@@ -299,14 +301,28 @@ var SyncMLAccount = (function () {
 
     //get the accounts
     findAccounts: function () {
-      var query = {"from": "info.mobo.syncml.account:1"}, i, j, field, obj, result, innerFuture = new Future(), decrypts = 0, 
-          outerFuture = new Future(), afterDecrypt, foundObjects, endFindAccounts;
+      var query = {"from": "info.mobo.syncml.account:1"}, i, j, field, obj, result, innerFuture = new Future(), decrypts = 0,
+        outerFuture = new Future(), afterDecrypt, foundObjects, endFindAccounts;
       afterDecrypt = function (future) {
         try {
           if (future.result.returnValue === true) {
             //log("Decryption success");
           } else {
             log("Could not decrypt password of account");
+            if (future.result.resetData) {
+              log("Resetting data.");
+              accounts[this.index].username = "";
+              accounts[this.index].username_enc = "";
+              accounts[this.index].password = "";
+              accounts[this.index].password_enc = "";
+              var field;
+              for (field in accounts[this.index].datastores) {
+                if (accounts[this.index].datastores.hasOwnProperty(field)) {
+                  accounts[this.index].datastores[field].method = "refresh-from-server";
+                  accounts[this.index].datastores[field].lastRev = 0;
+                }
+              }
+            }
           }
           decrypts -= 1;
           //log("Decrypts running: " + decrypts);
@@ -317,7 +333,7 @@ var SyncMLAccount = (function () {
           logError_lib(e);
         }
       };
-      
+
       endFindAccounts = function (future) {
         if (future.result.returnValue === true) {
           log("All accounts finished");
@@ -327,7 +343,7 @@ var SyncMLAccount = (function () {
         }
         innerFuture.result = {returnValue: future.result.returnValue, stage: "end"};
       };
-      
+
       foundObjects = function (future) {
         try {
           result = future.result;
@@ -344,8 +360,8 @@ var SyncMLAccount = (function () {
               //log("Got account: " + JSON.stringify(obj));
               accounts.push(obj);
               //log("Passwort: " + obj.password);
-              KeyManager.decrypt("username",obj).then(afterDecrypt);
-              KeyManager.decrypt("password",obj).then(afterDecrypt);
+              KeyManager.decrypt("username", obj).then({index: obj.index}, afterDecrypt);
+              KeyManager.decrypt("password", obj).then({index: obj.index}, afterDecrypt);
               decrypts += 2;
             }
             if (result.results.length === 0) { //no accounts found, break here.
@@ -353,7 +369,7 @@ var SyncMLAccount = (function () {
               outerFuture.result = {returnValue: true, success: true};
               return outerFuture;
             }
-            
+
             innerFuture.then(endFindAccounts);
           } else {
             result = future.exception;
@@ -375,7 +391,7 @@ var SyncMLAccount = (function () {
 
     // this is not used??
     createAccount: function (account, callback) {
-      var outerFuture = new Future();
+      var outerFuture = new Future(), accObj, callFuture;
       if (!account) {
         account = accounts[currentAccount];
       }
@@ -392,41 +408,41 @@ var SyncMLAccount = (function () {
       }
       try {
         accObj = {
-            "templateId"          : "info.mobo.syncml.account",
-            "capabilityProviders" : getCapabilities(account),
-            "username"            : account.username,
-            "alias"               : account.name || "SyncML Account",
-            "credentials"         : { "common": { "password" : account.password } }, //this is a bit strange.. account service stores this in a secure storage, but as of webOs 2.2.2 this is not accessible for me. :( So I store my own user/password.
-            "beingDeleted"        : false,
-            "config"              : {"url": account.url, datastores: account.datastores, name: account.name}
-            };
+          "templateId"          : "info.mobo.syncml.account",
+          "capabilityProviders" : getCapabilities(account),
+          "username"            : account.username,
+          "alias"               : account.name || "SyncML Account",
+          "credentials"         : { "common": { "password" : account.password } }, //this is a bit strange.. account service stores this in a secure storage, but as of webOs 2.2.2 this is not accessible for me. :( So I store my own user/password.
+          "beingDeleted"        : false,
+          "config"              : {"url": account.url, datastores: account.datastores, name: account.name}
+        };
         //log("accObj: " + JSON.stringify(accObj));
-        var future_ = PalmCall.call("palm://com.palm.service.accounts/", "createAccount", accObj);
-        future_.then(function (future) {
-              try {
-                if (future.result.returnValue === true) {
-                  log("Account created!" + JSON.stringify(future.result));
-                  account.accountId = future.result.result._id;
-                  account.name = future.result.result.alias;
-                  log("Got account Id: " + account.accountId);
-                  SyncMLAccount.setAccount(account);
-                  SyncMLAccount.saveConfig().then(function (f) {
-                    outerFuture.result = {returnValue: true, account: account};
-                  });
-                } else {
-                  log("Account creation failed. " + JSON.stringify(future.result));
-                  outerFuture.result = {returnValue: false};
-                }
-              } catch (e) {
-                logError_lib(e);
-              }
-            });
-        future_.onError(function (f) {
+        callFuture = PalmCall.call("palm://com.palm.service.accounts/", "createAccount", accObj);
+        callFuture.then(function (future) {
+          try {
+            if (future.result.returnValue === true) {
+              log("Account created!" + JSON.stringify(future.result));
+              account.accountId = future.result.result._id;
+              account.name = future.result.result.alias;
+              log("Got account Id: " + account.accountId);
+              SyncMLAccount.setAccount(account);
+              SyncMLAccount.saveConfig().then(function (f) {
+                outerFuture.result = {returnValue: true, account: account};
+              });
+            } else {
+              log("Account creation failed. " + JSON.stringify(future.result));
+              outerFuture.result = {returnValue: false};
+            }
+          } catch (e) {
+            logError_lib(e);
+          }
+        });
+        callFuture.onError(function (f) {
           log("Error in createAccount-future: " + f.exeption);
           logToApp("Could not create account: " + JSON.stringify(f.exeption));
-          future_.result = { returnValue: false };
+          callFuture.result = { returnValue: false };
         });
-      } catch (e) { 
+      } catch (e) {
         logError_lib(e);
       }
       return outerFuture;
@@ -449,8 +465,8 @@ var SyncMLAccount = (function () {
             ids.push(account.datastores[field].dbId);
           }
         }
-        var future_ = DB.del(ids);
-        future_.then(function (future) {
+        var callFuture = DB.del(ids);
+        callFuture.then(function (future) {
           try {
             if (future.result.returnValue === true) {
               log("del success!" + JSON.stringify(future.result));
@@ -468,10 +484,10 @@ var SyncMLAccount = (function () {
             logError_lib(e);
           }
         });
-        future_.onError(function (f) {
+        callFuture.onError(function (f) {
           log("Error in delteAccountFromDB-future: " + f.exeption);
           logToApp("Could not delete account from DB: " + JSON.stringify(f.exeption));
-          future_.result = { returnValue: false };
+          callFuture.result = { returnValue: false };
         });
       }
       return outerFuture;
@@ -489,8 +505,8 @@ var SyncMLAccount = (function () {
         }
       }
       if (account.accountId) {
-        var future_ = PalmCall.call("palm://com.palm.service.accounts/", "deleteAccount", {"accountId": account.accountId});
-        future_.then(function (future) {
+        var callFuture = PalmCall.call("palm://com.palm.service.accounts/", "deleteAccount", {"accountId": account.accountId});
+        callFuture.then(function (future) {
           try {
             if (future.result.returnValue === true) {
               log("delte account success" + JSON.stringify(future.result) + "\n");
@@ -513,10 +529,10 @@ var SyncMLAccount = (function () {
             logError_lib(e);
           }
         });
-        future_.onError(function (f) {
+        callFuture.onError(function (f) {
           log("Error in deleteAccount-future: " + f.exeption);
           logToApp("Could not deleteAccount: " + JSON.stringify(f.exeption));
-          future_.result = { returnValue: false };
+          callFuture.result = { returnValue: false };
         });
       } else {
         return SyncMLAccount.deleteAccountFromDB(account);
@@ -525,7 +541,7 @@ var SyncMLAccount = (function () {
     },
 
     getAccountInfo: function (account) {
-      var outerFuture = new Future(), future_;
+      var outerFuture = new Future(), callFuture;
       if (!account) {
         account = SyncMLAccount.getAccount();
         if (!account) {
@@ -536,8 +552,8 @@ var SyncMLAccount = (function () {
         //don't have created an account with webOs, yet.. only my object seems to exist right now.
         outerFuture.result = {returnValue: false, account: account};
       } else {
-        future_ = PalmCall.call("palm://com.palm.service.accounts/", "getAccountInfo", {"accountId": account.accountId});
-        future_.then(function (future) {
+        callFuture = PalmCall.call("palm://com.palm.service.accounts/", "getAccountInfo", {"accountId": account.accountId});
+        callFuture.then(function (future) {
           try {
             if (future.result.returnValue === true) {
               log("getAccountInfo success" + JSON.stringify(future.result) + "\n");
@@ -557,15 +573,14 @@ var SyncMLAccount = (function () {
               log("getAccountInfo failure: " + JSON.stringify(future.result));
             }
             outerFuture.result = {returnValue: future.result.returnValue, account: account};
-          }
-          catch (e) {
+          } catch (e) {
             logError_lib(e);
           }
         });
-        future_.onError(function (f) {
+        callFuture.onError(function (f) {
           log("Error in getAccountInfo-future: " + f.exeption);
           logToApp("Could not get account info: " + JSON.stringify(f.exeption));
-          future_.result = { returnValue: false };
+          callFuture.result = { returnValue: false };
         });
       }
       return outerFuture;
@@ -589,26 +604,26 @@ var SyncMLAccount = (function () {
       }
       try {
         log("modifying account " + account.name);
-        var future_ = PalmCall.call("palm://com.palm.service.accounts/", "modifyAccount",
+        var callFuture = PalmCall.call("palm://com.palm.service.accounts/", "modifyAccount",
             {
-          "accountId": account.accountId,
-          object:
-          {
-            "username": account.username,
-            "capabilityProviders": getCapabilities(account),
-            "alias": account.name,
-            "credentials":
-            {
-              "common": { "password": account.password }
-            },
-            "config":
-            {
-              "url": account.url,
-              "datastores": account.datastores
-            } //this will go to transport service...??? Why don't I get that with getAccountInfo? :(
-          }
+              "accountId": account.accountId,
+              object:
+                {
+                  "username": account.username,
+                  "capabilityProviders": getCapabilities(account),
+                  "alias": account.name,
+                  "credentials":
+                    {
+                      "common": { "password": account.password }
+                    },
+                  "config":
+                    {
+                      "url": account.url,
+                      "datastores": account.datastores
+                    } //this will go to transport service...??? Why don't I get that with getAccountInfo? :(
+                }
             });
-        future_.then(this, function (future) {
+        callFuture.then(this, function (future) {
           try {
             if (future.result.returnValue === true) {
               log("Account modified = " + JSON.stringify(future.result));
@@ -620,10 +635,10 @@ var SyncMLAccount = (function () {
             logError_lib(e);
           }
         });
-        future_.onError(function (f) {
+        callFuture.onError(function (f) {
           log("Error in modifyAccount-future: " + f.exeption);
           logToApp("Could not modify account: " + JSON.stringify(f.exeption));
-          future_.result = { returnValue: false };
+          callFuture.result = { returnValue: false };
         });
       } catch (error) {
         log("Error in modify account: " + error.name);

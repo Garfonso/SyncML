@@ -114,17 +114,35 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
 
   //sends a message to the server.
   function sendToServer(msg, callback, retry, id) {
-    var text, retrySend;
+    var text, retrySend, checkTimeout, received = false, lastSend, msgNr = id;
     retrySend = function (e) {
       if (retry <= 5) {
         log("Got " + e.name + ": " + e.message + ". Retrying (" + retry + ")");
         log("Complete exception: " + JSON.stringify(e));
         logToApp("Got " + e.name + ": " + e.message + ". Retrying (" + retry + ")");
         sendToServer(msg, callback, retry + 1, id);
+        lastSend = Date.now().getTime();
       } else {
         logError_lib({name: "ConnectionError", message: "No connection to server, even after retries."});
       }
-    }
+    };
+    checkTimeout = function() {
+      var now;
+      if (!received) {
+        log ("Message " + msgNr + " was send last before " + ((now - lastSend) / 1000) + " seconds, was not yet received.");
+        now = Date.now();
+        if (now - lastSend > 60*1000) { //last send before one minute?
+          if (retry <= 5) {
+            setTimeout(checkTimeout, 1000);
+          } else {
+            log("Already tried 5 times. Seems as if server won't answer? Sync seems broken.");
+          }
+          retrySend({name:"Timeout", message:"Got no response in one minute."});
+        }
+      } else {
+        log ("Message " + msgNr + " received, returning.");
+      }
+    };
     try {
       if (!retry) {
         retry = 0;
@@ -139,6 +157,8 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
       var future = AjaxCallPost(sessionInfo.url, text, 
           { "bodyEncoding":"utf8" , 
         "headers": {"Content-Type":"application/vnd.syncml+xml", "Content-Length": text.length} } );
+      lastSend = Date.now();
+      setTimeout(checkTimeout, 1000);
       future.then(this, function(f) {
         try {        
           if (f.result && f.result.status == 200) {
@@ -148,6 +168,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
             if (f.result.responseText === "") {
               retrySend({name:"ConnectionError", message:"Got empty response, this indicates connection problem."});
             } else {
+              received = true;
               callback(f.result.responseText);
             }
           } else { //request failure!
@@ -828,7 +849,8 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
 		        datastores.push({name: ds.name, type: ds.type});
 
 		        if (!ds.serverType || !ds.serverId || ds.method === "slow" || ds.method === "refresh-from-client" || ds.method === "refresh-from-server") {
-              		  doPutDevInfo = true;
+              doPutDevInfo = true;
+              ds.lastRev = 0; //reset last rev on refresh.
 		          nextMsg.doGetDevInfo();
 		        }
 		      }

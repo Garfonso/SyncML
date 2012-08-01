@@ -27,12 +27,15 @@ Known Issues:
 - Can't interpret "DAYLIGHT" string, yet. Need to extract TZID from that.
 - Still some errors won't return from service to caller...
 - 500 internal server error for onemediahub.com during check credentials. Hm. How to resolve that? 
-- shiftAllday won't work if server and client are in different timezones, causes issues with alarms disappearing. I need to get rid of that.
+- shiftAllday won't work if server and client are in different timezones, causes issues with alarms having wrong offsets.. hm. Need to evaluate again.
 - Create account from the account app won't work on TouchPad.
 
 Changelog:
+2012-08-01 => 0.1.20
+- fixed app to work after profil restore, username + password cannot be decrypted and need to be configured again. Also a refresh-from-server sync is triggered.
+- added additional timeout guard for network connections, so they (hopefully) don't hang forever on bad reception.
+- now lastRev is reset on a slow-sync or refresh. This will also help after profile restore.
 2012-07-10 => 0.1.19
-- fixed offset for allday alarms, was wrong sometimes.
 - fixed activities, they don't need to be deleted anymore.
 - fixed issue where for one account there could be multiple calendars.
 - fixed issue that prevented service from shutting down after sync if the app was still open.

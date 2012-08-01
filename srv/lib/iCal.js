@@ -233,10 +233,7 @@ var iCal = (function () {
     } else {
       //have date and time:
       result = DATETIME.exec(time);
-    }+  function buildALARM(alarm, text, allday, ts) {
-+    var i, j, field = undefined, translation, value, sign = 1, num, seconds;
-     translation = {
-
+    }
     //look at tzId. Shift whole thing that we have all day events on the right day, no matter the TZ.
     date = new Date(result[1], result[2] - 1, result[3], result[4], result[5], result[6]);
     t.offset = date.getTimezoneOffset() * 60000;
@@ -247,7 +244,7 @@ var iCal = (function () {
       t.ts = Date.UTC(result[1], result[2] - 1, result[3], result[4], result[5], result[6]); //get UTC timestamp from UTC date values :)
       if (t.allDayCue && shiftAllDay) { //move to 0:00 in local timeZone.
         t.ts += date.getTimezoneOffset() * 60000;
-        t.offset = date.getTimezoneOffset() * 60000;
+        //t.offset = date.getTimezoneOffset() * 60000;
       }
     } else { //this relies on a framework function from webOs.
       ts2 = date.getTime();
@@ -255,7 +252,7 @@ var iCal = (function () {
       if (t.allDayCue && shiftAllDay) {
         offset = (t.ts - ts2) * 2;
         t.ts -= offset;
-        t.offset = -offset;
+        //t.offset = -offset;
       }
     }
     return t;

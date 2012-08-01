@@ -1,5 +1,6 @@
 //JSLint options:
-/*global DB, log, iCal, SyncMLAccount */
+/*global DB, log, iCal, SyncMLAccount, logError_lib, Future, logToApp */
+/*jslint  nomen: true */
 "use strict";
 
 var eventCallbacks = (function () {
@@ -16,8 +17,7 @@ var eventCallbacks = (function () {
   function getEventsFromDB(input) {
     try {
       log("Getting events: " + JSON.stringify(input.query));
-      var future_ = DB.find(input.query, false, false);
-      future_.then(
+      DB.find(input.query, false, false).then(
         function (future) {
           try {
             var r = future.result;
@@ -39,19 +39,12 @@ var eventCallbacks = (function () {
           }
         }
       );
-      future_.onError(function (f) {
-        log("Error in getEventsFromDB future: " + f.exeption);
-        logToApp("Could not get events from DB: " + JSON.stringify(f.exeption));
-        future_.result = { returnValue: false };
-        input.success = false;
-        input.callback(input);
-      });
     } catch (exception) {
       log("Error in getEventsFromDB(Future): ");
       log(JSON.stringify(exception));
       input.success = false;
       input.callback(input);
-      logError_lib(e);
+      logError_lib(exception);
     }
   }
 
@@ -120,12 +113,12 @@ var eventCallbacks = (function () {
     log("Update event called");
     var doUpdate = function (input, event) {
       try {
-        var e = [event], recId = undefined, childId = undefined;
+        var e = [event], recId, childId;
         log("Event: " + e[0].subject + " with id: " + input.localId);
         e[0]._id = input.localId;
         e[0].calendarId = ids.calendarId; //need to set this to tell webOs in which calendar this event should be, undefined else. TODO: don't rely on global account object here. :(
         e[0].accountId = ids.accountId;
-  
+
         //try to find parentIds for children. 
         if (e[0].recurringId) {
           recId = e[0].recurringId;
@@ -147,18 +140,17 @@ var eventCallbacks = (function () {
           log("Is exception for " + recId);
           if (recurringEventIds[recId].id) { //if we have parentId all is fine, go on. 
             log("Got parentId " + recurringEventIds[recId] + " for " + e[0].subject);
-            delete e[0].parentLocalId; 
+            delete e[0].parentLocalId;
             e[0].parentId = recurringEventIds[recId];
           } else {
             childId = recurringEventIds[recId].childs.length;
             recurringEventIds[recId].childs.push(e[0]);
           }
         }
-  
+
         //continue update.
         e[0]._kind = "info.mobo.syncml.calendarevent:1";
-        var future_ = DB.merge(e);
-        future_.then(clone({ recurringId: recId, id: e[0]._id, child: childId }), //try to prevent others from overwriting data for this object. :(
+        DB.merge(e).then(clone({ recurringId: recId, id: e[0]._id, child: childId }), //try to prevent others from overwriting data for this object. :(
           function (future) {
             try {
               var r = future.result;
@@ -205,14 +197,8 @@ var eventCallbacks = (function () {
             } catch (e) {
               logError_lib(e);
             }
-          });
-        future_.onError(function (f) {
-          log("Error in updateEvent-future: " + f.exeption);
-          logToApp("Could not update Event: " + JSON.stringify(f.exeption));
-          future_.result = { returnValue: false };
-          input.success = false;
-          input.callback(input);
-        });
+          }
+          );
       } catch (exception) {
         log("Exception in UpdateEvent(doUpdate): " + exception + " - " + JSON.stringify(exception) + " at " + input.item + " with ID " + input.localId);
         input.success = false;
@@ -267,26 +253,25 @@ var eventCallbacks = (function () {
 			try {
 				var ids = [input.localId];
 				//delete with purge=true.
-				var future_ = DB.del(ids, false);
-				future_.then(
+				DB.del(ids, false).then(
 				  function (future) {
 				    try {
-  				    var r = future.result;
-  				    if (r.returnValue === true) {
+              var r = future.result;
+              if (r.returnValue === true) {
                 eventDeleted += 1;
                 if (this.eventsDeletedElement) {
                   this.eventsDeletedElement.innerHTML = eventDeleted;
                 }
                 input.success = true;
-  				    } else {
-  				      eventDeleteFailed += 1;
-  				      if (this.eventsDeleteFailedElement) {
-  				        this.eventsDeleteFailedElement.innerHTML = eventDeleteFailed;
-  				      }
-  				      log("Callback not successfull: " + future.exception.errorText + "(" + future.exception.errorCode + " for eventId: " + input.localId + "). :(");
-  				      input.success = false;
-  				    }
-  				    input.callback(input);
+              } else {
+                eventDeleteFailed += 1;
+                if (this.eventsDeleteFailedElement) {
+                  this.eventsDeleteFailedElement.innerHTML = eventDeleteFailed;
+                }
+                log("Callback not successfull: " + future.exception.errorText + "(" + future.exception.errorCode + " for eventId: " + input.localId + "). :(");
+                input.success = false;
+              }
+              input.callback(input);
 				    } catch (e) {
 	            log("Error in deleteEvent(Future): ");
 	            log(JSON.stringify(e));
@@ -296,13 +281,6 @@ var eventCallbacks = (function () {
 	          }
 				  }
 				);
-				future_.onError(function (f) {
-          log("Error in delEvent-future: " + f.exeption);
-          logToApp("Could not delete Event: " + JSON.stringify(f.exeption));
-          future_.result = { returnValue: false };
-          input.success = false;
-          input.callback(input);
-        });
 			} catch (exception) {
 				log("Exception in DeleteEvent: " + exception + " - " + JSON.stringify(exception));
 				input.success = false;
@@ -317,8 +295,7 @@ var eventCallbacks = (function () {
 		deleteAllEvents: function (input) {
 		  log("DeleteAll events called.");
       try {
-        var future_ = DB.del({from: "info.mobo.syncml.calendarevent:1", where: [{prop: "accountId", op: "=", val: ids.accountId}] }, false);
-        future_.then(
+        DB.del({from: "info.mobo.syncml.calendarevent:1", where: [{prop: "accountId", op: "=", val: ids.accountId}] }, false).then(
           function (future) {
             var r = future.result;
             if (r.returnValue === true) {
@@ -330,12 +307,6 @@ var eventCallbacks = (function () {
             }
           }
         );
-        future_.onError(function (f) {
-          log("Error in deleteAllEvents-future: " + f.exeption);
-          logToApp("Could not delete all Events: " + JSON.stringify(f.exeption));
-          future_.result = { returnValue: false };
-          input.callback({success: false});
-        });
 			} catch (exception) {
 				log("Exception in deleteAllEvents: " + exception + " - " + JSON.stringify(exception));
 				//something went wrong, continue sync:
@@ -362,7 +333,7 @@ var eventCallbacks = (function () {
 
 		getAllEvents: function (input) {
 		  log("Get all events called.");
-		  getEventsFromDB({callback: createEventArray, callback2: input.callback, serverData: input.serverData, query: {from: "info.mobo.syncml.calendarevent:1", 
+		  getEventsFromDB({callback: createEventArray, callback2: input.callback, serverData: input.serverData, query: {from: "info.mobo.syncml.calendarevent:1",
 		    where: [{prop: "accountId", op: "=", val: ids.accountId}]} }); //this query should just get all events.
 		},
 
@@ -396,7 +367,7 @@ var eventCallbacks = (function () {
                 log("Calendar was not associated with our account object...? Repaired that.");
               }
             }
-            
+
             if (!calPresent) {
               //no calendar => create one.
               account.datastores.calendar.dbId = undefined;
@@ -442,7 +413,7 @@ var eventCallbacks = (function () {
           log("Error in checkCalendar-future: " + f.exeption);
           logToApp("Could not find Calendar: " + JSON.stringify(f.exeption));
           resfuture.result = { returnValue: false };
-        }); 
+        });
       }
 			return resfuture;
 		},
@@ -451,12 +422,11 @@ var eventCallbacks = (function () {
 		  log("startTrackingChanges called.");
 			try {
 				log("Tracking changes for future updates.");
-				var future_ = DB.find({from: "info.mobo.syncml.calendarevent:1", 
-				                       where: [{prop: "accountId", op: "=", val: ids.accountId}], 
-				                       select: ["_rev"], incDel: true});
-				future_.then(
+				DB.find({from: "info.mobo.syncml.calendarevent:1",
+				                       where: [{prop: "accountId", op: "=", val: ids.accountId}],
+				                       select: ["_rev"], incDel: true}).then(
 				  function (future) {
-				    var r = future.result, i;
+				    var r = future.result, i, res;
 				    if (r.returnValue === true) {
 				      revs.calendar = 0; //this is necessary in case we got some to high rev from palm backup or whatever. 
 		          for (i = 0; i < r.results.length; i += 1) {
@@ -471,7 +441,7 @@ var eventCallbacks = (function () {
 		          } else {
 		            log("Could not save new rev in account object... wrong parameters applied?");
 		          }
-		          var res = outerFuture.result;
+		          res = outerFuture.result;
 		          if (!res) {
 		            res = {};
 		          }
@@ -482,11 +452,6 @@ var eventCallbacks = (function () {
 				    }
 				  }
 				);
-				future_.onError(function (f) {
-          log("Error in startTrackingChanges-future: " + f.exeption);
-          logToApp("Could not clean up event changes: " + JSON.stringify(f.exeption));
-          future_.result = { returnValue: false };
-        });
 			} catch (exception) {
 				log("Exception in startTrackingChanges: " + exception + " - " + JSON.stringify(exception));
         var res = outerFuture.result;
@@ -500,9 +465,9 @@ var eventCallbacks = (function () {
 		},
 
 		finishSync: function (account, outerFuture) {
-			var field = "", recEv, updates = 0, innerFuture = new Future();
+			var field = "", recEv, updates = 0, innerFuture = new Future(), updateReturn, finishFinished, updateParentId, res;
 		  try {
-		    var updateReturn = function () {
+		    updateReturn = function () {
 		      updates -= 1;
 		      if (updates === 0) {
 		        //all updates finished.
@@ -515,7 +480,7 @@ var eventCallbacks = (function () {
 		      }
 		    };
 
-		    var finishFinished = function (f) {
+		    finishFinished = function (f) {
 		      log("check if event cleanup finished.");
 		      if (f.result.updates && f.result.rev) {
 		        var res = outerFuture.result;
@@ -530,29 +495,30 @@ var eventCallbacks = (function () {
 		        f.then(finishFinished);
 		      }
 		    };
-		     
-		    var updateParentId = function(events, id) {
+
+		    updateParentId = function (events, id) {
 		      var i;
 		      try {
 		        if (!events) {
 		          log("Got no events...??");
 		          return;
 		        }
-  		      if (!id || !id.result || id.result.length === 0) {
-  		        log("Got no ids, can't set parentIds. Most probably we don't have that event, or something went wrong during parsing...");
-  		        return;
-  		      } else if (id.result.length > 1) {
-  		        log("Got " + id.result.length + " ids. Can't work with that... will take first id only.");
-  		      }
-  		      for (i = 0; i < events.length; i += 1) {
-  		        events[i].parentId = id.result[0]._id;
-  		        if (events[i]._id) { //prevent duplicate events here
-  		          updates += 1;
-  	            updateEvent({ event: events[i], callback: updateReturn.bind(this) });
-  		        } else {
-  		          log("Event somehow had no id set... can't update. :(");
-  		        }
-  		      }
+            if (!id || !id.result || id.result.length === 0) {
+              log("Got no ids, can't set parentIds. Most probably we don't have that event, or something went wrong during parsing...");
+              return;
+            }
+            if (id.result.length > 1) {
+              log("Got " + id.result.length + " ids. Can't work with that... will take first id only.");
+            }
+            for (i = 0; i < events.length; i += 1) {
+              events[i].parentId = id.result[0]._id;
+              if (events[i]._id) { //prevent duplicate events here
+                updates += 1;
+                updateEvent({ event: events[i], callback: updateReturn.bind(this) });
+              } else {
+                log("Event somehow had no id set... can't update. :(");
+              }
+            }
 		      } catch (e) {
             log("Error in updateParentId: ");
             log(JSON.stringify(e));
@@ -573,17 +539,17 @@ var eventCallbacks = (function () {
 			    }
 			  }
 			  if (updates === 0) {
-          var res = innerFuture.result;
+          res = innerFuture.result;
           if (!res) {
             res = {};
           }
           res.updates = true;
           innerFuture.result = res;
 			  }
-  			eventCallbacks.startTrackingChanges(account, innerFuture);
+        eventCallbacks.startTrackingChanges(account, innerFuture);
 
-  			innerFuture.then(finishFinished);
-  			
+        innerFuture.then(finishFinished);
+
         log("Did " + eventAdded + " adds, " + eventAddFailed + " adds failed.");
         log("Did " + eventUpdated + " updates, " + eventUpdateFailed + " updates failed.");
         log("Did " + eventDeleted + " deletes, " + eventDeleteFailed + " deletes failed.");

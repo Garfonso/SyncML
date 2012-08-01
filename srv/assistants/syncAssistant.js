@@ -1,9 +1,14 @@
-var syncAssistant = function (future) {};
+/*global Future, SyncMLAccount, log, eventCallbacks, outerFutures, finishAssistant_global, logSubscription, logError_global, startAssistant, logToApp, SyncML, initialize, PalmCall */
+
+var syncAssistant = function (future) {
+  "use strict";
+};
 
 syncAssistant.prototype.finished = function (account) {
-  var outerFuture = new Future(), saveAccounts, checkRevsResult = undefined, calendar, contacts, innerFuture = new Future(), res;
-  
-  saveAccounts = function () { 
+  "use strict";
+  var outerFuture = new Future(), saveAccounts, checkRevsResult, calendar, contacts, innerFuture = new Future(), res;
+
+  saveAccounts = function () {
     SyncMLAccount.setAccount(account);
     log("Saving config to store new revs.");
     SyncMLAccount.saveConfig(true).then(function (f) {
@@ -11,7 +16,7 @@ syncAssistant.prototype.finished = function (account) {
       outerFuture.result = { returnValue: f.result.returnValue };
     });
   };
-  
+
   checkRevsResult = function (f) {
     if (f.result.calendar && f.result.contacts) {
       saveAccounts();
@@ -20,7 +25,7 @@ syncAssistant.prototype.finished = function (account) {
       f.then(checkRevsResult);
     }
   };
-  
+
   if (account.datastores.calendar && account.datastores.calendar.enabled) {
     calendar = account.datastores.calendar;
     if (calendar.ok === true) {
@@ -45,7 +50,7 @@ syncAssistant.prototype.finished = function (account) {
       res = {};
     }
     res.calendar = true;
-    innerFuture.result = res;    
+    innerFuture.result = res;
   }
   if (account.datastores.contacts && account.datastores.contacts.enabled) {
     contacts = account.datastores.contacts;
@@ -78,13 +83,19 @@ syncAssistant.prototype.finished = function (account) {
 };
 
 syncAssistant.prototype.run = function (outerFuture, subscription) {
+  "use strict";
   log("============== syncAssistant");
-  var finishAssistant, logError, initializeCallback, syncCallback, finishCallback, checkAccountCallback, 
-      f, args = this.controller.args, account = this.controller.args, accountId;
+  var finishAssistant, logError, initializeCallback, syncCallback, finishCallback, checkAccountCallback,
+    f, args = this.controller.args, account = this.controller.args, accountId;
   log("Activity: " + JSON.stringify(this.controller.args.$activity));
   //log("args: " + JSON.stringify(args));
   if (args.$activity && args.$activity.trigger && args.$activity.trigger.returnValue === false) {
     log("Error with activity: " + JSON.stringify(args));
+    return;
+  }
+  if (args.$activity && args.$activity.name && args.$activity.name.indexOf("watch") > 0) {
+    log("Watch fired, delaying a few minutes till changes are completed.");
+    this.delaySync(account, args.$activity.name);
     return;
   }
   try {
@@ -98,14 +109,14 @@ syncAssistant.prototype.run = function (outerFuture, subscription) {
       finishAssistant_global({name: "syncAssistant", outerFuture: outerFuture, result: result, accountId: accountId});
       logSubscription = undefined; //delete subscription.
     };
-    logError = function(e) {
+    logError = function (e) {
       logError_global(e, "syncAssistant");
       finishAssistant({finalResult: true, returnVaule: false, success: false});
     };
     //log("Params: " + JSON.stringify(this.controller.args));
     log("Future: " + JSON.stringify(outerFuture.result));
-        
-    if (!startAssistant({name: "syncAssistant", outerFuture: outerFuture, accountId: accountId, run: this.run.bind(this) })){
+
+    if (!startAssistant({name: "syncAssistant", outerFuture: outerFuture, accountId: accountId, run: this.run.bind(this) })) {
       delete outerFuture.result;
       if (subscription) {
         logSubscription = subscription; //cool, seems to work. :)
@@ -113,8 +124,8 @@ syncAssistant.prototype.run = function (outerFuture, subscription) {
       }
       return;
     }
-    
-    if (!args.accountId && !args.index >= 0 && !args.name) {
+
+    if (!args.accountId && !(args.index >= 0) && !args.name) {
       log("Need accountId or account.index or account.name to sync!");
       finishAssistant({ finalResult: true, success: false, reason: "Parameters not sufficient. " + JSON.stringify(args) });
       return;
@@ -123,7 +134,7 @@ syncAssistant.prototype.run = function (outerFuture, subscription) {
     //disable activities until we are finished with sync:
     //checkActivities({name: account.name}); //TODO: move this to initialization and wait for the callbacks to return. Here VERY wrong for activities themselfes!!! :(
 
-    
+
     finishCallback = function (f) {
       if (f.result.returnValue === true) {
         log("Success, returning to client");
@@ -134,7 +145,7 @@ syncAssistant.prototype.run = function (outerFuture, subscription) {
       }
     };
 
-    syncCallback = function (result) { 
+    syncCallback = function (result) {
       try {
         log("Sync came back.");
         //log("result: " + JSON.stringify(result));
@@ -158,23 +169,21 @@ syncAssistant.prototype.run = function (outerFuture, subscription) {
           eventCallbacks.setAccountAndDatastoreIds({accountId: account.accountId, calendarId: account.datastores.calendar.dbId});
           eventCallbacks.setRevisions({calendar: account.datastores.calendar.lastRev || 0});
           SyncML.setCallbacks([
-                               {
-                                 name: "calendar",
-                                 //needs to get all calendar data and call callback with { update: [ all data here ] }, callback
-                                 getAllData: eventCallbacks.getAllEvents,
-                                 //needs to get only new calendar data and call callback with { update: [modified], add: [new], del: [deleted] }, callback
-                                 getNewData: eventCallbacks.getNewEvents,
-                                 //this will be called on refresh from server to delete all local data. Call callback with {}.
-                                 deleteAllData: eventCallbacks.deleteAllEvents,
-                                 //Param: {type: add, callback, globalId: ..., item: new item data }. call callback with {type: add, globalId: ..., localId: ... success: true/false }
-                                 newEntry: eventCallbacks.createEvent,
-                                 //Param: {type: update, callback, localId: ..., item: new data }. Call callback with { type: update, globalId: ..., localId: ... success: true/false }.
-                                 updateEntry: eventCallbacks.updateEvent,
-                                 //Param: { type: del, callback, localId: ... }. Call callback with { type: del, globalId: ..., localId: ... success: true/false }. 
-                                 delEntry: eventCallbacks.deleteEvent
-                               }
-                               ]
-          );
+            {
+              name: "calendar",
+              //needs to get all calendar data and call callback with { update: [ all data here ] }, callback
+              getAllData: eventCallbacks.getAllEvents,
+              //needs to get only new calendar data and call callback with { update: [modified], add: [new], del: [deleted] }, callback
+              getNewData: eventCallbacks.getNewEvents,
+              //this will be called on refresh from server to delete all local data. Call callback with {}.
+              deleteAllData: eventCallbacks.deleteAllEvents,
+              //Param: {type: add, callback, globalId: ..., item: new item data }. call callback with {type: add, globalId: ..., localId: ... success: true/false }
+              newEntry: eventCallbacks.createEvent,
+              //Param: {type: update, callback, localId: ..., item: new data }. Call callback with { type: update, globalId: ..., localId: ... success: true/false }.
+              updateEntry: eventCallbacks.updateEvent,
+              //Param: { type: del, callback, localId: ... }. Call callback with { type: del, globalId: ..., localId: ... success: true/false }. 
+              delEntry: eventCallbacks.deleteEvent
+            }]);
           log("SyncML initialized.");
           logToApp("SyncML completely initialized, starting sync process.");
           SyncML.sendSyncInitializationMsg(syncCallback.bind(this));
@@ -190,7 +199,7 @@ syncAssistant.prototype.run = function (outerFuture, subscription) {
     initializeCallback = function (f2) {
       if (f2.result.returnValue === true) {
         log("initialize.result: " + JSON.stringify(f2.result));
-        
+
         log("Starting sync");
         if (account && account.accountId) {
           account = SyncMLAccount.getAccountById(account.accountId);
@@ -199,12 +208,12 @@ syncAssistant.prototype.run = function (outerFuture, subscription) {
         } else if (account.name) {
           account = SyncMLAccount.getAccountByName(account.name);
         }
-        if(args.$activity) {
+        if (args.$activity) {
           args.$activity.accountId = account.accountId;
         }
 
-        
-        if(!account.username || !account.password || !account.url) {
+
+        if (!account.username || !account.password || !account.url) {
           log("Account seems to be not fully configured. Can't sync.");
           log("Account: " + JSON.stringify(account));
           finishAssistant({ finalResult: true, success: false, reason: "Account not fully configured: " + JSON.stringify(account) });
@@ -218,13 +227,13 @@ syncAssistant.prototype.run = function (outerFuture, subscription) {
       }
       //return future;
     };
-    
+
     logSubscription = subscription;
     try {
       f = initialize({devID: true, keymanager: true, accounts: true, accountsInfo: true, iCal: true});
       f.then(this, initializeCallback);
-    } catch (e) { 
-      logError(e);
+    } catch (e1) {
+      logError(e1);
     }
   } catch (e) {
     logError(e);
@@ -232,6 +241,7 @@ syncAssistant.prototype.run = function (outerFuture, subscription) {
 };
 
 syncAssistant.prototype.checkAccount = function (account) {
+  "use strict";
   var future = new Future();
   log("Check account");
   if (account.accountId !== undefined) {
@@ -250,7 +260,7 @@ syncAssistant.prototype.checkAccount = function (account) {
     });
   } else {
     log("Need to create account.");
-    SyncMLAccount.createAccount(account).then(this, function(f1) {
+    SyncMLAccount.createAccount(account).then(this, function (f1) {
       if (f1.result.returnValue) {
         log("Account created.");
         eventCallbacks.checkCalendar(f1.result.account).then(function (f2) {
@@ -265,34 +275,96 @@ syncAssistant.prototype.checkAccount = function (account) {
   return future;
 };
 
-syncAssistant.prototype.complete = function() {
-	var args = this.controller.args;
-	var activity = args.$activity;
-  var account = SyncMLAccount.getAccountById(activity.accountId);
+syncAssistant.prototype.delaySync = function (account, name) {
+  "use strict";
+  log("Account: " + JSON.stringify(account));
+  log("Name: " + name);
+  if (!account.name) {
+    var a2 = SyncMLAccount.getAccountById(account.accountId);
+    if (a2) {
+      account = a2;
+    }
+  }
+  //try {
+  var activityType = {
+      //foreground: true,
+      background: true, //try background. Idea: user does something in calendar, and as soon as she finishes, push that to server.
+      //immediate: true,
+      //priority: "low",
+      pausable: false, //we don't like to be paused, after all that is communication with the server. :(
+      cancellable: false, //that is even worse!
+      power: true, //do we really need that?
+      powerDebounce: true,
+      explicit: false, //let's try it this way.. hm.
+      persist: false //we want to keep that activity around!
+    },
+    activityCallback = {
+      method: "palm://info.mobo.syncml.client.service/sync",
+      params: { accountId: account.accountId } //prevent password and so on from being stored in another DB. AccountID is sufficient here.
+    };
+
+  //calendar watch:
+  PalmCall.call("palm://com.palm.activitymanager/", "cancel", { activityName: name + ".delayed" }).then(function (f) {
+    log("Cancelled delayed activity for " + account.name + ", " + name + ".delayed.");
+    var activityCal = {
+        name: "info.mobo.syncml:" + name + ".delayed",
+        description: "Synergy SyncML delayed watch activity",
+        type: activityType,
+        requirements: {
+          internet: true
+        },
+        schedule: { interval: "5m" },
+        callback: activityCallback
+      };
+    log("Adding delayed activity");
+    PalmCall.call("palm://com.palm.activitymanager/", "create", { start: true, activity: activityCal }).then(function (f1) {
+      log("delayed activity for " + name + " created.");
+      log(JSON.stringify(f1.result));
+    });
+  });
+};
+
+syncAssistant.prototype.complete = function () {
+	"use strict";
+  var args = this.controller.args, activity, account, trigger, restart = false;
+	activity = args.$activity;
+  if (activity) {
+    account = SyncMLAccount.getAccountById(activity.accountId);
+  }
   log("============== Sync.complete");
   log("Activity was: " + JSON.stringify(activity));
   if (activity && activity.trigger && activity.trigger.returnValue === false) {
     log("Error with activity " + activity.name + ": " + JSON.stringify(activity.trigger));
     return;
   }
-  if (activity && activity.trigger && activity.trigger.returnValue) {
-    var trigger = undefined;
+  if (activity && activity.trigger && activity.trigger.returnValue && account) {
+    if (activity.name.indexOf(".delayed") > 0) {
+      log("Delayed activity " + activity.name + " finished. Restart watch.");
+      activity.name = activity.name.substr(0, activity.name.indexOf(".delayed"));
+      restart = true;
+    }
     if (activity.name === "info.mobo.syncml:" + account.name + ".watchCalendar") {
       trigger = { method: "palm://com.palm.db/watch", key: "fired",
             params: { subscribe: true, query: {
-                from: "info.mobo.syncml.calendarevent:1",  //it's necessary that the comparison with _rev is at index 1 to update the rev value in complete.
-                where: [ {prop: "accountId", op: "=", val: account.accountId}, { prop: "_rev", op: ">", val: account.datastores.calendar.lastRev || 0 } ],	incDel: true}}};
+          from: "info.mobo.syncml.calendarevent:1",  //it's necessary that the comparison with _rev is at index 1 to update the rev value in complete.
+          where: [ {prop: "accountId", op: "=", val: account.accountId}, { prop: "_rev", op: ">", val: account.datastores.calendar.lastRev || 0 } ],
+          incDel: true
+        }}};
     } else if (activity.name === "info.mobo.syncml:" + account.name + ".watchContacts") {
       trigger = { method: "palm://com.palm.db/watch", key: "fired",
               params: { subscribe: true, query: {
-                from: "info.mobo.syncml.contact:1", //it's necessary that the comparison with _rev is at index 1 to update the rev value in complete.
-                where: [ {prop: "accountId", op: "=", val: account.accountId}, { prop: "_rev", op: ">", val: account.datastores.contacts.lastRev || 0 } ],	incDel: true}}};
+          from: "info.mobo.syncml.contact:1", //it's necessary that the comparison with _rev is at index 1 to update the rev value in complete.
+          where: [ {prop: "accountId", op: "=", val: account.accountId}, { prop: "_rev", op: ">", val: account.datastores.contacts.lastRev || 0 } ],
+          incDel: true
+        }}};
+    } else {
+      restart = true;
     }
-    return PalmCall.call("palm://com.palm.activitymanager/", "complete", { activityId: activity.activityId, trigger: trigger, restart: true }).then(function (f) {
+    return PalmCall.call("palm://com.palm.activitymanager/", "complete", { activityId: activity.activityId, trigger: trigger, restart: restart }).then(function (f) {
       log("activity restarted: ", JSON.stringify(f.result));
       f.result = { returnValue: true };
     });
-  } else {
+  } //else {
     //checkActivities(activity.account); //hopefully that works ok. :(
-  }
+  //}
 };
