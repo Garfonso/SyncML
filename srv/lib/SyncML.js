@@ -1,5 +1,5 @@
 //JSLint options:
-/*global AjaxCall, log, Mojo, syncMLMessage, Base64, setTimeout */
+/*global AjaxCall, log, logToApp, logError_lib, syncMLMessage, Base64, setTimeout, ajaxCallPost */
 
 "use strict";
 var SyncMLModes = {
@@ -38,7 +38,7 @@ var SyncMLAlertCodes = {
 
 //some more or less static device infos.
 var DeviceProperties = {
-    man: "MoboSync for WebOs",
+    man: "WebOSMoboSync",
     mod: "", 
     oem: "MoboSync",
     fwv: "20.11.2011", //set firmware version to today.
@@ -73,7 +73,7 @@ var MimeTypes = {
 };
 
 var SyncML = (function () {      //lastMsg allways is the last response from the server, nextMsg allways is the message that we are currently building to send.
-  var sessionInfo, account = {}, lastMsg = undefined, nextMsg = undefined,
+  var sessionInfo, account = {}, lastMsg, nextMsg,
   //callbacks to get event / contacts data as iCal / vCard strings.
   //will all receive a callback function as parameter, that is to be called with "false" in the case of errors.
   //otherwise it needs to be supplied to the called sync function!
@@ -114,7 +114,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
 
   //sends a message to the server.
   function sendToServer(msg, callback, retry, id) {
-    var text, retrySend, checkTimeout, received = false, lastSend, msgNr = id;
+    var text, retrySend, checkTimeout, received = false, lastSend, msgNr = id, future;
     retrySend = function (e) {
       if (retry <= 5) {
         log("Got " + e.name + ": " + e.message + ". Retrying (" + retry + ")");
@@ -154,14 +154,14 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
       text = msg.buildMessage({sessionId: sessionInfo.sessionId, msgId: id, target: account.url, source: DeviceProperties.id});
       log("Sending to server: " + text);
       nextMsg = msg; //just in case. :)
-      var future = AjaxCallPost(sessionInfo.url, text, 
+      future = ajaxCallPost(sessionInfo.url, text, 
           { "bodyEncoding":"utf8" , 
         "headers": {"Content-Type":"application/vnd.syncml+xml", "Content-Length": text.length} } );
       lastSend = Date.now();
       setTimeout(checkTimeout, 1000);
       future.then(this, function(f) {
         try {        
-          if (f.result && f.result.status == 200) {
+          if (f.result && f.result.status === 200) {
             log("Status of message: " + f.result.status);
             log("Request succeeded, Got: ");
             log(f.result.responseText);
@@ -173,7 +173,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
             }
           } else { //request failure!
             log("Request failed");
-            var error = undefined;
+            var error;
             if (f.result) {
               error = f.result.status;
             } 
@@ -208,7 +208,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
   }
 
   function generalParseMsg(text) {
-    var i, j, k, failed, cmd, datastores, source, types, type = undefined, ds;
+    var i, j, k, failed, cmd, datastores, source, types, type, ds;
     try {
       lastMsg = syncMLMessage();
       /*i = 1;
@@ -228,12 +228,12 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
             log("Server does not support put dev info, ignore.");
             failed.splice(i, 1);
             i -= 1;
-          } else if (failed[i].status.cmdRef == 0) {
+          } else if (failed[i].status.cmdRef === "0") {
             log("Credentials not accepted by server. Can't sync! Please check credentials and try again.");
             logToApp("Credentials not accepted by server. Can't sync! Please check credentials and try again.");
             resultCallback({success: false});
           } else {
-            if (failed[i].status && failed[i].status.data == "406") {
+            if (failed[i].status && failed[i].status.data === "406") {
               logToApp("Warning: Server said to not support optional command " + JSON.stringify(failed[i]));
               failed.splice(i, 1);
               i -= 1;
@@ -344,10 +344,10 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
         } //end of results cmd.
       }
       return failed;
-    } catch (e) {
-      logToApp(e.name + " during message parsing: " + e.message);
+    } catch (e1) {
+      logToApp(e1.name + " during message parsing: " + e1.message);
       log("Error in generalParseMsg:");
-      log(JSON.stringify(e));
+      log(JSON.stringify(e1));
     }
     return [];
   }
@@ -454,7 +454,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
   //needs to be generated and send.
   //remark: we don't check item type anywhere.. this would be the right place.
   parseSyncResponse = function (responseText) {
-    var lastOwn, failed, i, j, k, sync, callbacks = ["newEntry", "delEntry", "updateEntry"], ti, item, cmd, realFailure, ds, waitingSync = undefined;
+    var lastOwn, failed, i, j, k, sync, callbacks = ["newEntry", "delEntry", "updateEntry"], ti, item, cmd, realFailure, ds, waitingSync, cmdName;
     try {
       lastOwn = nextMsg;
       failed = generalParseMsg(responseText);
@@ -472,11 +472,11 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
             log("Conflict resolved on server side with server data. Own cmd and status: " + JSON.stringify(failed[i]));
             logToApp("Conflict resolved on server side with server data: " + JSON.stringify(failed[i].cmd.items[0].data));
           } else {
-            var cmdName = failed[i].status.cmd;
+            cmdName = failed[i].status.cmd;
             if (!cmdName) {
               cmdName = failed[i].status.cmdName;
             }
-            if (cmdName == "Replace" || cmdName == "Add" || cmdName == "Delete") {
+            if (cmdName === "Replace" || cmdName === "Add" || cmdName === "Delete") {
               logToApp(cmdName + " of " + failed[i].cmd.items[0].data + " failed with " + failed[i].status.data);
               log("failed: " + JSON.stringify(failed[i]));
             } else {
@@ -556,7 +556,8 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
                   globalId: {sync: i, item: k, cmd: j, cmdId: cmd.cmdId }, //abuse cmdId to get globalId later and find status better later. :)
                   item: item,
                   name: ds.name,
-                  serverData: ds
+                  serverData: ds,
+                  account: account
                 }
               );
             }
@@ -573,7 +574,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
   };
 
   function mContinueSync(name, data) {
-    var addedItems = 0, ti = 0, i, obj;
+    var addedItems = 0, ti = 0, i, obj, type;
     //TODO: what happens if this is called two times with different data objects?
     try {
       if (!data.success) {
@@ -583,15 +584,19 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
       for (ti = 0; ti < types.length; ti += 1) {
         for (i = 0; data[types[ti]] && i < data[types[ti]].length; i += 1) {
           obj = data[types[ti]][i];
+          type = types[ti];
+          if (account.datastores[name].method === "slow" && type === "replace") { //make sure that we send only adds on slow sync.
+            type = "add";
+          }
           nextMsg.addSyncCmd({
-            type: types[ti],
+            type: type,
             item: {
               data:  obj.data ? "<![CDATA[" + Base64.encode(obj.data) + "]]>" : undefined,
               source: obj.localId,
               //target: obj.uid,
               meta: {
                 type: account.datastores[name].serverType ? account.datastores[name].serverType : account.datastores[name].type,
-                format: "b64", //do we want b64? First try without, maybe.. easier to debug.
+                format: "b64" //do we want b64? First try without, maybe.. easier to debug.
               }
             }
           });
@@ -643,15 +648,15 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
           method = account.datastores[dsNames[i]].method;
           if (method === "slow" || method === "refresh-from-client") {
             log("Getting all data, because of slow sync or refresh from client.");
-            account.datastores[dsNames[i]].getAllData({callback: mContinueSync.bind(null, dsNames[i]), serverData: account.datastores[dsNames[i]] });
+            account.datastores[dsNames[i]].getAllData({callback: mContinueSync.bind(null, dsNames[i]), serverData: account.datastores[dsNames[i]], account: account});
             account.datastores[dsNames[i]].state = "gatheringAllData";
           } else if (method === "two-way" || method === "one-way-from-client") {
             log("Getting new data, because of two-way sync or one way from client.");
-            account.datastores[dsNames[i]].getNewData({callback: mContinueSync.bind(null, dsNames[i]), serverData: account.datastores[dsNames[i]]});
+            account.datastores[dsNames[i]].getNewData({callback: mContinueSync.bind(null, dsNames[i]), serverData: account.datastores[dsNames[i]], account: account});
             account.datastores[dsNames[i]].state = "gatheringNewData";
           } else if (method === "refresh-from-server") {
             log("Deleting all data, because of refresh from server.");
-            account.datastores[dsNames[i]].deleteAllData({callback: mContinueSync.bind(null, dsNames[i]), serverData: account.datastores[dsNames[i]]});
+            account.datastores[dsNames[i]].deleteAllData({callback: mContinueSync.bind(null, dsNames[i]), serverData: account.datastores[dsNames[i]], account: account});
             account.datastores[dsNames[i]].state = "deletingAllData";
           } else if (method === "one-way-from-server") {
             log("Don't get any calendar data, because of one way from server sync.");

@@ -6,7 +6,7 @@ try {
   var Future = Foundations.Control.Future; // Futures library
 	var DB = Foundations.Data.DB;  // db8 wrapper library
 	var PalmCall = Foundations.Comms.PalmCall;
-  var AjaxCall = Foundations.Comms.AjaxCall;
+  //var AjaxCall = Foundations.Comms.AjaxCall;
   var Calendar = IMPORTS.calendar; 
   var path = IMPORTS.require('path');
   var fs = IMPORTS.require('fs');
@@ -92,7 +92,7 @@ var stream;
 var log = function (logmsg) {
 	console.error(logmsg);
 	try {
-	  if (typeof stream == "undefined") {
+	  if (typeof stream === "undefined") {
 	    stream = fs.createWriteStream("/media/internal/.info.mobo.syncml.log", {flags:"a"});
 	  }
 	  stream.write(new Date() + ": " + logmsg + "\n");
@@ -127,7 +127,7 @@ process.on("uncaughtException",function(e) {
   logError_lib(e);
 });
 
-var logSubscription = undefined;
+var logSubscription;
 var logToApp = function (logmsg) {
   log("==============================================");
   log("To App: " + logmsg);
@@ -152,10 +152,14 @@ var logGUI = function (controller, logInfo) {
 
 var fresult = {};
 var initialize = function(params) {
-  var future = new Future(), innerFuture = new Future(fresult), initFinishCheck = undefined;
+  var future = new Future(), innerFuture = new Future(fresult), initFinishCheck;
   log("initialize helper, status: " + JSON.stringify(fresult));
   if (params.iCal) {
     iCal.intitialize(innerFuture);
+  }
+  
+  if (params.accounts) {
+    params.keymanager = true;
   }
   
   initAccounts = function (f) {
@@ -380,14 +384,14 @@ var Base64 = {
 };
 
 //own AjaxCall, because it is broken in webOS 2.2.4
-var AjaxCallPost = function (url, body, options) {
+var ajaxCallPost = function (url, body, options) {
   var method = "POST";
   return new Future().now(this, function(future) {
     options = options || {};
     // console.log("Options: " + JSON.stringify(options));
     method = method.toUpperCase();
     
-    if (body && method !== AjaxCall.RequestMethod.POST)
+    /*if (body && method !== AjaxCall.RequestMethod.POST)
     {
       if (url.match("\\?")) {
         url = url + "&" + body;
@@ -395,7 +399,7 @@ var AjaxCallPost = function (url, body, options) {
         url = url + "?" + body;
       }
       body = undefined;
-    }
+    }*/
     
     if (options.customRequest) {
       method = options.customRequest;
@@ -542,8 +546,8 @@ var checkActivities = function (account) {
                 //priority: "low",
                 pausable: false, //we don't like to be paused, after all that is communication with the server. :(
                 cancellable: false, //that is even worse!
-                power: true, //do we really need that?
-                powerDebounce: true,
+                //power: true, //do we really need that?
+                //powerDebounce: true,
                 explicit: true, //let's try it this way.. hm.
                 persist: true //we want to keep that activity around!
               };
@@ -557,7 +561,7 @@ var checkActivities = function (account) {
     //calendar watch:
     PalmCall.call("palm://com.palm.activitymanager/", "cancel", { activityName: "info.mobo.syncml:" + account.name + ".watchCalendar" }).then(function(f) {
       log("Cancelled Calendar Watch activity for " + account.name + ".");
-      if (!account.datastores.calendar || !account.datastores.calendar.enabled || !account.dbWatch) {
+      if (!account.datastores.calendar || !account.datastores.calendar.enabled || !account.dbWatch) { //watch disabled currently, because of issues.. :(
         log("Calendar watch activity not necessary, all ok.");
       } else {
         var activityCal = {
@@ -565,7 +569,7 @@ var checkActivities = function (account) {
             description: "Synergy SyncML calendar changes Watch",
             type: activityType,
             requirements: {
-              internet: true
+              internetConfidence: "fair"
             },
             trigger: { method: "palm://com.palm.db/watch", key: "fired",
               params: { subscribe: true, query: {
@@ -593,7 +597,7 @@ var checkActivities = function (account) {
             description: "Synergy SyncML contact changes Watch",
             type: activityType,
             requirements: {
-              internet: true
+              internetConfidence: "fair"
             },
             trigger: { method: "palm://com.palm.db/watch", key: "fired",
                 params: { subscribe: true, query: {
@@ -619,7 +623,7 @@ var checkActivities = function (account) {
             description: "Synergy SyncML periodic sync",
             type: activityType,
             requirements: {
-              internet: true
+              internetConfidence: "fair"
             },
             schedule: { interval: account.syncInterval },
             callback: activityCallback

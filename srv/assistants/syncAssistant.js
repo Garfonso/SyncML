@@ -29,7 +29,7 @@ syncAssistant.prototype.finished = function (account) {
   if (account.datastores.calendar && account.datastores.calendar.enabled) {
     calendar = account.datastores.calendar;
     if (calendar.ok === true) {
-      log("Calendar sync worked.");
+      log("Calendar sync worked, rev: " + calendar.lastRev);
       //keep changes for next two-way.
       eventCallbacks.finishSync(account, innerFuture);
       if (calendar.method === "slow" || calendar.method.indexOf("refresh") !== -1) {
@@ -93,9 +93,29 @@ syncAssistant.prototype.run = function (outerFuture, subscription) {
     log("Error with activity: " + JSON.stringify(args));
     return;
   }
-  if (args.$activity && args.$activity.name && args.$activity.name.indexOf("watch") > 0) {
+  if (args.$activity && args.$activity.name && args.$activity.name.indexOf("watch") >= 0 && args.$activity.name.indexOf(".delayed") === -1) {
     log("Watch fired, delaying a few minutes till changes are completed.");
-    this.delaySync(account, args.$activity.name);
+    initialize({accounts: true}).then(this, function (future) {
+      //get account:
+      var a2 = SyncMLAccount.getAccountById(account.accountId);
+      if (!a2) {
+        a2 = {accountId: account.accountId};
+      }
+      log("Got account: " + a2.name);
+      this.delaySync(a2, args.$activity.name);
+      //will retrigger watchActivity in onComplete.
+      eventCallbacks.getLatestRev(a2).then(this, function (f2) {
+        var rev = 0;
+        if (f2.result.returnValue) {
+          rev = f2.result.rev;
+        } else {
+          log("Could not get lastRev from DB! Result: " + JSON.stringify(f2.result));
+        }
+        log("Retrigger watch with rev " + rev);
+        this.retriggerActivities(args.$activity, a2, rev);
+        outerFuture.result = {returnValue: true};
+      });
+    });
     return;
   }
   try {
@@ -125,7 +145,7 @@ syncAssistant.prototype.run = function (outerFuture, subscription) {
       return;
     }
 
-    if (!args.accountId && !(args.index >= 0) && !args.name) {
+    if (!args.accountId && args.index < 0 && !args.name) {
       log("Need accountId or account.index or account.name to sync!");
       finishAssistant({ finalResult: true, success: false, reason: "Parameters not sufficient. " + JSON.stringify(args) });
       return;
@@ -166,8 +186,6 @@ syncAssistant.prototype.run = function (outerFuture, subscription) {
           log("Finishing initialization of SyncML framework.");
           SyncML.initialize(account);
           delete account.datastores.contacts; //be sure to not sync contacts, yet.
-          eventCallbacks.setAccountAndDatastoreIds({accountId: account.accountId, calendarId: account.datastores.calendar.dbId});
-          eventCallbacks.setRevisions({calendar: account.datastores.calendar.lastRev || 0});
           SyncML.setCallbacks([
             {
               name: "calendar",
@@ -277,14 +295,8 @@ syncAssistant.prototype.checkAccount = function (account) {
 
 syncAssistant.prototype.delaySync = function (account, name) {
   "use strict";
-  log("Account: " + JSON.stringify(account));
-  log("Name: " + name);
-  if (!account.name) {
-    var a2 = SyncMLAccount.getAccountById(account.accountId);
-    if (a2) {
-      account = a2;
-    }
-  }
+  //log("Account: " + JSON.stringify(account));
+  log("Delay: " + name);
   //try {
   var activityType = {
       //foreground: true,
@@ -296,7 +308,7 @@ syncAssistant.prototype.delaySync = function (account, name) {
       power: true, //do we really need that?
       powerDebounce: true,
       explicit: false, //let's try it this way.. hm.
-      persist: false //we want to keep that activity around!
+      persist: true //we want to keep that activity around!
     },
     activityCallback = {
       method: "palm://info.mobo.syncml.client.service/sync",
@@ -306,27 +318,66 @@ syncAssistant.prototype.delaySync = function (account, name) {
   //calendar watch:
   PalmCall.call("palm://com.palm.activitymanager/", "cancel", { activityName: name + ".delayed" }).then(function (f) {
     log("Cancelled delayed activity for " + account.name + ", " + name + ".delayed.");
-    var activityCal = {
-        name: "info.mobo.syncml:" + name + ".delayed",
+    var date = new Date(), activityCal;
+    date.setMinutes(date.getMinutes()+1);
+    activityCal = {
+        name: name + ".delayed",
         description: "Synergy SyncML delayed watch activity",
         type: activityType,
         requirements: {
-          internet: true
+          internetConfidence: "fair"
         },
-        schedule: { interval: "5m" },
+        schedule: { 
+          "start"    : date.getFullYear() + "-" + (date.getMonth()+1) + "-" + date.getDate() + " " + date.getHours() + ":" + date.getMinutes() + ":" + date.getSeconds(),
+          "local"    : true
+        },
         callback: activityCallback
       };
-    log("Adding delayed activity");
-    PalmCall.call("palm://com.palm.activitymanager/", "create", { start: true, activity: activityCal }).then(function (f1) {
+    log("Adding delayed activity at " + activityCal.schedule.start);
+    PalmCall.call("palm://com.palm.activitymanager/", "create", { start: true, replace: true, activity: activityCal }).then(function (f1) {
       log("delayed activity for " + name + " created.");
       log(JSON.stringify(f1.result));
     });
   });
 };
 
+syncAssistant.prototype.retriggerActivities = function(activity, account, rev) {
+  "use strict";
+  log("Retriggering activity " + activity ? activity.name : "undefined");
+  var restart = true, trigger; //restart all except delayed.
+  if (activity && activity.trigger && activity.trigger.returnValue && account) {
+    if (activity.name.indexOf(".delayed") > 0) {
+      log("Delayed activity " + activity.name + " finished. Won't restart.");
+      restart = false;
+    } else if (activity.name === "info.mobo.syncml:" + account.name + ".watchCalendar") {
+      trigger = { method: "palm://com.palm.db/watch", key: "fired",
+            params: { subscribe: true, query: {
+          from: "info.mobo.syncml.calendarevent:1",  //it's necessary that the comparison with _rev is at index 1 to update the rev value in complete.
+          where: [ {prop: "accountId", op: "=", val: account.accountId}, { prop: "_rev", op: ">", val: rev || account.datastores.calendar.lastRev || 0 } ],
+          incDel: true
+        }}};
+    } else if (activity.name === "info.mobo.syncml:" + account.name + ".watchContacts") {
+      trigger = { method: "palm://com.palm.db/watch", key: "fired",
+              params: { subscribe: true, query: {
+          from: "info.mobo.syncml.contact:1", //it's necessary that the comparison with _rev is at index 1 to update the rev value in complete.
+          where: [ {prop: "accountId", op: "=", val: account.accountId}, { prop: "_rev", op: ">", val: rev || account.datastores.contacts.lastRev || 0 } ],
+          incDel: true
+        }}};
+    } else if (activity.name === "info.mobo.syncml:" + account.name + ".periodic") {
+      restart = true;
+    } else {
+      restart = false;
+    }
+    return PalmCall.call("palm://com.palm.activitymanager/", "complete", { activityId: activity.activityId, trigger: trigger, restart: restart }).then(function (f) {
+      log("activity restarted: " + JSON.stringify(f.result));
+      f.result = { returnValue: true };
+    });
+  }
+};
+
 syncAssistant.prototype.complete = function () {
 	"use strict";
-  var args = this.controller.args, activity, account, trigger, restart = false;
+  var args = this.controller.args, activity, account;
 	activity = args.$activity;
   if (activity) {
     account = SyncMLAccount.getAccountById(activity.accountId);
@@ -337,34 +388,5 @@ syncAssistant.prototype.complete = function () {
     log("Error with activity " + activity.name + ": " + JSON.stringify(activity.trigger));
     return;
   }
-  if (activity && activity.trigger && activity.trigger.returnValue && account) {
-    if (activity.name.indexOf(".delayed") > 0) {
-      log("Delayed activity " + activity.name + " finished. Restart watch.");
-      activity.name = activity.name.substr(0, activity.name.indexOf(".delayed"));
-      restart = true;
-    }
-    if (activity.name === "info.mobo.syncml:" + account.name + ".watchCalendar") {
-      trigger = { method: "palm://com.palm.db/watch", key: "fired",
-            params: { subscribe: true, query: {
-          from: "info.mobo.syncml.calendarevent:1",  //it's necessary that the comparison with _rev is at index 1 to update the rev value in complete.
-          where: [ {prop: "accountId", op: "=", val: account.accountId}, { prop: "_rev", op: ">", val: account.datastores.calendar.lastRev || 0 } ],
-          incDel: true
-        }}};
-    } else if (activity.name === "info.mobo.syncml:" + account.name + ".watchContacts") {
-      trigger = { method: "palm://com.palm.db/watch", key: "fired",
-              params: { subscribe: true, query: {
-          from: "info.mobo.syncml.contact:1", //it's necessary that the comparison with _rev is at index 1 to update the rev value in complete.
-          where: [ {prop: "accountId", op: "=", val: account.accountId}, { prop: "_rev", op: ">", val: account.datastores.contacts.lastRev || 0 } ],
-          incDel: true
-        }}};
-    } else {
-      restart = true;
-    }
-    return PalmCall.call("palm://com.palm.activitymanager/", "complete", { activityId: activity.activityId, trigger: trigger, restart: restart }).then(function (f) {
-      log("activity restarted: ", JSON.stringify(f.result));
-      f.result = { returnValue: true };
-    });
-  } //else {
-    //checkActivities(activity.account); //hopefully that works ok. :(
-  //}
+  this.retriggerActivities(activity, account);
 };
