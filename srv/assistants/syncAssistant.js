@@ -19,6 +19,10 @@ syncAssistant.prototype.finished = function (account) {
 
   checkRevsResult = function (f) {
     if (f.result.calendar && f.result.contacts) {
+      if (account.datastores.calendar.lastRev === 0) {
+        log("Nothing did happen, restore oldLastRev of " + account.datastores.calendar.oldLastRev);
+        account.datastores.calendar.lastRev = account.datastores.calendar.oldLastRev;
+      }
       saveAccounts();
     } else {
       log("Cleanup not finished, yet: " + JSON.stringify(f.result));
@@ -185,6 +189,7 @@ syncAssistant.prototype.run = function (outerFuture, subscription) {
         if (f3.result.returnValue === true) {
           log("Finishing initialization of SyncML framework.");
           SyncML.initialize(account);
+          account.datastores.calendar.oldLastRev = account.datastores.calendar.lastRev;
           delete account.datastores.contacts; //be sure to not sync contacts, yet.
           SyncML.setCallbacks([
             {
