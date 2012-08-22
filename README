@@ -31,6 +31,8 @@ Known Issues:
 - Create account from the account app won't work on TouchPad.
 
 Changelog:
+2012-08- => 0.1.22
+- fixed timeout mechanism
 2012-08-15 => 0.1.21
 - changed watch activity so that it delays for 1 minute, so the user has enough time to complete his changes. Every new change during that 1 minute will delay the sync further.
 - changed requirement of activities to "internetConfidence: fair" so the syncs should have a higher probability to complete, now.

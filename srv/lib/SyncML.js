@@ -114,14 +114,14 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
 
   //sends a message to the server.
   function sendToServer(msg, callback, retry, id) {
-    var text, retrySend, checkTimeout, received = false, lastSend, msgNr = id, future;
+    var text, retrySend, checkTimeout, received = false, lastSend, future;
     retrySend = function (e) {
       if (retry <= 5) {
         log("Got " + e.name + ": " + e.message + ". Retrying (" + retry + ")");
         log("Complete exception: " + JSON.stringify(e));
         logToApp("Got " + e.name + ": " + e.message + ". Retrying (" + retry + ")");
         sendToServer(msg, callback, retry + 1, id);
-        lastSend = Date.now().getTime();
+        lastSend = Date.now();
       } else {
         logError_lib({name: "ConnectionError", message: "No connection to server, even after retries."});
       }
@@ -129,8 +129,8 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
     checkTimeout = function() {
       var now;
       if (!received) {
-        log ("Message " + msgNr + " was send last before " + ((now - lastSend) / 1000) + " seconds, was not yet received.");
         now = Date.now();
+        log ("Message " + id + " was send last before " + ((now - lastSend) / 1000) + " seconds, was not yet received.");
         if (now - lastSend > 60*1000) { //last send before one minute?
           if (retry <= 5) {
             setTimeout(checkTimeout, 1000);
@@ -140,7 +140,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
           retrySend({name:"Timeout", message:"Got no response in one minute."});
         }
       } else {
-        log ("Message " + msgNr + " received, returning.");
+        log ("Message " + id + " received, returning.");
       }
     };
     try {
