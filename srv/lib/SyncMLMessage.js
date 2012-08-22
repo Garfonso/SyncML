@@ -936,6 +936,7 @@ var syncMLMessage = function () {
                   if (body.status[msgRef][cmdId]) {
                     if ((body.status[msgRef][cmdId].data === "200") ||                            //all fine
                         (body.status[msgRef][cmdId].data === "201" && types[ti] === "replace") || //add instead of replace
+                        (body.status[msgRef][cmdId].data === "201" && types[ti] === "add")     || //replace instead of add
                         (body.status[msgRef][cmdId].data === "418" && types[ti] === "add")     || //was already there
                         (body.status[msgRef][cmdId].data === "418" && types[ti] === "replace") || //was already there
                         (body.status[msgRef][cmdId].data === "208")                            || //conflict, but client won.
