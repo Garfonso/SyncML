@@ -73,7 +73,7 @@ var MimeTypes = {
 };
 
 var SyncML = (function () {      //lastMsg allways is the last response from the server, nextMsg allways is the message that we are currently building to send.
-  var sessionInfo, account = {}, lastMsg, nextMsg,
+  var sessionInfo, account = {}, lastMsg, nextMsg, dsIndex = 0,
   //callbacks to get event / contacts data as iCal / vCard strings.
   //will all receive a callback function as parameter, that is to be called with "false" in the case of errors.
   //otherwise it needs to be supplied to the called sync function!
@@ -390,17 +390,23 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
         if (result.type === "add") {
           //get cmd item from last message to get the globalId for the mapping cmd.
           item = lastMsg.getBody().sync[result.globalId.sync][result.type][result.globalId.cmd].items[result.globalId.item];
-          ds.mapping.push({source: result.localId, target: item.source});
-          item.status = 200;
-          log("Added id to mapping");
+          if (result.localId) {
+            ds.mapping.push({source: result.localId, target: item.source});
+            item.status = 200;
+            log("Added id to mapping");
+          } else {
+            log("No id for added item => failure");
+            item.status = 510;
+          }
         }
       } else if (result && result.success === false) {
         log("item action failure");
-        lastMsg.getBody().sync[result.globalId.sync][result.type][result.globalId.cmd].status = 510; //remember that this was a failure. Fail the whole command if any item fails.
+        ds[result.type] -= 1;
+        //lastMsg.getBody().sync[result.globalId.sync][result.type][result.globalId.cmd].status = 510; //remember that this was a failure. Fail the whole command if any item fails.
+        lastMsg.getBody().sync[result.globalId.sync][result.type][result.globalId.cmd].items[result.globalId.item].status = 510;
         log("noted failure for status cmd.");
       }
 
-      //TODO: this can't sync multiple datastores, yet!!! :(
       cbsRunning = 0;
       for (i = 0; i < willBeSynced.length; i += 1) {
         ds = account.datastores[willBeSynced[i]];
@@ -414,35 +420,39 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
         } else {
           message = nextMsg;
         }
-        //only add mappings to last msg.
-        //if (lastMsg.isFinal() && msgQueue.length === 0) {
-          for (i = 0; i < willBeSynced.length; i += 1) {
-            ds = account.datastores[willBeSynced[i]];
-            if (ds.oldMapping) {
-              ds.mapping = ds.oldMapping.concat(ds.mapping);
-            }
-            message.addMap({source: ds.name, target: ds.path, mapItems: ds.mapping });
-            if (ds.mapping.length === 0 && msgQueue.length === 0 && (!message.getBody().sync || message.getBody().sync.length === 0)) {
-              log("message is empty => add alert 222"); //this might happen to often or even to few times... hm.
-              message.addAlert({ data: "222", items: [ { source: ds.name, target: ds.path } ] });
-              log("add alert ok");
-            }
-            ds.state = "sendMapping";
-            ds.oldMapping = ds.mapping;
-            ds.mapping = [];
+        //add mappings to msg.
+        for (i = 0; i < willBeSynced.length; i += 1) {
+          ds = account.datastores[willBeSynced[i]];
+          if (ds.oldMapping) {
+            ds.mapping = ds.oldMapping.concat(ds.mapping);
           }
-        //}
+          message.addMap({source: ds.name, target: ds.path, mapItems: ds.mapping });
+          if (ds.mapping.length === 0 && msgQueue.length === 0 && (!message.getBody().sync || message.getBody().sync.length === 0)) {
+            log("message is empty => add alert 222"); //this might happen to often or even to few times... hm.
+            message.addAlert({ data: "222", items: [ { source: ds.name, target: ds.path } ] });
+            log("add alert ok");
+          }
+          ds.state = "sendMapping";
+          ds.oldMapping = ds.mapping;
+          ds.mapping = [];
+        }
 
         log("lastMsg.isFinal = " + lastMsg.isFinal() + " msgQueue: " + msgQueue.length);
         if (lastMsg.isFinal() && msgQueue.length === 0) {
-          logToApp("Last message send to server.");
-          sendToServer(message, parseLastResponse);
+          if (dsIndex < willBeSynced.length) {
+            log("Sync of current datastore finished, sync next one");
+            getSyncData();
+          } else {
+            logToApp("Last message send to server.");
+            sendToServer(message, parseLastResponse);
+          }
         } else {
           logToApp("Sending sync cmd/response to server, more data will transmitted.");
           log("Not final message. there will be more.");
           sendToServer(message, parseSyncResponse); //continue sync.
         }
       }
+      log("Not finished, yet");
     } catch (e) {
       logError_lib(e);
     }
@@ -522,9 +532,14 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
             return;
           }
         } else {
-          log("All sync cmds finished. => sync finished.");
-          logToApp("All sync cmds processed, sync finished.");
-          parseLastResponse("", true);
+          if (dsIndex < willBeSynced.length) {
+            log("Start sync of next datastore.");
+            getSyncData();
+          } else {
+            log("All sync cmds finished. => sync finished.");
+            logToApp("All sync cmds processed, sync finished.");
+            parseLastResponse("", true);
+          }
           return;
         }
       }
@@ -548,7 +563,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
                   item = Base64.decode(item); //CDATA needs to be removed in SyncMLMessage.
                 }
               }
-              ds[callbacks[ti]](
+              setTimeout(ds[callbacks[ti]].bind(this,
                 {
                   type: types[ti],
                   callback: itemActionCallback,
@@ -558,8 +573,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
                   name: ds.name,
                   serverData: ds,
                   account: account
-                }
-              );
+                }), 100);
             }
           }
         }
@@ -642,26 +656,28 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
   function getSyncData() {
     var i, method;
     try {
-      for (i = 0; i < dsNames.length; i += 1) {
-        if (account.datastores[dsNames[i]]) {
-          log("ServerIdGetSyncData: " + account.datastores[dsNames[i]].serverId);
-          method = account.datastores[dsNames[i]].method;
+      i = dsIndex;
+      dsIndex += 1;
+      if (i < willBeSynced.length) {
+        if (account.datastores[willBeSynced[i]]) {
+          log("ServerIdGetSyncData: " + account.datastores[willBeSynced[i]].serverId);
+          method = account.datastores[willBeSynced[i]].method;
           if (method === "slow" || method === "refresh-from-client") {
             log("Getting all data, because of slow sync or refresh from client.");
-            account.datastores[dsNames[i]].getAllData({callback: mContinueSync.bind(null, dsNames[i]), serverData: account.datastores[dsNames[i]], account: account});
-            account.datastores[dsNames[i]].state = "gatheringAllData";
+            account.datastores[willBeSynced[i]].getAllData({callback: mContinueSync.bind(null, willBeSynced[i]), serverData: account.datastores[willBeSynced[i]], account: account});
+            account.datastores[willBeSynced[i]].state = "gatheringAllData";
           } else if (method === "two-way" || method === "one-way-from-client") {
             log("Getting new data, because of two-way sync or one way from client.");
-            account.datastores[dsNames[i]].getNewData({callback: mContinueSync.bind(null, dsNames[i]), serverData: account.datastores[dsNames[i]], account: account});
-            account.datastores[dsNames[i]].state = "gatheringNewData";
+            account.datastores[willBeSynced[i]].getNewData({callback: mContinueSync.bind(null, willBeSynced[i]), serverData: account.datastores[willBeSynced[i]], account: account});
+            account.datastores[willBeSynced[i]].state = "gatheringNewData";
           } else if (method === "refresh-from-server") {
             log("Deleting all data, because of refresh from server.");
-            account.datastores[dsNames[i]].deleteAllData({callback: mContinueSync.bind(null, dsNames[i]), serverData: account.datastores[dsNames[i]], account: account});
-            account.datastores[dsNames[i]].state = "deletingAllData";
+            account.datastores[willBeSynced[i]].deleteAllData({callback: mContinueSync.bind(null, willBeSynced[i]), serverData: account.datastores[willBeSynced[i]], account: account});
+            account.datastores[willBeSynced[i]].state = "deletingAllData";
           } else if (method === "one-way-from-server") {
             log("Don't get any calendar data, because of one way from server sync.");
-            account.datastores[dsNames[i]].state = "receivingData";
-            mContinueSync(dsNames[i], {success: true});
+            account.datastores[willBeSynced[i]].state = "receivingData";
+            mContinueSync(willBeSynced[i], {success: true});
           } else {
             log("Unknown sync method: " + method);
             resultCallback({success: false});
@@ -683,8 +699,6 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
         for (i = 0; i < failed.length; i += 1) {
           log(JSON.stringify(failed[i]));
           if (failed[i].status.cmdName === "Alert" && failed[i].status.data === "508") { //server requires refresh.
-          //TODO: this does not really work for more than one source, right??
-          //if (failed[i].status.cmdRef === lastMsg.getBody().alerts[0].cmdId) { //got response to cmdRef.
             log("No problem, server just wants a refresh.");
             logToApp("Server requested slow sync.");
             needRefresh = true;
@@ -840,7 +854,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
 
 		    for (i = 0; i < dsNames.length; i += 1) {
 		      ds = account.datastores[dsNames[i]];
-		      if (ds) {
+		      if (ds && ds.enabled) {
 		        ds.last = ds.next;
 		        ds.next = (new Date().getTime() / 1000).toFixed();
 		        nextMsg.addAlert({
