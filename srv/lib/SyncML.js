@@ -439,13 +439,13 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
 
         log("lastMsg.isFinal = " + lastMsg.isFinal() + " msgQueue: " + msgQueue.length);
         if (lastMsg.isFinal() && msgQueue.length === 0) {
-          if (dsIndex < willBeSynced.length) {
-            log("Sync of current datastore finished, sync next one");
-            getSyncData();
-          } else {
+          //if (dsIndex < willBeSynced.length) {
+          //  log("Sync of current datastore finished, sync next one");
+          //  getSyncData();
+          //} else {
             logToApp("Last message send to server.");
             sendToServer(message, parseLastResponse);
-          }
+          //}
         } else {
           logToApp("Sending sync cmd/response to server, more data will transmitted.");
           log("Not final message. there will be more.");
@@ -532,14 +532,14 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
             return;
           }
         } else {
-          if (dsIndex < willBeSynced.length) {
-            log("Start sync of next datastore.");
-            getSyncData();
-          } else {
+          //if (dsIndex < willBeSynced.length) {
+          //  log("Start sync of next datastore.");
+         //   getSyncData();
+         // } else {
             log("All sync cmds finished. => sync finished.");
             logToApp("All sync cmds processed, sync finished.");
             parseLastResponse("", true);
-          }
+          //}
           return;
         }
       }
@@ -630,21 +630,34 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
         }
       }
 
-      if (addedItems === 0 && msgQueue.length > 0) { //last msg was empty. get back the last msg of the queue if there is one.
-        nextMsg = msgQueue.pop();
-      }
+      if (dsIndex >= willBeSynced.length) {
+        if (addedItems === 0 && msgQueue.length > 0) { //last msg was empty. get back the last msg of the queue if there is one.
+          nextMsg = msgQueue.pop();
+        }
 
-      //store last msg in queue.
-      nextMsg.setFinal(true);
-      //we need to send sync command to initialize sync, even if we don't have data.
-      //initialize target / source for sync cmd.
-      nextMsg.setSyncTargetSource({ source: name, target: account.datastores[name].path });
-      msgQueue.push(nextMsg);
+        //store last msg in queue.
+        nextMsg.setFinal(true);
 
-      nextMsg = msgQueue.shift(); //get FIRST message from queue.
-      logToApp("Sending first sync cmd to server.");
-      sendToServer(nextMsg, parseSyncResponse);
-      account.datastores[name].state = "waitingForSyncResponse";
+        //we need to send sync command to initialize sync, even if we don't have data.
+        //initialize target / source for sync cmd.
+        nextMsg.setSyncTargetSource({ source: name, target: account.datastores[name].path });
+        msgQueue.push(nextMsg);
+        nextMsg = msgQueue.shift(); //get FIRST message from queue.
+        logToApp("Sending first sync cmd to server.");
+        sendToServer(nextMsg, parseSyncResponse);
+        account.datastores[name].state = "waitingForSyncResponse";
+      } else {
+        //we need to send sync command to initialize sync, even if we don't have data.
+        //initialize target / source for sync cmd.
+        nextMsg.setSyncTargetSource({ source: name, target: account.datastores[name].path });
+        msgQueue.push(nextMsg);
+
+        nextMsg = syncMLMessage(); //get new message!
+        nextMsg.addCredentials(account);
+        
+        log("Waiting for data from next Datastore.");
+        getSyncData();
+      }      
     } catch (e) {
       logError_lib(e);
     }
@@ -657,6 +670,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
     var i, method;
     try {
       i = dsIndex;
+      log("Getting data for " + willBeSynced[dsIndex]);
       dsIndex += 1;
       if (i < willBeSynced.length) {
         if (account.datastores[willBeSynced[i]]) {
