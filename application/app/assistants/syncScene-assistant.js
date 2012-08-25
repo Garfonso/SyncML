@@ -1,5 +1,5 @@
 //JSLint options:
-/*global log, logGUI, Mojo, $L, eventCallbacks, SyncMLAccount, SyncML */
+/*global PalmCall, log, logStatus, AppAssistant, logGUI, Mojo, $L, accounts, currentAccount */
 function SyncSceneAssistant() {
 	/* this is the creator function for your scene assistant object. It will be passed all the 
 	   additional parameters (after the scene name) that were passed to pushScene. The reference
@@ -28,6 +28,25 @@ SyncSceneAssistant.prototype.setup = function () {
 	setTimeout(this.startSync.bind(this),100);
 };
 
+SyncSceneAssistant.prototype.printStats = function(name, es) {
+  if (es.deleteFailed) {
+    log("Deletes on client FAILED: " + es.deleteFailed);
+  }
+  if (es.updateFailed) {
+    log("Updates on client FAILED: " + es.updateFailed);
+  }
+  if (es.addFailed) {
+    log("Adds    on client FAILED: " + es.addFailed);
+  }
+  log("Deletes on client: " + es.deleteOK);
+  log("Updates on client: " + es.updateOK);
+  log("Adds    on client: " + es.addOK);
+  log("Deletes on server: " + es.delOwn);
+  log("Updates on server: " + es.replaceOwn);
+  log("Adds    on server: " + es.addOwn);
+  log("Stats for " + name + ":");
+};
+
 SyncSceneAssistant.prototype.startSync = function ()
 {	
   if (this.locked) {
@@ -38,9 +57,8 @@ SyncSceneAssistant.prototype.startSync = function ()
   this.buttonModel.disabled = true;
   this.controller.modelChanged(this.buttonModel);
   
-  var oldMsg = "";
-  var future;
-  var getResult = function (f) {
+  var oldMsg = "", future, account, keepInTouch,
+    getResult = function (f) {
     if (f.result.finalResult) {
       //log("FINAL RESULT!!");
       log(oldMsg);
@@ -48,23 +66,12 @@ SyncSceneAssistant.prototype.startSync = function ()
       if (f.result.success) {
         logStatus("Sync returned ok");
         if (f.result.account) {
-          var es = f.result.account.datastores.calendar;
-          if (es.deleteFromServerFail) {
-            log("Deletes on client FAILED: " + es.deleteFromServerFail);
+          if (f.result.account.datastores.calendar.enabled) {
+            this.printStats("Calendar", f.result.account.datastores.calendar.stats);
           }
-          if (es.updateFromServerFail) {
-            log("Updates on client FAILED: " + es.updateFromServerFail);
+          if (f.result.account.datastores.contacts.enabled) {
+            this.printStats("Contacts", f.result.account.datastores.contacts.stats);
           }
-          if (es.addFromServerFail) {
-            log("Adds    on client FAILED: " + es.addFromServerFail);
-          }
-          log("Deletes on client: " + es.deleteFromServer);
-          log("Updates on client: " + es.updateFromServer);
-          log("Adds    on client: " + es.addFromServer);
-          log("Deletes on server: " + es.delOwn);
-          log("Updates on server: " + es.replaceOwn);
-          log("Adds    on server: " + es.addOwn);
-          log("Stats for calendar:");
         }
       } else {
         logStatus("Sync returned with error.");
@@ -95,12 +102,12 @@ SyncSceneAssistant.prototype.startSync = function ()
       
   try {
     this.locked = true;
-    var account = accounts[currentAccount];
+    account = accounts[currentAccount];
     account.subscribe = true;
     log("Calling service.");
     future = PalmCall.call("palm://info.mobo.syncml.client.service/", "sync", account);
     future.then(this, getResult);
-    var keepInTouch = function () {
+    keepInTouch = function () {
       if (this.locked) {
         future.then(this, getResult);
         setTimeout(keepInTouch.bind(this), 10);
