@@ -1,4 +1,4 @@
-/*global Future, SyncMLAccount, log, eventCallbacks, outerFutures, finishAssistant_global, logSubscription, logError_global, startAssistant, logToApp, SyncML, initialize, PalmCall */
+/*global Future, SyncMLAccount, log, eventCallbacks, outerFutures, finishAssistant_global, logSubscription, logError_global, startAssistant, logToApp, SyncML, initialize, PalmCall, contactCallbacks */
 
 var syncAssistant = function (future) {
   "use strict";
@@ -18,11 +18,7 @@ syncAssistant.prototype.finished = function (account) {
   };
 
   checkRevsResult = function (f) {
-    if (f.result.calendar && f.result.contacts) {
-      if (account.datastores.calendar.lastRev === 0) {
-        log("Nothing did happen, restore oldLastRev of " + account.datastores.calendar.oldLastRev);
-        account.datastores.calendar.lastRev = account.datastores.calendar.oldLastRev;
-      }
+    if (f.result && f.result.calendar && f.result.contacts) {
       saveAccounts();
     } else {
       log("Cleanup not finished, yet: " + JSON.stringify(f.result));
@@ -59,8 +55,8 @@ syncAssistant.prototype.finished = function (account) {
   if (account.datastores.contacts && account.datastores.contacts.enabled) {
     contacts = account.datastores.contacts;
     if (contacts.ok) {
-      log("Contacts sync worked.");
-      //TODO: something like in eventCallbacks needed here, too!
+      log("Contacts sync worked, rev: " + contacts.lastRev);
+      contactCallbacks.finishSync(account, innerFuture);
       if (contacts.method === "slow" || contacts.method.indexOf("refresh") !== -1) {
         contacts.method = "two-way";
       }
@@ -189,8 +185,6 @@ syncAssistant.prototype.run = function (outerFuture, subscription) {
         if (f3.result.returnValue === true) {
           log("Finishing initialization of SyncML framework.");
           SyncML.initialize(account);
-          account.datastores.calendar.oldLastRev = account.datastores.calendar.lastRev;
-          delete account.datastores.contacts; //be sure to not sync contacts, yet.
           SyncML.setCallbacks([
             {
               name: "calendar",
@@ -206,7 +200,23 @@ syncAssistant.prototype.run = function (outerFuture, subscription) {
               updateEntry: eventCallbacks.updateEvent,
               //Param: { type: del, callback, localId: ... }. Call callback with { type: del, globalId: ..., localId: ... success: true/false }. 
               delEntry: eventCallbacks.deleteEvent
-            }]);
+            },
+            {
+              name: "contacts",
+              //needs to get all calendar data and call callback with { update: [ all data here ] }, callback
+              getAllData: contactCallbacks.getAllContacts,
+              //needs to get only new calendar data and call callback with { update: [modified], add: [new], del: [deleted] }, callback
+              getNewData: contactCallbacks.getNewContacts,
+              //this will be called on refresh from server to delete all local data. Call callback with {}.
+              deleteAllData: contactCallbacks.deleteAllContacts,
+              //Param: {type: add, callback, globalId: ..., item: new item data }. call callback with {type: add, globalId: ..., localId: ... success: true/false }
+              newEntry: contactCallbacks.createContact,
+              //Param: {type: update, callback, localId: ..., item: new data }. Call callback with { type: update, globalId: ..., localId: ... success: true/false }.
+              updateEntry: contactCallbacks.updateContact,
+              //Param: { type: del, callback, localId: ... }. Call callback with { type: del, globalId: ..., localId: ... success: true/false }. 
+              delEntry: contactCallbacks.deleteContact
+            }
+            ]);
           log("SyncML initialized.");
           logToApp("SyncML completely initialized, starting sync process.");
           SyncML.sendSyncInitializationMsg(syncCallback.bind(this));
@@ -253,7 +263,7 @@ syncAssistant.prototype.run = function (outerFuture, subscription) {
 
     logSubscription = subscription;
     try {
-      f = initialize({devID: true, keymanager: true, accounts: true, accountsInfo: true, iCal: true});
+      f = initialize({devID: true, keymanager: true, accounts: true, accountsInfo: true, iCal: true, vCard: true});
       f.then(this, initializeCallback);
     } catch (e1) {
       logError(e1);
@@ -348,7 +358,7 @@ syncAssistant.prototype.delaySync = function (account, name) {
 
 syncAssistant.prototype.retriggerActivities = function(activity, account, rev) {
   "use strict";
-  log("Retriggering activity " + activity ? activity.name : "undefined");
+  log("Retriggering activity " + typeof activity === "undefined" ? "undefined" : activity.name);
   var restart = true, trigger; //restart all except delayed.
   if (activity && activity.trigger && activity.trigger.returnValue && account) {
     if (activity.name.indexOf(".delayed") > 0) {
@@ -386,6 +396,8 @@ syncAssistant.prototype.complete = function () {
 	activity = args.$activity;
   if (activity) {
     account = SyncMLAccount.getAccountById(activity.accountId);
+  } else {
+    return;
   }
   log("============== Sync.complete");
   log("Activity was: " + JSON.stringify(activity));
@@ -394,4 +406,9 @@ syncAssistant.prototype.complete = function () {
     return;
   }
   this.retriggerActivities(activity, account);
+  if (activity && activity.name && activity.name.indexOf(".delayed") > 0) {
+    PalmCall.call("palm://com.palm.activitymanager/", "cancel", { activityId: activity.activityId }).then(function (f) {
+      log("activity " + activity.name + " cancelled: " + JSON.stringify(f.result));
+    });
+  }
 };
