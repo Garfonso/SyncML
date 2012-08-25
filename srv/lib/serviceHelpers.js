@@ -1,4 +1,4 @@
-/*global IMPORTS, libraries, Mojo, MojoLoader */
+/*global IMPORTS, libraries, Mojo, MojoLoader, log, iCal, vCard, logToApp, SyncMLAccount, DeviceProperties, KeyManager */
 
 try {
   console.error("Starting to load libraries");
@@ -8,6 +8,7 @@ try {
 	var PalmCall = Foundations.Comms.PalmCall;
   //var AjaxCall = Foundations.Comms.AjaxCall;
   var Calendar = IMPORTS.calendar; 
+  var Contacts = IMPORTS.contacts; 
   var path = IMPORTS.require('path');
   var fs = IMPORTS.require('fs');
   //for "local" AjaxCall fix:
@@ -152,10 +153,14 @@ var logGUI = function (controller, logInfo) {
 
 var fresult = {};
 var initialize = function(params) {
-  var future = new Future(), innerFuture = new Future(fresult), initFinishCheck;
+  var future = new Future(), innerFuture = new Future(fresult), initFinishCheck, initAccounts, future_, res;
   log("initialize helper, status: " + JSON.stringify(fresult));
   if (params.iCal) {
     iCal.intitialize(innerFuture);
+  }
+    
+  if (params.vCard) {
+    vCard.initialize(innerFuture);
   }
   
   if (params.accounts) {
@@ -180,10 +185,11 @@ var initialize = function(params) {
     
     log("Starting findAccounts");
     SyncMLAccount.findAccounts().then(this, function (future) {
+      var account, res;
       log("Got accounts: " + future.result.returnValue);
       log("Accounts finished.");
       if (params.accountsInfo) {
-        var account = SyncMLAccount.getAccount();
+        account = SyncMLAccount.getAccount();
         while (account) {
           if (account.accountId) {
             log("Getting account info " + i);
@@ -194,7 +200,10 @@ var initialize = function(params) {
         }
       }
       if (i === 0) {
-        var res = f.result;
+        res = f.result;
+        if (!res) {
+          res = {};
+        }
         res.accounts = true;
         f.result = res;
       }
@@ -208,7 +217,8 @@ var initialize = function(params) {
       if (((params.iCal && f.result.iCal) || !params.iCal) && 
           ((params.devID && f.result.devID) || !params.devID) && 
           ((params.keymanager && f.result.keymanager) || !params.keymanager) && 
-          ((params.accounts && f.result.accounts) || !params.accounts)
+          ((params.accounts && f.result.accounts) || !params.accounts) &&
+          ((params.vCard && f.result.vCard) || !params.vCard)
           ) {
         //finished. :)
         log ("Init of all parts finished.");
@@ -227,12 +237,13 @@ var initialize = function(params) {
   //get devide id:
   if (params.devID && !fresult.devID) {
     if (!DeviceProperties.devID) {
-      var future_ = PalmCall.call('palm://com.palm.preferences/systemProperties', "Get", {"key": "com.palm.properties.nduid" });
+      future_ = PalmCall.call('palm://com.palm.preferences/systemProperties', "Get", {"key": "com.palm.properties.nduid" });
       future_.then(function (f) {
+        var res;
         if (f.result.returnValue === true) {
           DeviceProperties.devID = f.result["com.palm.properties.nduid"];
           log("Got deviceId: " + DeviceProperties.devID);
-          var res = innerFuture.result;
+          res = innerFuture.result;
           res.devID = true;
           innerFuture.result = res;
         } else {
@@ -246,7 +257,7 @@ var initialize = function(params) {
       });
     } else {
       log("DeviceID still present");
-      var res = innerFuture.result;
+      res = innerFuture.result;
       res.devID = true;
       innerFuture.result = res;
     }
@@ -260,132 +271,9 @@ var initialize = function(params) {
   return future;
 };
 
-//...
-//...Base64 encode/decode functions. Plaxo expects Base64 encoding for username/password.
-//...
-/**
-*  Base64 encode / decode
-*  http://www.webtoolkit.info/
-**/ 
-var Base64 = {
-  // private property
-  _keyStr : "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=",
-  // public method for encoding
-  encode : function (input) {
-      var output = "";
-      var chr1, chr2, chr3, enc1, enc2, enc3, enc4;
-      var i = 0;
-      input = Base64._utf8_encode(input);
-      while (i < input.length) {
-          chr1 = input.charCodeAt(i++);
-          chr2 = input.charCodeAt(i++);
-          chr3 = input.charCodeAt(i++);
-
-          enc1 = chr1 >> 2;
-          enc2 = ((chr1 & 3) << 4) | (chr2 >> 4);
-          enc3 = ((chr2 & 15) << 2) | (chr3 >> 6);
-          enc4 = chr3 & 63;
-
-          if (isNaN(chr2)) {
-              enc3 = enc4 = 64;
-          } 
-          else if (isNaN(chr3)) {
-              enc4 = 64;
-          }
-
-          output = output +
-          this._keyStr.charAt(enc1) + this._keyStr.charAt(enc2) +
-          this._keyStr.charAt(enc3) + this._keyStr.charAt(enc4);
-      }
-      return output;
-  },
-
-  // public method for decoding
-  decode : function (input) {
-      var output = "";
-      var chr1, chr2, chr3;
-      var enc1, enc2, enc3, enc4;
-      var i = 0;
-
-      input = input.replace(/[^A-Za-z0-9\+\/\=]/g, "");
-
-      while (i < input.length) {
-
-          enc1 = this._keyStr.indexOf(input.charAt(i++));
-          enc2 = this._keyStr.indexOf(input.charAt(i++));
-          enc3 = this._keyStr.indexOf(input.charAt(i++));
-          enc4 = this._keyStr.indexOf(input.charAt(i++));
-
-          chr1 = (enc1 << 2) | (enc2 >> 4);
-          chr2 = ((enc2 & 15) << 4) | (enc3 >> 2);
-          chr3 = ((enc3 & 3) << 6) | enc4;
-
-          output = output + String.fromCharCode(chr1);
-
-          if (enc3 != 64) {
-              output = output + String.fromCharCode(chr2);
-          }
-          if (enc4 != 64) {
-              output = output + String.fromCharCode(chr3);
-          }
-      }
-      output = Base64._utf8_decode(output);
-
-      return output;
-  },
-  // private method for UTF-8 encoding
-  _utf8_encode : function (string) {
-      string = string.replace(/\r\n/g,"\n");
-      var utftext = "";
-
-      for (var n = 0; n < string.length; n++) {
-           var c = string.charCodeAt(n);
-           if (c < 128) {
-              utftext += String.fromCharCode(c);
-          }
-          else if((c > 127) && (c < 2048)) {
-              utftext += String.fromCharCode((c >> 6) | 192);
-              utftext += String.fromCharCode((c & 63) | 128);
-          }
-          else {
-              utftext += String.fromCharCode((c >> 12) | 224);
-              utftext += String.fromCharCode(((c >> 6) & 63) | 128);
-              utftext += String.fromCharCode((c & 63) | 128);
-          }
-       }
-       return utftext;
-  },
-  // private method for UTF-8 decoding
-  _utf8_decode : function (utftext) {
-      var string = "";
-      var i = 0;
-      var c = 0, c2 = 0;
-
-      while ( i < utftext.length ) {
-          c = utftext.charCodeAt(i);
-          if (c < 128) {
-              string += String.fromCharCode(c);
-              i++;
-          }
-          else if((c > 191) && (c < 224)) {
-              c2 = utftext.charCodeAt(i+1);
-              string += String.fromCharCode(((c & 31) << 6) | (c2 & 63));
-              i += 2;
-          }
-          else {
-              c2 = utftext.charCodeAt(i+1);
-              c3 = utftext.charCodeAt(i+2);
-              string += String.fromCharCode(((c & 15) << 12) | ((c2 & 63) << 6) | (c3 & 63));
-              i += 3;
-          }
-      }
-      return string;
-  }
-};
-
 //own AjaxCall, because it is broken in webOS 2.2.4
 var ajaxCallPost = function (url, body, options) {
-  var method = "POST";
+  var method = "POST", parsed, secure, port, httpClient, headers = {}, bodyEncoding, i, requestPath, local_result, request;
   return new Future().now(this, function(future) {
     options = options || {};
     // console.log("Options: " + JSON.stringify(options));
@@ -411,16 +299,16 @@ var ajaxCallPost = function (url, body, options) {
     /*
      * First we set up the http client.
      */
-    var parsed = urlModule.parse(url);
-    var secure = (parsed.protocol === 'https:');
-    var port = parsed.port;
+    parsed = urlModule.parse(url);
+    secure = (parsed.protocol === 'https:');
+    port = parsed.port;
     if (!port) {
       port = (secure) ? 443 : 80;
     }
     
     // console.log("SECURE="+secure);
     // console.log("parsed = "+JSON.stringify(parsed));
-    var httpClient = httpModule.createClient(port, parsed.hostname, secure);
+    httpClient = httpModule.createClient(port, parsed.hostname, secure);
     httpClient.addListener('error', function clientError(error) {
       future.exception = Err.create(error.errno, "httpClient error "+error.message);
     });
@@ -429,12 +317,11 @@ var ajaxCallPost = function (url, body, options) {
     /*
      * Then we set up the http request.
      */
-    var headers = {};
     // Add all the generic headers that are always needed
     headers.host = parsed.host;
     // TODO: add support for deflate and gzip encodings, and handle 'nocompression' option
     headers["Accept-Encoding"] = "identity";// "deflate, gzip";
-    var bodyEncoding = (options.bodyEncoding === "ascii" ? "ascii" : "utf8");
+    bodyEncoding = (options.bodyEncoding === "ascii" ? "ascii" : "utf8");
     if (bodyEncoding === 'ascii') {
       headers["Content-Length"] = (body && body.length) || 0;
     } else {
@@ -453,20 +340,20 @@ var ajaxCallPost = function (url, body, options) {
     // console.log("Headers: " + JSON.stringify(headers));
     
     if (options.joinableHeaders) {
-      for (var i = 0; i < options.joinableHeaders.length; ++i) {
+      for (i = 0; i < options.joinableHeaders.length; ++i) {
         httpClient.palm_markHeaderJoinable(options.joinableHeaders[i]);
       }
     }
     
     // console.log("pathname=" + parsed.pathname);
-    var requestPath = parsed.pathname || "/";
+    requestPath = parsed.pathname || "/";
     if (parsed.search) {
       requestPath = requestPath + parsed.search;
     }
     
-    var local_result = { responseText: "" };
+    local_result = { responseText: "" };
     // console.log("requesting path: " + requestPath);
-    var request = httpClient.request(method, requestPath, headers);
+    request = httpClient.request(method, requestPath, headers);
     request.addListener('error', function requestError(error) {
       future.exception = Err.create(error.errno, "httpRequest error "+error.message);
     });
@@ -489,8 +376,8 @@ var ajaxCallPost = function (url, body, options) {
         if (!local_result.allHeaders) {
           // Concat all the headers together as a string if they
           // haven't already been
-          var headers = [];
-          for (var key in response.headers) {
+          var headers = [], key;
+          for (key in response.headers) {
             if (response.headers.hasOwnProperty(key)) {
               headers.push("" + key + ": " + response.headers[key]);
             }
@@ -539,7 +426,7 @@ var ajaxCallPost = function (url, body, options) {
 var checkActivities = function (account) {
   if (account && account.syncInterval && account.syncInterval !== "disabled") {
     try {
-    var activityType = 	{
+    var activityType = {
                 //foreground: true,
                 background: true, //try background. Idea: user does something in calendar, and as soon as she finishes, push that to server.
                 //immediate: true,
@@ -550,8 +437,8 @@ var checkActivities = function (account) {
                 //powerDebounce: true,
                 explicit: true, //let's try it this way.. hm.
                 persist: true //we want to keep that activity around!
-              };
-    var activityCallback = 	{
+              },
+      activityCallback = {
                   method: "palm://info.mobo.syncml.client.service/sync",
                   params: { accountId: account.accountId } //prevent password and so on from being stored in another DB. AccountID is sufficient here.
                 };
@@ -616,7 +503,7 @@ var checkActivities = function (account) {
     PalmCall.call("palm://com.palm.activitymanager/", "cancel", { activityName: "info.mobo.syncml:" + account.name + ".periodic" }).then(function(f) {
       log("Cancelled periodic Watch activity for " + account.name + ".");
       if ((account.datastores.calendar && account.datastores.calendar.enabled) || 
-          (account.datastores.calendar && account.datastores.calendar.enabled)) {
+          (account.datastores.contacts && account.datastores.contacts.enabled)) {
         log("Adding periodic activity");
         var activityPeriod = {
             name: "info.mobo.syncml:" + account.name + ".periodic",
@@ -653,4 +540,22 @@ var checkActivities = function (account) {
       log("Cancelled periodic Watch activity for " + account.name + ".");
     });
   }
+};
+
+//do a deep copy. 
+var moboCopy = function(source) {
+  var target = {}, name, s, i;
+  if (source) {
+    for (name in source) {
+      if (source.hasOwnProperty(name)) {
+        s = source[name];
+        if (typeof s === "object") {
+          target[name] = moboCopy(s);
+        } else {
+          target[name] = s;
+        }
+      }
+    }
+  }
+  return target;
 };
