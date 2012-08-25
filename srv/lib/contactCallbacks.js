@@ -1,126 +1,171 @@
 //JSLint options:
-/*global DB, log, vCard, SyncMLAccount */
-"use strict";
+/*global DB, log, logError_lib, vCard, SyncMLAccount, commonCallbacks */
 
 var contactCallbacks = (function () {
-  var ids = {}, //should set accountId, calendarId and contactsId before use.
-    revs = { calendar: 0 }, //should be set before use.
-    contactUpdated =  0,
-    contactUpdateFailed = 0,
-    contactAdded =  0,
-    contactAddFailed = 0,
-    contactDeleted = 0,
-    contactDeleteFailed = 0;
-
-  function getContactsFromDB(input) {
-    try {
-      log("Getting Contacts: " + JSON.stringify(input.query));
-      DB.find(input.query, false, false).then(
-        function (future) {
-          var r = future.result;
-          if (r.returnValue === true) {
-            input.result = r.results;
-            log("Got " + r.results.length + " Contacts to send to server.");
-            input.success = true;
-          } else {
-            log("Error in getAllContacts: " + JSON.stringify(future.exception));
-            input.success = false;
-          }
-          input.callback(input);
-        }
-      );
-    } catch (exception) {
-      log("Exception in getAllContacts: " + exception + " - " + JSON.stringify(exception));
-      input.success = false;
-      input.callback(input);
-    }
-  }
-
-  function createContactArray(input) {
-    //format Contact array for syncml and call callback: 
-    var update = [], del = [], i, obj, result;
-    if (input.success === true) {
-      for (i = 0; i < input.result.length; i += 1) {
-        try {
-          result = input.result[i];
-          //log("Got Contact: " + JSON.stringify(result));
-          if (result._del === true) {
-            obj = { localId: result._id, uid: result.uId};
-            del.push(obj);
-          } else {
-            obj = { localId: result._id, data: vCard.generateVCard(result), uid: result.uId};
-            update.push(obj);
-          }
-        } catch (e) {
-          log("Error while adding element " + i + " of " + input.result.length + ". Error: " + JSON.stringify(e));
-          //TODO: unnotified error condition.
-        }
-      }
-    }
-    input.callback2({add: [], del: del, replace: update, success: input.success}); //still can't distinguish between new and changed items.
-  }
-
-  function clone(obj) {
-    var newObj = {};
-    newObj.id = obj.id;
-    return newObj;
-  }
-
+  "use strict";
+  var stats = 
+    { 
+      deleteOK: 0, 
+      delteFailed: 0,
+      updateOK: 0,
+      updateFailed: 0,
+      addOK: 0,
+      addFailed: 0
+    };
+    
   function updateContact(input) {
-    log("Update Contact called");
-    try {
-      var e, recId = undefined, childId = undefined;
-      if (input.contact) {
-        e = [input.contact];
-      } else {
-        e = [vCard.parseVCard(input.item)];
-      }
-      log("contact: " + JSON.stringify(e[0].name) + " with id: " + input.localId);
-      e[0]._id = input.localId;
-      e[0].accountId = ids.accountId;
-      e[0]._kind = "info.mobo.syncml.contact:1";
-      DB.merge(e).then(clone({ id: e[0]._id }), //try to prevent others from overwriting data for this object. :(
-        function (future) {
-          var r = future.result;
-          if (r.returnValue === true) {
-            if (!this.id) {
-              contactAdded += 1;
-              if (this.contactsAddedElement) {
-                this.contactsAddedElement.innerHTML = contactAdded;
+    log("Update contact called");
+    var doUpdate = function (input, future) {
+      try {
+        if (future.result.returnValue === true && future.result.results && future.result.results.length === 1) {
+        var contact = future.result.results[0], c = [contact];
+        contact._onServer = true; //contact came from server.
+        log("Contact: " + JSON.stringify(c[0].name) + " with id: " + input.localId);
+        c[0]._id = input.localId;
+        c[0].accountId = input.account.accountId;
+        
+        //continue update.
+        c[0]._kind = "info.mobo.syncml.contact:1";
+        DB.merge(c).then(
+          function (f) {
+            try {
+              var r = f.result;
+              if (r.returnValue === true) {
+                if (input.localId) {
+                  stats.addOK += 1;
+                } else {
+                  stats.updateOK += 1;
+                }
+                input.localId = r.results[0].id;
+                input.success = true;
+
+                if (r.results[0].rev > input.account.datastores.contacts.lastRev) {
+                  input.account.datastores.contacts.lastRev = r.results[0].rev;
+                }
+              } else {
+                if (input.localId) {
+                  stats.addFailed += 1;
+                } else {
+                  stats.updateFailed += 1;
+                }
+                log("Callback not successfull: " + future.exception.errorText + "(" + future.exception.errorCode + "). :(" + input.item + JSON.stringify(input.localId));
+                input.success = false;
               }
-            } else {
-              contactUpdated += 1;
-              if (this.contactsUpdatedElement) {
-                this.contactsUpdatedElement.innerHTML = contactUpdated;
+              if (input.callback) {
+                input.callback(input);
               }
+            } catch (e) {
+              logError_lib(e);
             }
-            input.localId = r.results[0].id;
-            input.success = true;
-          } else {
-            if (this.id) {
-              contactAddFailed += 1;
-              if (this.contactsAddFailedElement) {
-                this.contactsAddFailedElement.innerHTML = contactAddFailed;
-              }
-            } else {
-              contactUpdateFailed += 1;
-              if (this.contactsUpdateFailedElement) {
-                this.contactsUpdateFailedElement.innerHTML = contactUpdateFailed;
-              }
-            }
-            log("Callback not successfull: " + future.exception.errorText + "(" + future.exception.errorCode + "). :(" + input.item + JSON.stringify(this.id));
-            input.success = false;
-          }
+          });
+        } else {
+          log("ERROR: Could not convert " + input.item + " to contact!");
+          input.success = false;
           if (input.callback) {
             input.callback(input);
           }
-        });
-    } catch (exception) {
-      log("Exception in updateContact: " + exception + " - " + JSON.stringify(exception) + " at " + input.item + " with ID " + input.localId);
+        }
+      } catch (exception) {
+        log("Exception in UpdateContact(doUpdate): " + exception + " - " + JSON.stringify(exception) + " at " + input.item + " with ID " + input.localId);
+        input.success = false;
+        if (input.callback) {
+          input.callback(input);
+        }
+        logError_lib(exception);
+      }
+    };
+
+    //convert contact:
+    try {
+      if (input.contact) {
+        doUpdate(input, { result: { returnValue: true, results: [input.contact]}}); //short cut.
+      } else {
+        log("converting vCard to webOS data type:");
+        vCard.parseVCard({account: input.account, vCard: input.item, serverData: input.serverData, accountName: input.account.name}).then(doUpdate.bind(this, input));
+      }
+    } catch (e) {
+      log("Error in updateContact(main): ");
+      log(JSON.stringify(e));
       input.success = false;
       if (input.callback) {
         input.callback(input);
       }
+      logError_lib(e);
+    }
+  }
+  
+  function createContactArray(input) {
+    //format contacts array for syncml and call callback: 
+    var update = [], del = [], add = [], i, obj, result, callback, updates = 0;
+    callback = function (future) {
+      try {
+        log(JSON.stringify(this));
+        if (future.result.returnValue === true) {
+          this.data = future.result.result;
+          if (this.noAdd === true) {
+            log("Item was on server already, adding to update list: " + JSON.stringify(this.noAdd));
+            update.push(this);
+          } else {
+            log("Item was not on server yet, adding to add list");
+            if (this.contact) {
+              log("Saving that this will be added to server.");
+              updateContact(this); //save that we added the contact to the server.. this is not 100% correct here, sync may still fail.. but that should trigger a slow sync anyway, shouldn't it?
+            }
+            add.push(this);
+          }
+          updates -= 1;
+          log("Remaining updates: " + updates);
+          if (updates === 0) {
+            input.callback2({add: add, del: del, replace: update, success: input.success}); //still can't distinguish between new and changed items.
+          }
+        } else {
+          log("Error in createContactArray(callback): ");
+          log(JSON.stringify(future.result));
+          input.success = false;
+          input.callback(input);        
+        }
+      } catch (e) {
+        log("Error in createContactArray(callback): ");
+        log(JSON.stringify(e));
+        input.success = false;
+        input.callback(input);
+        logError_lib(e);
+      }
+    };
+    try {
+      if (input.success === true) {
+        for (i = 0; i < input.result.length; i += 1) {
+          try {
+            result = input.result[i];
+            //update rev's on the fly for all really processed data.
+            if (result._rev > input.account.datastores.contacts.lastRev) {
+              input.account.datastores.contacts.lastRev = result._rev;
+            }
+            
+            //log("Got contact: " + JSON.stringify(result));
+            if (result._del === true) {
+              obj = { localId: result._id, uid: result.uId};
+              del.push(obj);
+            } else {
+              obj = { localId: result._id, uid: result.uId, noAdd: result._onServer, contact: result, account: input.account}; //don't send adds for all of them!! First repair "onServer" storage
+              updates += 1;
+              vCard.generateVCard({contactId: result._id, accountName: input.account.name}).then(obj, callback);
+            }
+          } catch (e) {
+            log("Error while adding element " + i + " of " + input.result.length + ". Error: " + JSON.stringify(e));
+            logError_lib(e);
+          }
+        }
+      }
+      if (updates === 0) {//had no vCard conversions.
+        input.callback2({add: add, del: del, replace: update, success: input.success}); //still can't distinguish between new and changed items.
+      }
+    } catch (error) {
+      log("Error in createContactArray(main): ");
+      log(JSON.stringify(error));
+      input.success = false;
+      input.callback(input);
+      logError_lib(error);
     }
   }
 
@@ -136,7 +181,7 @@ var contactCallbacks = (function () {
 
 		/**
 		 * Updates an contact. Parameters are the iCal item data string and the contactId.
-		 * @param {Object} contact
+		 * @param {Object} input with localId = local dbId, account = full account obj.
 		 * @param {Object} contactId
 		 */
 	  updateContact: updateContact,
@@ -145,148 +190,69 @@ var contactCallbacks = (function () {
 		 * Deletes contact with contactId. Called from c++.
 		 * @param {Object} contactid
 		 */
-		deleteContact: function (input) {
-		  log("Delete contact called with id: " + input.localId);
-			try {
-				var ids = [input.localId];
-				//delete with purge=true.
-				DB.del(ids, true).then(
-				  function (future) {
-				    var r = future.result;
-				    if (r.returnValue === true) {
-              contactDeleted += 1;
-              if (this.contactsDeletedElement) {
-                this.contactsDeletedElement.innerHTML = contactDeleted;
-              }
-              input.success = true;
-				    } else {
-				      contactDeleteFailed += 1;
-				      if (this.contactsDeleteFailedElement) {
-				        this.contactsDeleteFailedElement.innerHTML = contactDeleteFailed;
-				      }
-				      log("Callback not successfull: " + future.exception.errorText + "(" + future.exception.errorCode + " for contactId: " + input.localId + "). :(");
-				      input.success = false;
-				    }
-				    input.callback(input);
-				  }
-				);
-			} catch (exception) {
-				log("Exception in deleteContact: " + exception + " - " + JSON.stringify(exception));
-				input.success = false;
-        input.callback(input);
-			}
+    deleteContact: function (input) {
+      input.datastore = input.account.datastores.contacts;
+      input.status = stats;
+      commonCallbacks.deleteItem(input);
 		},
 
 		/**
 		 * Deletes all contacts by a call to palm database service.
 		 */
 		deleteAllContacts: function (input) {
-		  log("deleteAllContacts called.");
-      try {
-        //delete with purge=true.
-        DB.del({from: "info.mobo.syncml.contact:1", where: [{prop: "accountId", op: "=", val: ids.accountId}]}, true).then(
-          function (future) {
-            var r = future.result;
-            if (r.returnValue === true) {
-              log("Successfully deleted all elements.");
-              input.callback({success: true});
-            } else {
-              log("Error in deleteAllContacts: " + future.exception.errorText + "( " + future.exception.errorCode + ")");
-              input.callback({success: false});
-            }
-          }
-        );
-			} catch (exception) {
-				log("Exception in deleteAllContacts: " + exception + " - " + JSON.stringify(exception));
-				//something went wrong, continue sync:
-				input.callback({success: false});
-			}
+      input.kind = "info.mobo.syncml.contact:1";
+      commonCallbacks.deleteAllItems(input);
 		},
 
 		getNewContacts: function (input) {
 		  log("Get new contacts called.");
-		  getContactsFromDB(
+		  commonCallbacks.getItemsFromDB(
 		    {
 		      callback: createContactArray,
 		      callback2: input.callback,
-		      serverId: input.serverId,
+		      serverData: input.serverData,
 		      query: {
 		        from: "info.mobo.syncml.contact:1",
-		        where: [ { prop: "_rev", op: ">", val: revs.calendar }, {prop: "accountId", op: "=", val: ids.accountId} ],
+            select: ["_rev", "_id", "name"],
+		        where: [ { prop: "_rev", op: ">", val: input.account.datastores.contacts.lastRev }, {prop: "accountId", op: "=", val: input.account.accountId} ],
 		        incDel: true
-		      }
+		      },
+          datastore: input.account.datastores.contacts
 		    }
 		  );
 		},
 
 		getAllContacts: function (input) {
 		  log("Get all contacts called.");
-		  getContactsFromDB({callback: createContactArray, callback2: input.callback, serverId: input.serverId, query: {from: "info.mobo.syncml.contact:1", 
-		    where: [{prop: "accountId", op: "=", val: ids.accountId}]} }); //this query should just get all contacts.
+		  commonCallbacks.getItemsFromDB(
+        {
+          callback: createContactArray, 
+          callback2: input.callback, 
+          serverData: input.serverData, 
+          query: {
+            from: "info.mobo.syncml.contact:1",
+            select: ["_rev", "_id", "name"],
+            where: [ { prop: "accountId", op: "=", val: input.account.accountId } ]
+          }, 
+          datastore: input.account.datastores.contacts
+        }
+      ); //this query should just get all contacts.
 		},
 
-		startTrackingChanges: function (account) {
-		  log("startTrackingChanges called.");
-			try {
-				log("Tracking changes for future updates.");
-				DB.find({from: "info.mobo.syncml.contact:1", where: [{prop: "accountId", op: "=", val: ids.accountId}], select: ["_rev"]}).then(
-				  function (future) {
-				    var r = future.result, i;
-				    if (r.returnValue === true) {
-		          for (i = 0; i < r.results.length; i += 1) {
-		            if (r.results[i]._rev > revs.calendar) {
-		              revs.calendar = r.results[i]._rev;
-		            }
-		          }
-		          if (account && account.datastores && account.datastores.calendar) {
-		            account.datastores.calendar.lastRev = revs.calendar;
-		            SyncMLAccount.setAccount(account);
-		            SyncMLAccount.saveConfig();
-	              log("Will sync all changes after rev " + revs.calendar);
-		          } else {
-		            log("Could not save new rev in account object... wrong parameters applied?");
-		          }
-				    } else {
-				      log("Error in startTrackingchanges: " + future.exception.errorText + "( " + future.exception.errorCode + ") = " + JSON.stringify(future.exception));
-				    }
-				  }
-				);
-			} catch (exception) {
-				log("Exception in startTrackingChanges: " + exception + " - " + JSON.stringify(exception));
-			}
+		getLatestRev: function (account) {
+      commonCallbacks.getLatestRev(account, "info.mobo.syncml.contact:1");
 		},
 
-		finishSync: function (account, successful) {
-			var field, recEv;
-		  try {
-				if (successful) {
-					contactCallbacks.startTrackingChanges(account);
-				}
-
-				log("Did " + contactAdded + " adds, " + contactAddFailed + " adds failed.");
-				log("Did " + contactUpdated + " updates, " + contactUpdateFailed + " updates failed.");
-				log("Did " + contactDeleted + " deletes, " + contactDeleteFailed + " deletes failed.");
-				contactUpdated = 0;
-				contactUpdateFailed = 0;
-				contactAdded = 0;
-				contactAddFailed = 0;
-				contactDeleted = 0;
-				contactDeleteFailed = 0;
-			} catch (exception) {
-				log("Exception in finishSync: " + exception + " - " + JSON.stringify(exception));
-			}
-		},
-
-		//set {accountId: , calendarId: , contactsId:}
-		setAccountAndDatastoreIds: function (accountIds) {
-		  ids = accountIds;
-		},
-
-		//set { calendar: rev, contacts: rev, .... }
-		setRevisions: function (revisions) {
-		  log("Got revisions: " + JSON.stringify(revisions));
-		  revs = revisions;
+		finishSync: function (account, outerFuture) {
+      vCard.cleanUp(account).then(function (future) {
+        var res = outerFuture.result;
+        if (!res) {
+          res = {};
+        }
+        res.contacts = true;
+        outerFuture.result = res;
+      });
+      commonCallbacks.finishSync(account.datastores.contacts, stats);
 		}
 	}; //end of public interface
 }()); //selfinvoke function
-
