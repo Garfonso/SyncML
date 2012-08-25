@@ -7,7 +7,7 @@ var SyncMLAccount = (function () {
     savedFields = ["url", "name", "datastores", "accountId", "username_enc", "password_enc", "deviceName", "syncInterval", "dbWatch"],
     dsNames = ["calendar", "contacts"],
     savedFieldsDS = ["path", "method", "dbId", "enabled"],
-    savedFieldsDSSync = ["next", "serverNext", "lastRev", "serverType", "serverId"],
+    savedFieldsDSSync = ["next", "serverNext", "lastRev", "serverType", "serverId", "allTimeStats", "lastTen"],
 //  currentAccount = { //account object!
 //      //keystore!
 //      //from user during account creation:
@@ -450,7 +450,7 @@ var SyncMLAccount = (function () {
 
     //this deletes an account from the database!
     deleteAccountFromDB: function (account) {
-      var ids, field = "", outerFuture = new Future();
+      var ids, field = "", outerFuture = new Future(), callFuture;
       if (!account) {
         account = SyncMLAccount.getAccount();
         if (!account) {
@@ -465,7 +465,7 @@ var SyncMLAccount = (function () {
             ids.push(account.datastores[field].dbId);
           }
         }
-        var callFuture = DB.del(ids);
+        callFuture = DB.del(ids);
         callFuture.then(function (future) {
           try {
             if (future.result.returnValue === true) {
@@ -496,7 +496,7 @@ var SyncMLAccount = (function () {
     //this deletes an account from the account service!
     deleteAccount: function (account) {
       log("Delete account from webOS called.");
-      var outerFuture = new Future();
+      var outerFuture = new Future(), callFuture;
       if (!account) {
         account = SyncMLAccount.getAccount();
         if (!account) {
@@ -505,7 +505,7 @@ var SyncMLAccount = (function () {
         }
       }
       if (account.accountId) {
-        var callFuture = PalmCall.call("palm://com.palm.service.accounts/", "deleteAccount", {"accountId": account.accountId});
+        callFuture = PalmCall.call("palm://com.palm.service.accounts/", "deleteAccount", {"accountId": account.accountId});
         callFuture.then(function (future) {
           try {
             if (future.result.returnValue === true) {
@@ -588,7 +588,7 @@ var SyncMLAccount = (function () {
 
     //can be used to change capabilities, too:
     modifyAccount: function (account) {
-      var outerFuture = new Future();
+      var outerFuture = new Future(), callFuture;
       if (!account) {
         account = SyncMLAccount.getAccount();
         if (!account) {
@@ -604,7 +604,7 @@ var SyncMLAccount = (function () {
       }
       try {
         log("modifying account " + account.name);
-        var callFuture = PalmCall.call("palm://com.palm.service.accounts/", "modifyAccount",
+        callFuture = PalmCall.call("palm://com.palm.service.accounts/", "modifyAccount",
             {
               "accountId": account.accountId,
               object:
