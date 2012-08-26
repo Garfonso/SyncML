@@ -67,60 +67,6 @@ var vCard = (function () {
           });
         }
       });
-    
-    /*if (!input.vCard) {
-      return new Future([]);
-    }
-    
-    data = input.vCard.replace(/\r\n/g,"\n");
-    if (!data) {
-      data = input.vCard;
-    }
-    log ("Data: " + data);
-    lines = data.split("\n");
-    lines.push(null);
-    
-    var fileReader = {
-      lines: lines,
-      index: 0,
-      peek: function () { log("PEEEK"); return this.lines[this.index+1]; },
-      readLine: function() { log("REEAD"); this.index += 1; return this.lines[this.index-1]; },
-      restartFile: function() { this.index = 0; }
-    };
-    
-    vCardImporter = new Contacts.vCardImporter({filePath: filename, importToAccountId: input.account.accountId});
-    vCardImporter.vCardFileReader = fileReader;
-    vCardImporter.currentContact = contact;
-    
-    var future = vCardImporter.readVCard(function (params) { log("Callback called!"); log("Param: " + JSON.stringify(params)); return false;});
-    future.then(function (f) {
-      log("Future called: " + JSON.stringify(f.result));
-      resFuture.result = {returnValue: true, results: f.result};
-      //fs.unlink(filename);
-    });*/
-    
-    
-/*    currentLine = fileReader.readLine();
-    while (currentLine !== null) {
-			if (Contacts.vCardImporter._isLineBeginVCard(currentLine)) {
-				//Contacts.vCardImporter._setCurrentContact({});
-				currentLine = fileReader.readLine();
-				continue;
-			}
-
-			if (Contacts.vCardImporter._isLineEndVCard(currentLine)) {
-				currentContact = Contacts.vCardImporter._getCurrentContact();
-				
-				resFuture.result = [currentContact];
-
-			} else {
-				// Process the current line
-				Contacts.vCardImporter._handleLine(currentLine, fileReader);
-			}
-			
-			currentLine = fileReader.readLine();
-		}*/
-
       
       return resFuture;
     },
@@ -129,10 +75,12 @@ var vCard = (function () {
     //contactId
     generateVCard: function (input) {
       var resFuture = new Future(), 
-        filename = tmpPath + (input.account.name || "nameless") + "_" + vCardIndex + ".vcf", 
+        filename = tmpPath + (input.accountName || "nameless") + "_" + vCardIndex + ".vcf", 
         vCardExporter = new Contacts.VCardExporter({ filePath: filename }); //could set vCardVersion here to decide if 3.0 or 2.1, default will be 3.0... is that really necessary?
       vCardIndex += 1;
       
+      Contacts.Utils.defineConstant("kind", "info.mobo.syncml.contact:1", Contacts.Person);
+      log("Get contact " + input.contactId);
       vCardExporter.exportOne(input.contactId, false).then(function (future) {
         log("webOS saved vCard to " + filename);
         log("result: " + JSON.stringify(future.result));
@@ -141,6 +89,7 @@ var vCard = (function () {
             log ("Could not read back vCard from " + filename + ": " + JSON.stringify(err));
             resFuture.result = { returnValue: false };
           } else {
+            log("Read vCard from " + filename + ": " + data);
             resFuture.result = { returnValue: true, result: data };
           }
           fs.unlink(filename);
@@ -160,7 +109,7 @@ var vCard = (function () {
           log("Filename: " + filename);
           if (filename.indexOf(name) === 0) {
             log("Deleting " + filename);
-            //fs.unlink(tmpPath + filename);
+            fs.unlink(tmpPath + filename);
           } else {
             log("Not deleting file " + filename + " in temp path. Match results: " + filename.indexOf(name));
           }

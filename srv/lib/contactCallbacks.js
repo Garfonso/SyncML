@@ -99,7 +99,6 @@ var contactCallbacks = (function () {
     var update = [], del = [], add = [], i, obj, result, callback, updates = 0;
     callback = function (future) {
       try {
-        log(JSON.stringify(this));
         if (future.result.returnValue === true) {
           this.data = future.result.result;
           if (this.noAdd === true) {
@@ -213,7 +212,7 @@ var contactCallbacks = (function () {
 		      serverData: input.serverData,
 		      query: {
 		        from: "info.mobo.syncml.contact:1",
-            select: ["_rev", "_id", "name"],
+            select: ["_rev", "_id", "name", "_onServer"],
 		        where: [ { prop: "_rev", op: ">", val: input.account.datastores.contacts.lastRev }, {prop: "accountId", op: "=", val: input.account.accountId} ],
 		        incDel: true
 		      },
@@ -232,7 +231,7 @@ var contactCallbacks = (function () {
           serverData: input.serverData, 
           query: {
             from: "info.mobo.syncml.contact:1",
-            select: ["_rev", "_id", "name"],
+            select: ["_rev", "_id", "name", "_onServer"],
             where: [ { prop: "accountId", op: "=", val: input.account.accountId } ]
           }, 
           datastore: input.account.datastores.contacts,
