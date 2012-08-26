@@ -192,7 +192,7 @@ var contactCallbacks = (function () {
 		 */
     deleteContact: function (input) {
       input.datastore = input.account.datastores.contacts;
-      input.status = stats;
+      input.stats = stats;
       commonCallbacks.deleteItem(input);
 		},
 
@@ -217,7 +217,8 @@ var contactCallbacks = (function () {
 		        where: [ { prop: "_rev", op: ">", val: input.account.datastores.contacts.lastRev }, {prop: "accountId", op: "=", val: input.account.accountId} ],
 		        incDel: true
 		      },
-          datastore: input.account.datastores.contacts
+          datastore: input.account.datastores.contacts,
+          account: input.account
 		    }
 		  );
 		},
@@ -234,7 +235,8 @@ var contactCallbacks = (function () {
             select: ["_rev", "_id", "name"],
             where: [ { prop: "accountId", op: "=", val: input.account.accountId } ]
           }, 
-          datastore: input.account.datastores.contacts
+          datastore: input.account.datastores.contacts,
+          account: input.account
         }
       ); //this query should just get all contacts.
 		},
