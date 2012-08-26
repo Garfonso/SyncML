@@ -244,7 +244,11 @@ ConfigSyncMLAccountAssistant.prototype.checkCredentials = function () {
 	    log("CheckCredentials came back, but failed.");
 	    this.showLoginError ("Credentials", "Credentials were wrong or could not be checked." + (f.result.reason ? " Message: " + f.result.reason : ""));
 	  }
-	});	
+	});
+  credFuture.onError(function (f) {
+    log("CheckCredentials failed with error: " + JSON.stringify(f.result));
+	  this.showLoginError ("Credentials", "Credentials could not be checked." + (f.result.reason ? " Message: " + f.result.reason : ""));
+  });
 };
 
 ConfigSyncMLAccountAssistant.prototype.showLoginError = function(ErrorTitle, ErrorText) {
