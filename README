@@ -16,6 +16,7 @@ My list of Todo's
 - Optimize old eventCallback structure to be more database optimized and collect all adds, updates and deletes to do them in one batch.
 - Look into Todo or Note sync that will sync with the onboard tasks / memos apps.
 - Abuse multiple calendars as replacement for category support in the calendar app (maybe not necessary if a newer, more fancy calendar app of Open webOS will support categories? ;))
+- make error messages more readable (especially: 404 on alert => wrong datastore path, ...)
 
 Pull requests are welcome! :)
 Released under MIT license.
@@ -31,8 +32,12 @@ Known Issues:
 - Create account from the account app won't work on TouchPad.
 
 Changelog:
-2012-08- => 0.1.22
+- fixed check credentials issue for funambol servers (like privat ones or onemediahub.com)
+- results of last 10 syncs are now saved in db (i.e. if sync was ok, method of sync, how many objects were changed)
+- implemented first version of contact sync
+2012-08-22 => 0.1.22
 - fixed timeout mechanism
+- fixed issue with two-way-sync if there was no data transmitted at all.
 2012-08-15 => 0.1.21
 - changed watch activity so that it delays for 1 minute, so the user has enough time to complete his changes. Every new change during that 1 minute will delay the sync further.
 - changed requirement of activities to "internetConfidence: fair" so the syncs should have a higher probability to complete, now.
