@@ -19,10 +19,10 @@ var contactCallbacks = (function () {
       try {
         if (future.result.returnValue === true && future.result.results && future.result.results.length === 1) {
         var contact = future.result.results[0], c = [contact];
-        contact._onServer = true; //contact came from server.
-        log("Contact: " + JSON.stringify(c[0].name) + " with id: " + input.localId);
+        c[0]._onServer = true; //contact came from server.
         c[0]._id = input.localId;
         c[0].accountId = input.account.accountId;
+        log("Contact: " + JSON.stringify(c[0].name) + " with id: " + input.localId);
         
         //continue update.
         c[0]._kind = "info.mobo.syncml.contact:1";
@@ -108,6 +108,7 @@ var contactCallbacks = (function () {
             log("Item was not on server yet, adding to add list");
             if (this.contact) {
               log("Saving that this will be added to server.");
+              this.addOK -= 1; //be optimistic here.
               updateContact(this); //save that we added the contact to the server.. this is not 100% correct here, sync may still fail.. but that should trigger a slow sync anyway, shouldn't it?
             }
             add.push(this);
@@ -141,7 +142,7 @@ var contactCallbacks = (function () {
               input.account.datastores.contacts.lastRev = result._rev;
             }
             
-            //log("Got contact: " + JSON.stringify(result));
+            log("Got contact: " + JSON.stringify(result));
             if (result._del === true) {
               obj = { localId: result._id, uid: result.uId};
               del.push(obj);
@@ -212,7 +213,7 @@ var contactCallbacks = (function () {
 		      serverData: input.serverData,
 		      query: {
 		        from: "info.mobo.syncml.contact:1",
-            select: ["_rev", "_id", "name", "_onServer"],
+            //select: ["_rev", "_id", "name", "_onServer"],
 		        where: [ { prop: "_rev", op: ">", val: input.account.datastores.contacts.lastRev }, {prop: "accountId", op: "=", val: input.account.accountId} ],
 		        incDel: true
 		      },
@@ -231,7 +232,7 @@ var contactCallbacks = (function () {
           serverData: input.serverData, 
           query: {
             from: "info.mobo.syncml.contact:1",
-            select: ["_rev", "_id", "name", "_onServer"],
+            //select: ["_rev", "_id", "name", "_onServer"],
             where: [ { prop: "accountId", op: "=", val: input.account.accountId } ]
           }, 
           datastore: input.account.datastores.contacts,

@@ -141,6 +141,7 @@ var eventCallbacks = (function () {
           log("Item was not on server yet, adding to add list");
           if (this.event) {
             log("Saving that this will be added to server.");
+            this.addOK -= 1; //be optimistic here.
             updateEvent(this); //save that we added the event to the server.. this is not 100% correct here, sync may still fail.. but that should trigger a slow sync anyway, shouldn't it?
           }
           add.push(this);
