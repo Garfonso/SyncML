@@ -218,7 +218,7 @@ var eventCallbacks = (function () {
 		 */
     deleteEvent: function (input) {
       input.datastore = input.account.datastores.calendar;
-      input.status = stats;
+      input.stats = stats;
       commonCallbacks.deleteItem(input);
 		},
 
@@ -242,7 +242,8 @@ var eventCallbacks = (function () {
 		        where: [ { prop: "_rev", op: ">", val: input.account.datastores.calendar.lastRev }, {prop: "accountId", op: "=", val: input.account.accountId} ],
 		        incDel: true
 		      },
-          datastore: input.account.datastores.calendar
+          datastore: input.account.datastores.calendar,
+          account: input.account
 		    }
 		  );
 		},
@@ -259,7 +260,8 @@ var eventCallbacks = (function () {
               from: "info.mobo.syncml.calendarevent:1",
               where: [ { prop: "accountId", op: "=", val: input.account.accountId } ]
             }, 
-          datastore: input.account.datastores.calendar
+          datastore: input.account.datastores.calendar,
+          account: input.account
         }
       ); //this query should just get all events.
 		},
