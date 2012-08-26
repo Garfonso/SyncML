@@ -299,7 +299,7 @@ var syncMLMessage = function () {
         item.meta = readMeta(child);
         break;
       default:
-        log("Unexpected type (" + child.nodeName + ") in: " + printNode(child));
+        log("Unexpected type (" + child.nodeName + ") in item received: " + printNode(child));
         break;
       }
 
@@ -854,6 +854,7 @@ var syncMLMessage = function () {
       cleanXML = xml.replace(/>\s+</g, "><"); //remove all whitespaces between > and <
       cleanXML = cleanXML.replace(/<Data><\!\[CDATA\[/g,"<Data>");
       cleanXML = cleanXML.replace(/\]\]><\/\s*Data>/g,"</Data>");
+      cleanXML = cleanUpXML(cleanXML); //tries to repair xml errors from unquoted data.
       log("Cleaned up: " + cleanXML);
       responseDOM = xmlParser.parseFromString(cleanXML, "text/xml"); //get from XLM String to XML Dom.
       log("Parser finished");
