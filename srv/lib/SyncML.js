@@ -114,8 +114,12 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
 
   //sends a message to the server.
   function sendToServer(msg, callback, retry, id) {
-    var text, retrySend, checkTimeout, received = false, lastSend, future;
+    var text, retrySend, checkTimeout, received = false, lastSend, future, timeoutID;
     retrySend = function (e) {
+      if (timeoutID) {
+        log("Canceling timeout check for old message on retry send.");
+        clearTimeout(timeoutID);
+      }
       if (retry <= 5) {
         log("Got " + e.name + ": " + e.message + ". Retrying (" + retry + ")");
         log("Complete exception: " + JSON.stringify(e));
@@ -131,13 +135,14 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
       if (!received) {
         now = Date.now();
         log ("Message " + id + " was send last before " + ((now - lastSend) / 1000) + " seconds, was not yet received.");
+        timeoutID = setTimeout(checkTimeout, 1000);
         if (now - lastSend > 60*1000) { //last send before one minute?
           if (retry <= 5) {
-            setTimeout(checkTimeout, 1000);
+            log("Trying to resend message.");
+            retrySend({name:"Timeout", message:"Got no response in one minute."});
           } else {
             log("Already tried 5 times. Seems as if server won't answer? Sync seems broken.");
           }
-          retrySend({name:"Timeout", message:"Got no response in one minute."});
         }
       } else {
         log ("Message " + id + " received, returning.");
@@ -810,6 +815,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
         sessionInfo.msgId = 0;
         sessionInfo.error = null;
         sessionInfo.url = inAccount.url; //initialize with global url, might change later.
+        dsIndex = 0;
         account = inAccount;
         if (account.datastores === undefined) {
           account.datastores = [];
@@ -852,6 +858,15 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
 		    nextMsg.setFinal(true);
 		    resultCallback = callback;
 
+      nextMsg.addAlert({
+            data: "200",
+            items: [{
+              target: "configuration",
+              source: "configuration",
+              meta: { anchor: { next: (new Date().getTime() / 1000).toFixed() }}
+            }]
+          });
+        
 		    sendToServer(nextMsg, parseCredResponse);
 		  } catch (e) {
 	      logError_lib(e);
