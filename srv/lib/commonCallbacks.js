@@ -60,7 +60,7 @@ var commonCallbacks = (function () {
                 input.stats.deleteOk += 1;
                 input.success = true;
                 if (r.results[0].rev > input.datastore.lastRev) {
-                  input.account.datastore.lastRev = r.results[0].rev;
+                  input.datastore.lastRev = r.results[0].rev;
                 }
               } else {
                 input.stats.deleteFailed += 1;
