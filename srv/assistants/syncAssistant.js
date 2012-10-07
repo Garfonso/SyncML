@@ -245,7 +245,6 @@ syncAssistant.prototype.run = function (outerFuture, subscription) {
           args.$activity.accountId = account.accountId;
         }
 
-
         if (!account.username || !account.password || !account.url) {
           log("Account seems to be not fully configured. Can't sync.");
           log("Account: " + JSON.stringify(account));
