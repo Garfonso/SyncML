@@ -90,7 +90,7 @@ var commonCallbacks = (function () {
      * @param {Object} input = {kind: db.kind, account: account}
 		 */
 		deleteAllItems: function (input) {
-		  log("deleteAllItems called.");
+		  log("deleteAllItems called for " + input.kind + " from account " + input.account.accountId);
       try {
         DB.del({from: input.kind, where: [{prop: "accountId", op: "=", val: input.account.accountId}] }, false).then(
           function (future) {

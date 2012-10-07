@@ -132,7 +132,7 @@ var eventCallbacks = (function () {
     var update = [], del = [], add = [], i, obj, result, callback, updates = 0;
     callback = function (ical) {
       try {
-        log(JSON.stringify(this));
+        //log(JSON.stringify(this));
         this.data = ical;
         if (this.noAdd === true) {
           log("Item was on server already, adding to update list: " + JSON.stringify(this.noAdd));
@@ -147,7 +147,7 @@ var eventCallbacks = (function () {
           add.push(this);
         }
         updates -= 1;
-        log("Remaining updates: " + updates);
+        log("Remaining items: " + updates);
         if (updates === 0) {
           input.callback2({add: add, del: del, replace: update, success: input.success}); //still can't distinguish between new and changed items.
         }
@@ -275,8 +275,8 @@ var eventCallbacks = (function () {
 			if (!account && !account.accountId) {
 			  //log("Did not get account! => failure.");
 			  return resfuture;
-			}
-			if (account.datastores.calendar) {
+			}      
+			if (account.datastores.calendar && account.datastores.calendar.enabled) {
         //log("Have Calendar Id: " + account.datastores.calendar.dbId);
         resfuture = DB.find(query, false, false).then(
           function (future) {
@@ -344,6 +344,8 @@ var eventCallbacks = (function () {
           logToApp("Could not find Calendar: " + JSON.stringify(f.exeption));
           resfuture.result = { returnValue: false };
         });
+      } else { //calendar disabled => don't create, all is fine.
+        resfuture.result = { returnValue: true };
       }
 			return resfuture;
 		},

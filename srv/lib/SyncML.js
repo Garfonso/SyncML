@@ -69,7 +69,7 @@ var DeviceProperties = {
 
 var MimeTypes = {
     calendar: { pref: "text/calendar", fallback: "text/x-vcalendar" },
-    contacts: { pref: "text/vcard", fallback: "text/x-vcard"}
+    contacts: { pref: "text/x-vcard",  fallback: "text/vcard"}
 };
 
 var SyncML = (function () {      //lastMsg allways is the last response from the server, nextMsg allways is the message that we are currently building to send.
@@ -593,7 +593,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
   };
 
   function mContinueSync(name, data) {
-    var addedItems = 0, ti = 0, i, obj, type;
+    var addedItems = 0, allItemsForThisDS = 0, ti = 0, i, obj, type;
     //TODO: what happens if this is called two times with different data objects?
     try {
       if (!data.success) {
@@ -621,6 +621,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
           });
           account.datastores[name][types[ti] + "Own"] += 1;
           addedItems += 1;
+          allItemsForThisDS += 1;
           if (addedItems >= 9) { //TODO: make this more dynamic as reaction to server.
             addedItems = 0;
             //tell server that this won't be the last msg.
@@ -636,7 +637,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
       }
 
       if (dsIndex >= willBeSynced.length) {
-        if (addedItems === 0 && msgQueue.length > 0) { //last msg was empty. get back the last msg of the queue if there is one.
+        if (addedItems === 0 && msgQueue.length > 0 && allItemsForThisDS !== 0) { //last msg was empty. get back the last msg of the queue if there is one. Only if this DS did add any items.
           nextMsg = msgQueue.pop();
         }
 
@@ -884,6 +885,9 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
 		    for (i = 0; i < dsNames.length; i += 1) {
 		      ds = account.datastores[dsNames[i]];
 		      if (ds && ds.enabled) {
+            if (!ds.path) {
+              ds.path = dsNames[i]; //if the path is empty, many things will fail. So be sure that it won't be empty!
+            }
 		        ds.last = ds.next;
 		        ds.next = (new Date().getTime() / 1000).toFixed();
 		        nextMsg.addAlert({
@@ -903,10 +907,10 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
 		        }
 		      }
 		    }
-        //if (doPutDevInfo) { //devInfo will be send, if we don't know anything about the server 
+        if (doPutDevInfo) { //devInfo will be send, if we don't know anything about the server 
                           //or if we need to do slow sync, or refresh from client/server.
           putDevInfo(nextMsg, datastores, {type: "Put"});
-        //}
+        }
 
 		    logToApp("Sending initialization message to server.");
 		    sendToServer(nextMsg, parseInitResponse);

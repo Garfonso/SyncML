@@ -12,11 +12,10 @@ The sync of contacts is to be added later. Maybe also more datastore types (I'd 
 The synergy integration is quite done. The JavaScript SyncML Client and iCal parser work. 
 
 My list of Todo's
-- Implement contacts sync (will require new or extended parser or use webOS integrated stuff)
 - Optimize old eventCallback structure to be more database optimized and collect all adds, updates and deletes to do them in one batch.
 - Look into Todo or Note sync that will sync with the onboard tasks / memos apps.
 - Abuse multiple calendars as replacement for category support in the calendar app (maybe not necessary if a newer, more fancy calendar app of Open webOS will support categories? ;))
-- make error messages more readable (especially: 404 on alert => wrong datastore path, ...)
+- make error messages more readable (especially: 404 on alert => wrong datastore path, no connection => might be internal server error (funambol likes to do that!),...)
 
 Pull requests are welcome! :)
 Released under MIT license.
@@ -30,8 +29,10 @@ Known Issues:
 - 500 internal server error for onemediahub.com during check credentials. Hm. How to resolve that? 
 - shiftAllday won't work if server and client are in different timezones, causes issues with alarms having wrong offsets.. hm. Need to evaluate again.
 - Create account from the account app won't work on TouchPad.
+- Issue with funambol server: they don't seem to support the "COUNT" keyword => for server id "funambol" modify "COUNT" RRULES into UNTIL.
 
 Changelog:
+- fixed issue with sync of multiple data sources.
 - fixed check credentials issue for funambol servers (like privat ones or onemediahub.com)
 - results of last 10 syncs are now saved in db (i.e. if sync was ok, method of sync, how many objects were changed)
 - implemented first version of contact sync

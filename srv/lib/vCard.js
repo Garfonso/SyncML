@@ -6,6 +6,21 @@ var vCard = (function () {
     exporter,
     tmpPath = "/tmp/syncml-contacts/", //don't forget trailling slash!!
     vCardIndex = 0;
+    
+    function cleanUpEmptyFields(obj) {
+      var field;
+      if (typeof obj === "object") {
+        for (field in obj) {
+          if (typeof obj[field] === "string") {
+            if (obj[field] === "") {
+              delete obj[field];
+            }
+          } else if (typeof obj[field] === "object") {
+            cleanUpEmptyFields(obj[field]);
+          }
+        }
+      }
+    }
   
   //public interface:
   return {
@@ -45,24 +60,45 @@ var vCard = (function () {
         currentLine,
         lines,
         data,
-        currentContact;
+        i,
+        version = (input.serverData && input.serverData.serverType === MimeTypes.contacts.fallback) ? "3.0" : "2.1", 
+        emptyLine = /^[A-Za-z;\-_]*:[;]*$/;
       vCardIndex += 1;
+      
+      if (!input.vCard) {
+        log("Empty vCard received.");
+        return new Future({returnValue: false});
+      }
       
       log("Writing vCard to file " + filename);
       log("vCard data: " + input.vCard);
+      lines = input.vCard.split(/\r?\n/);
+      data = [];
+      for (i = 0; i < lines.length; i += 1) {
+        currentLine = lines[i];
+        if (!emptyLine.test(currentLine)) {
+          data.push(currentLine);
+        } else {
+          log("Skipping empty line " + currentLine);
+        }
+      }
+      input.vCard = data.join("\r\n");
+      log("vCard data cleaned up: " + input.vCard);
       fs.writeFile(filename, input.vCard, "utf-8", function (err) {
         if (err) {
           log("Could not write vCard to file: " + filename + " Error: " + JSON.stringify(err));
         } else {
           log("Saved vCard to " + filename);
           //setup importer
-          vCardImporter = new Contacts.vCardImporter({filePath: filename, importToAccountId: input.account.accountId});
+          vCardImporter = new Contacts.vCardImporter({filePath: filename, importToAccountId: input.account.accountId, version: version});
           //do import:
           var future = vCardImporter.readVCard();
           future.then(function (f) {
-            log("Future called: " + JSON.stringify(f.result));
-            log("Test: " + JSON.stringify(f.result[0].getDBObject()));
-            resFuture.result = {returnValue: true, results: [f.result[0].getDBObject()]};
+            var obj = f.result[0].getDBObject();
+            log("Contact: " + JSON.stringify(obj));
+            //cleanUpEmptyFields(obj);
+            //log("Contact after cleanup: " + JSON.stringify(obj));
+            resFuture.result = {returnValue: true, results: [obj]};
             fs.unlink(filename);
           });
         }
@@ -70,17 +106,18 @@ var vCard = (function () {
       
       return resFuture;
     },
-    
+        
     //input:
     //contactId
     generateVCard: function (input) {
-      var resFuture = new Future(), 
+      var resFuture = new Future(), note, 
         filename = tmpPath + (input.accountName || "nameless") + "_" + vCardIndex + ".vcf", 
-        vCardExporter = new Contacts.VCardExporter({ filePath: filename }); //could set vCardVersion here to decide if 3.0 or 2.1, default will be 3.0... is that really necessary?
+        version = (input.serverData && input.serverData.serverType === MimeTypes.contacts.fallback) ? "3.0" : "2.1", 
+        vCardExporter = new Contacts.VCardExporter({ filePath: filename, version: version }); //could set vCardVersion here to decide if 3.0 or 2.1, default will be 3.0... is that really necessary?
       vCardIndex += 1;
       
       Contacts.Utils.defineConstant("kind", "info.mobo.syncml.contact:1", Contacts.Person);
-      log("Get contact " + input.contactId);
+      log("Get contact " + input.contactId + " transfer it to version " + version + " vCard.");
       vCardExporter.exportOne(input.contactId, false).then(function (future) {
         log("webOS saved vCard to " + filename);
         log("result: " + JSON.stringify(future.result));
@@ -90,6 +127,17 @@ var vCard = (function () {
             resFuture.result = { returnValue: false };
           } else {
             log("Read vCard from " + filename + ": " + data);
+            data = data.replace(/TEL;TYPE=CELL,VOICE/g,"TEL;TYPE=CELL");
+            data = data.replace(/CELL;VOICE/g,"CELL");
+            data = data.replace(/\nTYPE=:/g,"URL:"); //repair borked up URL thing. Omitting type here..
+            if (input.contact && input.contact.note) {
+              note = input.contact.note;
+              log("Having note: " + note);
+              note = note.replace(/\n/g, "\\n");
+              note = note.replace(/\r/g, "\\r");
+              data = data.replace("END:VCARD","NOTE:" + note + "\r\nEND:VCARD");
+            }
+            log("Modified data: " + data);
             resFuture.result = { returnValue: true, result: data };
           }
           fs.unlink(filename);

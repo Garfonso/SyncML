@@ -1171,7 +1171,79 @@ var syncMLMessage = function () {
       devInfo.push("<SyncType>4</SyncType>\n");
       devInfo.push("<SyncType>5</SyncType>\n");
       //devInfo.push("<SyncType>7</SyncType>\n"); //sever alerted sync TODO: have a look if we can support that. Does a server exist that does this?? Why is this 7 and not 6??
-      devInfo.push("</SyncCap>\n");
+      devInfo.push("</SyncCap>\n</DataStore>\n");
+      
+      //contacts datastore:
+      devInfo.push("<DataStore>\n");
+      devInfo.push("<SourceRef>contacts</SourceRef>\n<DisplayName>contacts</DisplayName>\n");
+      //<MaxGUIDSize>32</MaxGUIDSize>
+      devInfo.push("<Rx><CTType>text/vcard</CTType><VerCT>3.0</VerCT></Rx>\n");
+      devInfo.push("<Rx-Pref><CTType>text/x-vcard</CTType><VerCT>2.1</VerCT></Rx-Pref>\n");
+      devInfo.push("<Tx><CTType>text/vcard</CTType><VerCT>3.0</VerCT></Tx>\n");
+      devInfo.push("<Tx-Pref><CTType>text/x-vcard</CTType><VerCT>2.1</VerCT></Tx-Pref>\n");
+      devInfo.push("<CTCap>\n");
+      devInfo.push("<CTType>" + MimeTypes.contacts.pref + "</CTType>\n");
+      devInfo.push("<VerCT>3.0</VerCT>\n");
+      devInfo.push("<Property><PropName>BEGIN</PropName><ValEnum>VCARD</ValEnum></Property>\n<Property><PropName>END</PropName><ValEnum>VCARD</ValEnum></Property>\n");
+      devInfo.push("<Property><PropName>VERSION</PropName><ValEnum>3.0</ValEnum></Property>\n");
+      devInfo.push("<Property><PropName>NICKNAME</PropName></Property>\n");
+      devInfo.push("<Property><PropName>N</PropName></Property>\n");
+      devInfo.push("<Property><PropName>FN</PropName></Property>\n");
+      devInfo.push("<Property><PropName>ORG</PropName></Property>\n");
+      devInfo.push("<Property><PropName>TITLE</PropName></Property>\n");
+      devInfo.push("<Property><PropName>TEL</PropName><PropParam><ParamName>TYPE</ParamName><ValEnum>VOICE,HOME</ValEnum><ValEnum>VOICE,WORK</ValEnum><ValEnum>VOICE,CELL</ValEnum><ValEnum>PAGER</ValEnum><ValEnum>CELL</ValEnum><ValEnum>WORK,FAX</ValEnum><ValEnum>HOME,FAX</ValEnum><ValEnum>CAR,VOICE</ValEnum><ValEnum>WORK,PREF</ValEnum><ValEnum>PREF,VOICE</ValEnum><ValEnum>FAX</ValEnum><ValEnum>VOICE</ValEnum><ValEnum>OTHER</ValEnum></PropParam></Property>\n");
+      devInfo.push("<Property><PropName>EMAIL</PropName><PropParam><ParamName>TYPE</ParamName><ValEnum>INTERNET,HOME</ValEnum><ValEnum>INTERNET,WORK</ValEnum><ValEnum>INTERNET</ValEnum></PropParam></Property>\n");
+      devInfo.push("<Property><PropName>ADR</PropName><PropParam><ParamName>TYPE</ParamName><ValEnum>HOME</ValEnum><ValEnum>WORK</ValEnum><ValEnum>OTHER</ValEnum></PropParam></Property>\n");
+      devInfo.push("<Property><PropName>BDAY</PropName></Property>\n");
+      devInfo.push("<Property><PropName>URL</PropName><PropParam><ParamName>TYPE</ParamName><ValEnum>HOME</ValEnum><ValEnum>WORK</ValEnum></PropParam></Property>\n");
+      devInfo.push("<Property><PropName>NOTE</PropName></Property>\n");
+      devInfo.push("<Property><PropName>X-ABRELATEDNAMES</PropName></Property>\n");
+      devInfo.push("<Property><PropName>X-GTALK</PropName></Property>\n");
+      devInfo.push("<Property><PropName>X-AIM</PropName></Property>\n");
+      devInfo.push("<Property><PropName>X-MSN</PropName></Property>\n");
+      devInfo.push("<Property><PropName>X-YAHOO</PropName></Property>\n");
+      devInfo.push("<Property><PropName>X-JABBER</PropName></Property>\n");
+      devInfo.push("<Property><PropName>X-QQ</PropName></Property>\n");
+      devInfo.push("<Property><PropName>X-ICQ</PropName></Property>\n");
+      devInfo.push("<Property><PropName>X-SKYPE</PropName></Property>\n");
+      devInfo.push("<Property><PropName>X-IM</PropName></Property>\n");
+      devInfo.push("<Property><PropName>X-SPOUSE</PropName></Property>\n");
+      devInfo.push("<Property><PropName>X-CHILD</PropName></Property>\n");
+      devInfo.push("<Property><PropName>PHOTO</PropName></Property>\n");
+      devInfo.push("</CTCap>\n");
+      devInfo.push("<CTCap>\n");
+      devInfo.push("<CTType>" + MimeTypes.contacts.fallback + "</CTType>\n");
+      devInfo.push("<VerCT>2.1</VerCT>\n");
+      devInfo.push("<Property><PropName>BEGIN</PropName><ValEnum>VCARD</ValEnum></Property>\n<Property><PropName>END</PropName><ValEnum>VCARD</ValEnum></Property>\n");
+      devInfo.push("<Property><PropName>VERSION</PropName><ValEnum>2.1</ValEnum></Property>\n");
+      devInfo.push("<Property><PropName>NICKNAME</PropName></Property>\n");
+      devInfo.push("<Property><PropName>N</PropName></Property>\n");
+      devInfo.push("<Property><PropName>FN</PropName></Property>\n");
+      devInfo.push("<Property><PropName>ORG</PropName></Property>\n");
+      devInfo.push("<Property><PropName>TITLE</PropName></Property>\n");
+      devInfo.push("<Property><PropName>TEL</PropName><PropParam><ParamName>TYPE</ParamName><ValEnum>VOICE,HOME</ValEnum><ValEnum>VOICE,WORK</ValEnum><ValEnum>VOICE,CELL</ValEnum><ValEnum>PAGER</ValEnum><ValEnum>CELL</ValEnum><ValEnum>WORK,FAX</ValEnum><ValEnum>HOME,FAX</ValEnum><ValEnum>CAR,VOICE</ValEnum><ValEnum>WORK,PREF</ValEnum><ValEnum>PREF,VOICE</ValEnum><ValEnum>FAX</ValEnum><ValEnum>VOICE</ValEnum><ValEnum>OTHER</ValEnum></PropParam></Property>\n");
+      devInfo.push("<Property><PropName>EMAIL</PropName><PropParam><ParamName>TYPE</ParamName><ValEnum>INTERNET,HOME</ValEnum><ValEnum>INTERNET,WORK</ValEnum><ValEnum>INTERNET</ValEnum></PropParam></Property>\n");
+      devInfo.push("<Property><PropName>ADR</PropName><PropParam><ParamName>TYPE</ParamName><ValEnum>HOME</ValEnum><ValEnum>WORK</ValEnum><ValEnum>OTHER</ValEnum></PropParam></Property>\n");
+      devInfo.push("<Property><PropName>BDAY</PropName></Property>\n");
+      devInfo.push("<Property><PropName>URL</PropName><PropParam><ParamName>TYPE</ParamName><ValEnum>HOME</ValEnum><ValEnum>WORK</ValEnum></PropParam></Property>\n");
+      devInfo.push("<Property><PropName>NOTE</PropName></Property>\n");
+      devInfo.push("<Property><PropName>X-ABRELATEDNAMES</PropName></Property>\n");
+      devInfo.push("<Property><PropName>X-GTALK</PropName></Property>\n");
+      devInfo.push("<Property><PropName>X-AIM</PropName></Property>\n");
+      devInfo.push("<Property><PropName>X-MSN</PropName></Property>\n");
+      devInfo.push("<Property><PropName>X-YAHOO</PropName></Property>\n");
+      devInfo.push("<Property><PropName>X-JABBER</PropName></Property>\n");
+      devInfo.push("<Property><PropName>X-QQ</PropName></Property>\n");
+      devInfo.push("<Property><PropName>X-ICQ</PropName></Property>\n");
+      devInfo.push("<Property><PropName>X-SKYPE</PropName></Property>\n");
+      devInfo.push("<Property><PropName>X-IM</PropName></Property>\n");
+      devInfo.push("<Property><PropName>X-SPOUSE</PropName></Property>\n");
+      devInfo.push("<Property><PropName>X-CHILD</PropName></Property>\n");
+      devInfo.push("<Property><PropName>PHOTO</PropName></Property>\n");
+      devInfo.push("</CTCap>\n");
+      devInfo.push("<SyncCap><SyncType>1</SyncType><SyncType>2</SyncType><SyncType>3</SyncType><SyncType>4</SyncType><SyncType>5</SyncType></SyncCap>\n");
+      //<SyncType>6</SyncType><SyncType>7</SyncType>
+      
       devInfo.push("</DataStore>\n</DevInf>\n");
 
       m = [];

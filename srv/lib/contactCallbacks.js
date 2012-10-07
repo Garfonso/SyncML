@@ -32,9 +32,9 @@ var contactCallbacks = (function () {
               var r = f.result;
               if (r.returnValue === true) {
                 if (input.localId) {
-                  stats.addOK += 1;
-                } else {
                   stats.updateOK += 1;
+                } else {
+                  stats.addOK += 1;
                 }
                 input.localId = r.results[0].id;
                 input.success = true;
@@ -149,7 +149,7 @@ var contactCallbacks = (function () {
             } else {
               obj = { localId: result._id, uid: result.uId, noAdd: result._onServer, contact: result, account: input.account}; //don't send adds for all of them!! First repair "onServer" storage
               updates += 1;
-              vCard.generateVCard({contactId: result._id, accountName: input.account.name}).then(obj, callback);
+              vCard.generateVCard({contactId: result._id, contact: result, accountName: input.account.name, serverData: input.serverData}).then(obj, callback);
             }
           } catch (e) {
             log("Error while adding element " + i + " of " + input.result.length + ". Error: " + JSON.stringify(e));

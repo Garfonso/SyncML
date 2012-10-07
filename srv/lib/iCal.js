@@ -340,11 +340,11 @@ var iCal = (function () {
   function buildRRULE(rr, tzId) {
     var text = "RRULE:", i, j, day;
     text += "FREQ=" + rr.freq + ";";
-    if (rr.interval) {
-      text += "INTERVAL=" + rr.interval + ";";
-    }
     if (rr.count) {
       text += "COUNT=" + rr.count + ";";
+    }    
+    if (rr.interval && rr.interval != 1) {
+      text += "INTERVAL=" + rr.interval + ";";
     }
     if (rr.until) {
       text += "UNTIL=" + webOsTimeToICal(rr.until, false, tzId) + ";";
