@@ -147,7 +147,7 @@ var commonCallbacks = (function () {
 		},
 
 		finishSync: function (datastore, stats) {
-      var index;
+      var index, date = new Date();
       try {
         //reset the saved lastRev. The oldLastRev was saved before the
         //first call to get items from the db.
@@ -177,7 +177,7 @@ var commonCallbacks = (function () {
         datastore.stats = moboCopy(stats);
 
         //save outcome = ok, method and stats in db!
-        datastore.lastTen[0] = {ok: datastore.ok, method: datastore.method, stats: moboCopy(stats)};
+        datastore.lastTen[0] = {ok: datastore.ok, method: datastore.method, stats: moboCopy(stats), ts: date.getTime(), time: date.toDateString() };
         if (!datastore.allTimeStats) {
           datastore.allTimeStats = {};
         }
@@ -191,7 +191,6 @@ var commonCallbacks = (function () {
           delete datastore.oldMethod;
         }
 
-                
 				stats.updateOK = 0;
 				stats.updateFailed = 0;
 				stats.addOK = 0;
