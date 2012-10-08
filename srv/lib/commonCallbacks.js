@@ -149,7 +149,11 @@ var commonCallbacks = (function () {
 		finishSync: function (datastore, stats) {
       var index;
       try {
-        if (datastore.lastRev === 0) {
+        //reset the saved lastRev. The oldLastRev was saved before the
+        //first call to get items from the db.
+        //if sync did go wrong, we want to get the changes from last time again
+        // (or we want to keep the oldLastRev if there were no items at all (?))
+        if (!datastore.ok || datastore.lastRev === 0) {
           datastore.lastRev = datastore.oldLastRev;
         }
         
@@ -181,6 +185,12 @@ var commonCallbacks = (function () {
           datastore.allTimeStats[datastore.method] = 0;
         } 
         datastore.allTimeStats[datastore.method] += 1;
+        
+        if (datastore.oldMethod) {
+          datastore.method = datastore.oldMethod;
+          delete datastore.oldMethod;
+        }
+
                 
 				stats.updateOK = 0;
 				stats.updateFailed = 0;

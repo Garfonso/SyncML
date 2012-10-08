@@ -743,6 +743,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
             if (account.datastores[alert.items[0].target]) {
               if (alert.data) {
                 log("Got " + alert.items[0].target + " method: " + alert.data);
+                  account.datastores[alert.items[0].target].oldMethod = account.datastores[alert.items[0].target].method;
                 if (account.datastores[alert.items[0].target].method === "205" && alert.data === "201") {
                   log("Requested refresh from server, won't switch to slow sync.");
                 } else {
