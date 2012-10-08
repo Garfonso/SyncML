@@ -28,13 +28,18 @@ syncAssistant.prototype.finished = function (account) {
 
   if (account.datastores.calendar && account.datastores.calendar.enabled) {
     calendar = account.datastores.calendar;
+    //maybe server requested slow sync, restore old method here.
+    if (calendar.oldMethod) {
+      calendar.method = calendar.oldMethod;
+      delete calendar.oldMethod;
+    }
     if (calendar.ok === true) {
       log("Calendar sync worked, rev: " + calendar.lastRev);
       //keep changes for next two-way.
       eventCallbacks.finishSync(account, innerFuture);
-      if (calendar.method === "slow" || calendar.method.indexOf("refresh") !== -1) {
-        calendar.method = "two-way";
-      }
+      //if (calendar.method === "slow" || calendar.method.indexOf("refresh") !== -1) {
+      //  calendar.method = "two-way";
+      //}
     } else {
       res = innerFuture.result;
       if (!res) {
@@ -54,6 +59,11 @@ syncAssistant.prototype.finished = function (account) {
   }
   if (account.datastores.contacts && account.datastores.contacts.enabled) {
     contacts = account.datastores.contacts;
+    //maybe server requested slow sync, restore old method here.        
+    if (contacts.oldMethod) {
+      contacts.method = contacts.oldMethod;
+      delete contacts.oldMethod;
+    }
     if (contacts.ok) {
       log("Contacts sync worked, rev: " + contacts.lastRev);
       contactCallbacks.finishSync(account, innerFuture);
@@ -339,7 +349,7 @@ syncAssistant.prototype.delaySync = function (account, name) {
         description: "Synergy SyncML delayed watch activity",
         type: activityType,
         requirements: {
-          internetConfidence: "fair"
+          internetConfidence: "excellent"
         },
         schedule: { 
           "start"    : date.getFullYear() + "-" + (date.getMonth()+1) + "-" + date.getDate() + " " + date.getHours() + ":" + date.getMinutes() + ":" + date.getSeconds(),

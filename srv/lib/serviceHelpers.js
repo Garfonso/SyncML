@@ -456,7 +456,7 @@ var checkActivities = function (account) {
             description: "Synergy SyncML calendar changes Watch",
             type: activityType,
             requirements: {
-              internetConfidence: "fair"
+              internetConfidence: "excellent"
             },
             trigger: { method: "palm://com.palm.db/watch", key: "fired",
               params: { subscribe: true, query: {
@@ -484,7 +484,7 @@ var checkActivities = function (account) {
             description: "Synergy SyncML contact changes Watch",
             type: activityType,
             requirements: {
-              internetConfidence: "fair"
+              internetConfidence: "excellent"
             },
             trigger: { method: "palm://com.palm.db/watch", key: "fired",
                 params: { subscribe: true, query: {
@@ -510,7 +510,7 @@ var checkActivities = function (account) {
             description: "Synergy SyncML periodic sync",
             type: activityType,
             requirements: {
-              internetConfidence: "fair"
+              internetConfidence: "excellent"
             },
             schedule: { interval: account.syncInterval },
             callback: activityCallback
