@@ -28,25 +28,10 @@ syncAssistant.prototype.finished = function (account) {
 
   if (account.datastores.calendar && account.datastores.calendar.enabled) {
     calendar = account.datastores.calendar;
-    //maybe server requested slow sync, restore old method here.
-    if (calendar.oldMethod) {
-      calendar.method = calendar.oldMethod;
-      delete calendar.oldMethod;
-    }
+    eventCallbacks.finishSync(account, innerFuture);
     if (calendar.ok === true) {
       log("Calendar sync worked, rev: " + calendar.lastRev);
-      //keep changes for next two-way.
-      eventCallbacks.finishSync(account, innerFuture);
-      //if (calendar.method === "slow" || calendar.method.indexOf("refresh") !== -1) {
-      //  calendar.method = "two-way";
-      //}
     } else {
-      res = innerFuture.result;
-      if (!res) {
-        res = {};
-      }
-      res.calendar = true;
-      innerFuture.result = res;
       log("Calendar sync had errors.");
     }
   } else {
@@ -58,26 +43,12 @@ syncAssistant.prototype.finished = function (account) {
     innerFuture.result = res;
   }
   if (account.datastores.contacts && account.datastores.contacts.enabled) {
-    contacts = account.datastores.contacts;
-    //maybe server requested slow sync, restore old method here.        
-    if (contacts.oldMethod) {
-      contacts.method = contacts.oldMethod;
-      delete contacts.oldMethod;
-    }
+    contacts = account.datastores.contacts;    
+    contactCallbacks.finishSync(account, innerFuture);
     if (contacts.ok) {
       log("Contacts sync worked, rev: " + contacts.lastRev);
-      contactCallbacks.finishSync(account, innerFuture);
-      if (contacts.method === "slow" || contacts.method.indexOf("refresh") !== -1) {
-        contacts.method = "two-way";
-      }
     } else {
       log("Contacts sync had errors.");
-      res = innerFuture.result;
-      if (!res) {
-        res = {};
-      }
-      res.contacts = true;
-      innerFuture.result = res;
     }
   } else {
     res = innerFuture.result;

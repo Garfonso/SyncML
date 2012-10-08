@@ -186,9 +186,16 @@ var commonCallbacks = (function () {
         } 
         datastore.allTimeStats[datastore.method] += 1;
         
+        //maybe server requested slow sync, restore old method here.
         if (datastore.oldMethod) {
           datastore.method = datastore.oldMethod;
           delete datastore.oldMethod;
+          
+          //for slow and refresh switch to two-way fast sync after successful sync. Don't do that for one-way!
+          if (datastore.ok && 
+                (datastore.method === "slow" || datastore.method.indexOf("refresh") !== -1)) {
+            datastore.method = "two-way";
+          }
         }
 
 				stats.updateOK = 0;

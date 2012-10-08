@@ -31,8 +31,13 @@ Known Issues:
 - Create account from the account app won't work on TouchPad.
 - Issue with funambol server: they don't seem to support the "COUNT" keyword => for server id "funambol" modify "COUNT" RRULES into UNTIL.
 - contacts encoding issue for umlauts!
+- contacts don't show up on touchpad.
 
 Changelog:
+2012-10-08 => 0.1.24
+- fixed issue that app would forget "one-way-from-server" or "one-way-from-client" on server requested slow syncs.
+- fixed all time stats for failed syncs.
+- changed required confidence level to "excellent"... even on fair syncs seem to fail quite often. Please see if syncs are happening at all, now.
 2012-10-07 => 0.1.23
 - fixed issue with sync of multiple data sources.
 - fixed check credentials issue for funambol servers (like privat ones or onemediahub.com)
