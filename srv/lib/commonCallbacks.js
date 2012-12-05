@@ -24,6 +24,7 @@ var commonCallbacks = (function () {
                 log("Error in getItemsFromDB: " + JSON.stringify(future.exception));
                 input.success = false;
               }
+              delete r.results; //try to release memory.
               input.callback(input);
             } catch (e) {
               log("Error in getItemsFromDB(Future): ");
@@ -94,18 +95,23 @@ var commonCallbacks = (function () {
       try {
         DB.del({from: input.kind, where: [{prop: "accountId", op: "=", val: input.account.accountId}] }, false).then(
           function (future) {
-            var r = future.result;
-            if (r.returnValue === true) {
-              log("Successfully deleted all elements: " + JSON.stringify(r));
-              input.callback({success: true});
-            } else {
-              log("Error in deleteAllContacts: " + future.exception.errorText + "( " + future.exception.errorCode + ")");
+            try {
+              var r = future.result;
+              if (r.returnValue === true) {
+                log("Successfully deleted all elements: " + JSON.stringify(r));
+                input.callback({success: true});
+              } else {
+                log("Error in deleteAllItems: " + future.exception.errorText + "( " + future.exception.errorCode + ")");
+                input.callback({success: false});
+              }
+            } catch (e) {
+              log("Exception in deleteAllItems future: " + exception + " - " + JSON.stringify(exception));
               input.callback({success: false});
             }
           }
         );
 			} catch (exception) {
-				log("Exception in deleteAllContacts: " + exception + " - " + JSON.stringify(exception));
+				log("Exception in deleteAllItems: " + exception + " - " + JSON.stringify(exception));
 				//something went wrong, continue sync:
 				input.callback({success: false});
 				logError_lib(exception);
