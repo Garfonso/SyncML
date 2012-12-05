@@ -634,6 +634,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
             nextMsg.addCredentials(account);
           }
         }
+        delete data[types[ti]]; //try to free some memory.
       }
 
       if (dsIndex >= willBeSynced.length) {
