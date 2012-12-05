@@ -1,11 +1,9 @@
 /*global Future, SyncMLAccount, log, eventCallbacks, outerFutures, finishAssistant_global, logSubscription, logError_global, startAssistant, logToApp, SyncML, initialize, PalmCall, contactCallbacks */
 
 var syncAssistant = function (future) {
-  "use strict";
 };
 
 syncAssistant.prototype.finished = function (account) {
-  "use strict";
   var outerFuture = new Future(), saveAccounts, checkRevsResult, calendar, contacts, innerFuture = new Future(), res;
 
   saveAccounts = function () {
@@ -64,7 +62,6 @@ syncAssistant.prototype.finished = function (account) {
 };
 
 syncAssistant.prototype.run = function (outerFuture, subscription) {
-  "use strict";
   log("============== syncAssistant");
   var finishAssistant, logError, initializeCallback, syncCallback, finishCallback, checkAccountCallback,
     f, args = this.controller.args, account = this.controller.args, accountId;
@@ -222,7 +219,7 @@ syncAssistant.prototype.run = function (outerFuture, subscription) {
         } else if (account.name) {
           account = SyncMLAccount.getAccountByName(account.name);
         }
-        if (args.$activity) {
+        if (args.$activity && account && account.accountId) {
           args.$activity.accountId = account.accountId;
         }
 
@@ -254,7 +251,6 @@ syncAssistant.prototype.run = function (outerFuture, subscription) {
 };
 
 syncAssistant.prototype.checkAccount = function (account) {
-  "use strict";
   var future = new Future();
   log("Check account");
   if (account.accountId !== undefined) {
@@ -289,7 +285,6 @@ syncAssistant.prototype.checkAccount = function (account) {
 };
 
 syncAssistant.prototype.delaySync = function (account, name) {
-  "use strict";
   //log("Account: " + JSON.stringify(account));
   log("Delay: " + name);
   //try {
@@ -337,7 +332,6 @@ syncAssistant.prototype.delaySync = function (account, name) {
 };
 
 syncAssistant.prototype.retriggerActivities = function(activity, account, rev) {
-  "use strict";
   log("Retriggering activity " + typeof activity === "undefined" ? "undefined" : activity.name);
   var restart = true, trigger; //restart all except delayed.
   if (activity && activity.trigger && activity.trigger.returnValue && account) {
@@ -371,7 +365,6 @@ syncAssistant.prototype.retriggerActivities = function(activity, account, rev) {
 };
 
 syncAssistant.prototype.complete = function () {
-	"use strict";
   var args = this.controller.args, activity, account;
 	activity = args.$activity;
   if (activity) {
