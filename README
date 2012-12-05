@@ -30,10 +30,15 @@ Known Issues:
 - shiftAllday won't work if server and client are in different timezones, causes issues with alarms having wrong offsets.. hm. Need to evaluate again.
 - Create account from the account app won't work on TouchPad.
 - Issue with funambol server: they don't seem to support the "COUNT" keyword => for server id "funambol" modify "COUNT" RRULES into UNTIL.
-- contacts encoding issue for umlauts!
-- contacts don't show up on touchpad.
+- contacts don't show up on touchpad. => do I extend something wrong?
+- service dies if a sync with too many items from the device (i.e. a slow sync with a huge database) is started. :(
 
 Changelog:
+2012-11-12 => 0.1.25
+- fixed an issue with account creation that would hang the service on first sync, if account was created from the app. Sorry for that.
+- fixed some more crashes during account creation and initial sync... not sure why they happend, though. :( No initial sync is performed now, you need to do that manually.
+- fixed issue with allday events and alarms that would shift one hour (again? :()
+- fixed issue with contact encoding stuff, should be fine now.
 2012-10-08 => 0.1.24
 - fixed issue that app would forget "one-way-from-server" or "one-way-from-client" on server requested slow syncs.
 - fixed all time stats for failed syncs.
