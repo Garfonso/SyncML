@@ -49,7 +49,7 @@ onCreateAssistant.prototype.run = function (outerFuture) {
             }
             finishAssistant({returnValue: f2.result.returnValue, success: f2.result.returnValue});
             //start a background sync:
-            PalmCall.call("palm://info.mobo.syncml.client.service", "sync", account);
+            //PalmCall.call("palm://info.mobo.syncml.client.service", "sync", account);
           });
         } else {
           log("Init failed" + JSON.stringify(future.result));

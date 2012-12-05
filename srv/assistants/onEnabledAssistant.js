@@ -45,14 +45,14 @@ onEnabledAssistant.prototype.run = function (outerFuture) {
           //if newly enabled, start a sync:
           log(ds + " got enabled, initiating sync.");
           finishAssistant({ returnValue: f2.result.returnValue, success: f2.result.returnValue}); //first give back lock, then trigger sync.
-          if (!syncingAccountIds.noId && !syncingAccountIds[account.accountId]) {
+          /*if (!syncingAccountIds.noId && !syncingAccountIds[account.accountId]) {
             log("Initiating sync...");
             PalmCall.call("palm://info.mobo.syncml.client.service", "sync", account).then(this, function (f3) {
               log("Sync finished.");
             });
           } else {
             log("Sync seems already in progress.");
-          }
+          }*/
           //log("Please sync manually...");
         } else {
           //if disabled, delete all events:
