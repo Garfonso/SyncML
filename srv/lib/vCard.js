@@ -1,5 +1,5 @@
 //JSLint stuff:
-/*global Contacts, fs, log, Future, path */
+/*global Contacts, fs, log, Future, path, MimeTypes, quoted_printable_decode, quoted_printable_encode, quote */
 
 var vCard = (function () { 
   var importer,
@@ -37,7 +37,7 @@ var vCard = (function () {
       //check that a temporary file path exists to save/read vcards to.
       path.exists(tmpPath, function(exists)  {
         if (!exists) {
-          fs.mkdir(tmpPath, 0777, function (error) {
+          fs.mkdir(tmpPath, function (error) {
             if (error) {
               log("Could not create tmp-path, error: " + JSON.stringify(error));
             }
@@ -77,6 +77,10 @@ var vCard = (function () {
       for (i = 0; i < lines.length; i += 1) {
         currentLine = lines[i];
         if (!emptyLine.test(currentLine)) {
+          if (version === "2.1") {
+            currentLine = quoted_printable_decode(currentLine);
+          }
+          //currentLine = unquote(currentLine);
           data.push(currentLine);
         } else {
           log("Skipping empty line " + currentLine);
@@ -132,9 +136,11 @@ var vCard = (function () {
             data = data.replace(/\nTYPE=:/g,"URL:"); //repair borked up URL thing. Omitting type here..
             if (input.contact && input.contact.note) {
               note = input.contact.note;
+              if (version === "2.1") {
+                note = quoted_printable_encode(note);
+              }
+              note = quote(note);
               log("Having note: " + note);
-              note = note.replace(/\n/g, "\\n");
-              note = note.replace(/\r/g, "\\r");
               data = data.replace("END:VCARD","NOTE:" + note + "\r\nEND:VCARD");
             }
             log("Modified data: " + data);
