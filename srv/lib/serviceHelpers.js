@@ -103,7 +103,7 @@ var log = function (logmsg) {
 	}
 };
 
-var logError_global = function (error, name, outerFuture, accountId) {
+var logError_global = function (error, name) {
   if(!name && arguments && arguments.callee && arguments.callee.caller && arguments.callee.caller.name) {
     name = arguments.callee.caller.name;
   }
@@ -446,6 +446,10 @@ var checkActivities = function (account) {
     log("Account.datastores: " + JSON.stringify(account.datastores));                
     
     //calendar watch:
+    PalmCall.call("palm://com.palm.activitymanager/", "cancel", { activityName: "info.mobo.syncml:" + account.name + ".watchCalendar.delayed" }).then(function(f) {
+      log("Cancelled Calendar Watch delayed activity for " + account.name + ".");
+    });
+    
     PalmCall.call("palm://com.palm.activitymanager/", "cancel", { activityName: "info.mobo.syncml:" + account.name + ".watchCalendar" }).then(function(f) {
       log("Cancelled Calendar Watch activity for " + account.name + ".");
       if (!account.datastores.calendar || !account.datastores.calendar.enabled || !account.dbWatch) { //watch disabled currently, because of issues.. :(
@@ -473,6 +477,10 @@ var checkActivities = function (account) {
     });
     
     //contacts watch:
+    PalmCall.call("palm://com.palm.activitymanager/", "cancel", { activityName: "info.mobo.syncml:" + account.name + ".watchContacts.delayed" }).then(function(f) {
+      log("Cancelled Contacts Watch delayed activity for " + account.name + ".");
+    });
+   
     PalmCall.call("palm://com.palm.activitymanager/", "cancel", { activityName: "info.mobo.syncml:" + account.name + ".watchContacts" }).then(function(f) {
       log("Cancelled Contacts Watch activity for " + account.name + ".");
       if (!account.datastores.contacts || !account.datastores.contacts.enabled || !account.dbWatch) {
@@ -544,7 +552,7 @@ var checkActivities = function (account) {
 
 //do a deep copy. 
 var moboCopy = function(source) {
-  var target = {}, name, s, i;
+  var target = {}, name, s;
   if (source) {
     for (name in source) {
       if (source.hasOwnProperty(name)) {
