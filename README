@@ -34,6 +34,9 @@ Known Issues:
 - service dies if a sync with too many items from the device (i.e. a slow sync with a huge database) is started. :(
 
 Changelog:
+2013-06-11 => 0.1.26
+- switched back to internet confidence "fair".
+- 
 2012-11-12 => 0.1.25
 - fixed an issue with account creation that would hang the service on first sync, if account was created from the app. Sorry for that.
 - fixed some more crashes during account creation and initial sync... not sure why they happend, though. :( No initial sync is performed now, you need to do that manually.
