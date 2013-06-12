@@ -34,13 +34,15 @@ Known Issues:
 - service dies if a sync with too many items from the device (i.e. a slow sync with a huge database) is started. :(
 
 Changelog:
-2013-06-11 => 0.1.26
+2013-06-11 => 0.1.27
 - switched to vCard (3.0)
 - fixed issues with contact sync and notes (from server)
 - implemented foto sync for contacts (one way from server)
 - switched back to internet confidence "fair".
 - fixed an issue with contact sync, won't work if synced for the very first time.
 - disabled "add" again. Now also for new items "replace" is used. Never encountered a server that will not just fallback to "add". But explicit "add" did produce many double entries, sometimes.
+2012-12-06 => 0.1.26
+- quick-fix for an issue with contact sync, won't work if directory for temporary vCards is not present. Sorry, broke that.
 2012-11-12 => 0.1.25
 - fixed an issue with account creation that would hang the service on first sync, if account was created from the app. Sorry for that.
 - fixed some more crashes during account creation and initial sync... not sure why they happend, though. :( No initial sync is performed now, you need to do that manually.
