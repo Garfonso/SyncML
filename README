@@ -35,7 +35,11 @@ Known Issues:
 
 Changelog:
 2013-06-11 => 0.1.26
+- switched to vCard (3.0)
+- fixed issues with contact sync and notes (from server)
+- implemented foto sync for contacts (one way from server)
 - switched back to internet confidence "fair".
+- fixed an issue with contact sync, won't work if synced for the very first time.
 - disabled "add" again. Now also for new items "replace" is used. Never encountered a server that will not just fallback to "add". But explicit "add" did produce many double entries, sometimes.
 2012-11-12 => 0.1.25
 - fixed an issue with account creation that would hang the service on first sync, if account was created from the app. Sorry for that.
