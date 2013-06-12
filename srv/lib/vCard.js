@@ -1,11 +1,10 @@
 //JSLint stuff:
-/*global Contacts, fs, log, Future, path, MimeTypes, quoted_printable_decode, quoted_printable_encode, quote */
+/*global Contacts, fs, log, Future, path, MimeTypes, quoted_printable_decode, quoted_printable_encode, quote, Base64 */
 
 var vCard = (function () { 
-  var importer,
-    exporter,
-    tmpPath = "/tmp/syncml-contacts/", //don't forget trailling slash!!
-    vCardIndex = 0;
+  var tmpPath = "/tmp/syncml-contacts/", //don't forget trailling slash!!
+	    photoPath = "/media/internal/.syncml_photos/",
+      vCardIndex = 0;
     
     function cleanUpEmptyFields(obj) {
       var field;
@@ -24,14 +23,16 @@ var vCard = (function () {
   
   //public interface:
   return {
-    initialize: function (outerFuture) { 
-      var finished = function () {
-        var res = outerFuture.result;
-        if (!res) {
-          res = {};
-        }
-        res.vCard = true;
-        outerFuture.result = res;
+    initialize: function (outerFuture) {
+      var photo = false, tmp = false, finished = function () {
+				if (tmp && photo) {
+					var res = outerFuture.result;
+					if (!res) {
+						res = {};
+					}
+					res.vCard = true;
+					outerFuture.result = res;
+				}
       };
     
       //check that a temporary file path exists to save/read vcards to.
@@ -41,12 +42,30 @@ var vCard = (function () {
             if (error) {
               log("Could not create tmp-path, error: " + JSON.stringify(error));
             }
+            tmp = true;
             finished();
           });
         } else {
+          tmp = true;
           finished();
         }
       });
+	  
+	  //create path for photos:
+	  path.exists(photoPath, function (exists) {
+			if(!exists) {
+				fs.mkdir(photoPath, 0777, function (error) {
+					if (error) {
+						log("Could not create photo-path, error: " + JSON.stringify(error));
+					}
+					photo = true;
+					finished();
+				});
+			} else {
+				photo = true;
+				finished();
+			}
+	  });
     },
   
     //parameters:
@@ -61,7 +80,8 @@ var vCard = (function () {
         lines,
         data,
         i,
-        version = (input.serverData && input.serverData.serverType === MimeTypes.contacts.fallback) ? "3.0" : "2.1", 
+        version = (input.serverData && input.serverData.serverType === MimeTypes.contacts.pref) ? "3.0" : "2.1", 
+				photoData = "",
         emptyLine = /^[A-Za-z;\-_]*:[;]*$/;
       vCardIndex += 1;
       
@@ -72,19 +92,39 @@ var vCard = (function () {
       
       log("Writing vCard to file " + filename);
       log("vCard data: " + input.vCard);
+			input.vCard = input.vCard.replace(/\=\r?\n/g, ''); //replace all =\n, those are newlines in datablocks (i.e. notes).
+			input.vCard = input.vCard.replace(/\r?\n /g, ''); //replace all \n+space, those are newlines in datablocks (i.e. notes).
+			if (input.vCard.indexOf("VERSION:3.0") > -1) {
+				//log("Found version 3.0 vCard, changing to 3.0 from " + version);
+				version = "3.0";
+			} else  if (input.vCard.indexOf("VERSION:2.1") > -1) {
+				//log("Found version 2.1 vCard, changing to 2.1 from " + version);
+				version = "2.1";			
+			}
       lines = input.vCard.split(/\r?\n/);
       data = [];
       for (i = 0; i < lines.length; i += 1) {
         currentLine = lines[i];
-        if (!emptyLine.test(currentLine)) {
-          if (version === "2.1") {
-            currentLine = quoted_printable_decode(currentLine);
-          }
-          //currentLine = unquote(currentLine);
-          data.push(currentLine);
-        } else {
-          log("Skipping empty line " + currentLine);
-        }
+				log("CurrentLine: " + currentLine);
+				//check for start of photo mode
+				if (currentLine.indexOf("PHOTO") > -1) {
+					log("got photo...");
+					photoData = currentLine.substring(currentLine.indexOf(":") + 1);
+					log("PhotoData: " + photoData);
+					continue; //skip photo init line..
+				}
+				
+				if (!emptyLine.test(currentLine)) {
+					if (version === "2.1") {
+						log("Decode, because version " + version);
+						currentLine = quoted_printable_decode(currentLine);
+						currentLine = currentLine.replace(/\r?\n=?/g,'\\n');
+					}
+					//currentLine = unquote(currentLine);
+					data.push(currentLine);
+				} else {
+					log("Skipping empty line " + currentLine);
+				}
       }
       input.vCard = data.join("\r\n");
       log("vCard data cleaned up: " + input.vCard);
@@ -98,12 +138,30 @@ var vCard = (function () {
           //do import:
           var future = vCardImporter.readVCard();
           future.then(function (f) {
-            var obj = f.result[0].getDBObject();
+            var obj = f.result[0].getDBObject(), decodedPhoto;
             log("Contact: " + JSON.stringify(obj));
             //cleanUpEmptyFields(obj);
             //log("Contact after cleanup: " + JSON.stringify(obj));
-            resFuture.result = {returnValue: true, results: [obj]};
             fs.unlink(filename);
+						
+						log("PhotoData Length: " + photoData.length);
+						if (photoData.length > 0) { //got a photo!! :)
+							log("Writing photo!");
+							//decodedPhoto = Base64.decode(photoData);
+							var buff = new Buffer(photoData, 'base64');
+							filename = photoPath + (input.account.name || "nameless") + obj.name.givenName + obj.name.familyName + ".jpg";
+							log("writing photo to: " + filename);
+							log("Base64 photo data: " + photoData);
+							fs.writeFile(filename, buff, function (err) {
+								if (err) {
+									log("Could not write photo to file: " + filename + " Error: " + JSON.stringify(err));
+								}
+							});
+							obj.photos.push({localPath: filename, primary: false, type: "type_big"});
+							obj.photos.push({localPath: filename, primary: false, type: "type_square"});
+						}
+						
+						resFuture.result = {returnValue: true, results: [obj]};
           });
         }
       });
