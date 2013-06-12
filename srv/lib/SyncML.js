@@ -69,7 +69,7 @@ var DeviceProperties = {
 
 var MimeTypes = {
     calendar: { pref: "text/calendar", fallback: "text/x-vcalendar" },
-    contacts: { pref: "text/x-vcard",  fallback: "text/vcard"}
+    contacts: { pref: "text/vcard",  fallback: "text/x-vcard"}
 };
 
 var SyncML = (function () {      //lastMsg allways is the last response from the server, nextMsg allways is the message that we are currently building to send.

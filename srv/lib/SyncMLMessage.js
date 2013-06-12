@@ -1177,10 +1177,15 @@ var syncMLMessage = function () {
       devInfo.push("<DataStore>\n");
       devInfo.push("<SourceRef>contacts</SourceRef>\n<DisplayName>contacts</DisplayName>\n");
       //<MaxGUIDSize>32</MaxGUIDSize>
-      devInfo.push("<Rx><CTType>text/vcard</CTType><VerCT>3.0</VerCT></Rx>\n");
+      //little hack: prefer 2.1 version of vcards... 3.0 vcards seem to crash webos badly.
+			devInfo.push("<Rx><CTType>text/x-vcard</CTType><VerCT>2.1</VerCT></Rx>\n");
+      devInfo.push("<Rx-Pref><CTType>text/vcard</CTType><VerCT>3.0</VerCT></Rx-Pref>\n");
+      devInfo.push("<Tx><CTType>text/x-vcard</CTType><VerCT>2.1</VerCT></Tx>\n");
+      devInfo.push("<Tx-Pref><CTType>text/vcard</CTType><VerCT>3.0</VerCT></Tx-Pref>\n");
+	 /* devInfo.push("<Rx><CTType>text/vcard</CTType><VerCT>3.0</VerCT></Rx>\n");
       devInfo.push("<Rx-Pref><CTType>text/x-vcard</CTType><VerCT>2.1</VerCT></Rx-Pref>\n");
       devInfo.push("<Tx><CTType>text/vcard</CTType><VerCT>3.0</VerCT></Tx>\n");
-      devInfo.push("<Tx-Pref><CTType>text/x-vcard</CTType><VerCT>2.1</VerCT></Tx-Pref>\n");
+      devInfo.push("<Tx-Pref><CTType>text/x-vcard</CTType><VerCT>2.1</VerCT></Tx-Pref>\n"); */
       devInfo.push("<CTCap>\n");
       devInfo.push("<CTType>" + MimeTypes.contacts.pref + "</CTType>\n");
       devInfo.push("<VerCT>3.0</VerCT>\n");
