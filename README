@@ -36,7 +36,7 @@ Known Issues:
 Changelog:
 2013-06-11 => 0.1.26
 - switched back to internet confidence "fair".
-- 
+- disabled "add" again. Now also for new items "replace" is used. Never encountered a server that will not just fallback to "add". But explicit "add" did produce many double entries, sometimes.
 2012-11-12 => 0.1.25
 - fixed an issue with account creation that would hang the service on first sync, if account was created from the app. Sorry for that.
 - fixed some more crashes during account creation and initial sync... not sure why they happend, though. :( No initial sync is performed now, you need to do that manually.

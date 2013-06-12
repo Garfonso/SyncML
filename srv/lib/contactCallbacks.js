@@ -19,7 +19,6 @@ var contactCallbacks = (function () {
       try {
         if (future.result.returnValue === true && future.result.results && future.result.results.length === 1) {
         var contact = future.result.results[0], c = [contact];
-        c[0]._onServer = true; //contact came from server.
         c[0]._id = input.localId;
         c[0].accountId = input.account.accountId;
         log("Contact: " + JSON.stringify(c[0].name) + " with id: " + input.localId);
@@ -101,18 +100,7 @@ var contactCallbacks = (function () {
       try {
         if (future.result.returnValue === true) {
           this.data = future.result.result;
-          if (this.noAdd === true) {
-            log("Item was on server already, adding to update list: " + JSON.stringify(this.noAdd));
-            update.push(this);
-          } else {
-            log("Item was not on server yet, adding to add list");
-            if (this.contact) {
-              log("Saving that this will be added to server.");
-              this.addOK -= 1; //be optimistic here.
-              updateContact(this); //save that we added the contact to the server.. this is not 100% correct here, sync may still fail.. but that should trigger a slow sync anyway, shouldn't it?
-            }
-            add.push(this);
-          }
+          update.push(this);
           updates -= 1;
           log("Remaining updates: " + updates);
           if (updates === 0) {
@@ -147,7 +135,7 @@ var contactCallbacks = (function () {
               obj = { localId: result._id, uid: result.uId};
               del.push(obj);
             } else {
-              obj = { localId: result._id, uid: result.uId, noAdd: result._onServer, contact: result, account: input.account}; //don't send adds for all of them!! First repair "onServer" storage
+              obj = { localId: result._id, uid: result.uId, contact: result, account: input.account};
               updates += 1;
               vCard.generateVCard({contactId: result._id, contact: result, accountName: input.account.name, serverData: input.serverData}).then(obj, callback);
             }
@@ -213,7 +201,7 @@ var contactCallbacks = (function () {
 		      serverData: input.serverData,
 		      query: {
 		        from: "info.mobo.syncml.contact:1",
-            //select: ["_rev", "_id", "name", "_onServer"],
+            //select: ["_rev", "_id", "name"],
 		        where: [ { prop: "_rev", op: ">", val: input.account.datastores.contacts.lastRev }, {prop: "accountId", op: "=", val: input.account.accountId} ],
 		        incDel: true
 		      },
@@ -232,7 +220,7 @@ var contactCallbacks = (function () {
           serverData: input.serverData, 
           query: {
             from: "info.mobo.syncml.contact:1",
-            //select: ["_rev", "_id", "name", "_onServer"],
+            //select: ["_rev", "_id", "name"],
             where: [ { prop: "accountId", op: "=", val: input.account.accountId } ]
           }, 
           datastore: input.account.datastores.contacts,

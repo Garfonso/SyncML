@@ -19,7 +19,6 @@ var eventCallbacks = (function () {
     log("Update event called");
     var doUpdate = function (input, event) {
       try {
-        event._onServer = true; //event came from server.
         var e = [event], recId, childId;
         log("Event: " + e[0].subject + " with id: " + input.localId);
         e[0]._id = input.localId;
@@ -134,18 +133,7 @@ var eventCallbacks = (function () {
       try {
         //log(JSON.stringify(this));
         this.data = ical;
-        if (this.noAdd === true) {
-          log("Item was on server already, adding to update list: " + JSON.stringify(this.noAdd));
-          update.push(this);
-        } else {
-          log("Item was not on server yet, adding to add list");
-          if (this.event) {
-            log("Saving that this will be added to server.");
-            this.addOK -= 1; //be optimistic here.
-            updateEvent(this); //save that we added the event to the server.. this is not 100% correct here, sync may still fail.. but that should trigger a slow sync anyway, shouldn't it?
-          }
-          add.push(this);
-        }
+        update.push(this);
         updates -= 1;
         log("Remaining items: " + updates);
         if (updates === 0) {
@@ -174,7 +162,7 @@ var eventCallbacks = (function () {
               obj = { localId: result._id, uid: result.uId};
               del.push(obj);
             } else {
-              obj = { localId: result._id, uid: result.uId, noAdd: result._onServer, event: result, account: input.account};
+              obj = { localId: result._id, uid: result.uId, event: result, account: input.account};
               updates += 1;
               setTimeout(iCal.generateICal.bind(iCal, result, input.serverData, callback.bind(obj)), 100);
             }
