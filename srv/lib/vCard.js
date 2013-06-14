@@ -174,10 +174,11 @@ var vCard = (function () {
     generateVCard: function (input) {
       var resFuture = new Future(), note, 
         filename = tmpPath + (input.accountName || "nameless") + "_" + vCardIndex + ".vcf", 
-        version = (input.serverData && input.serverData.serverType === MimeTypes.contacts.fallback) ? "3.0" : "2.1", 
+        version = (input.serverData && input.serverData.serverType === MimeTypes.contacts.fallback) ? "2.1" : "3.0", 
         vCardExporter = new Contacts.VCardExporter({ filePath: filename, version: version }); //could set vCardVersion here to decide if 3.0 or 2.1, default will be 3.0... is that really necessary?
       vCardIndex += 1;
       
+			log("Got contact: " + JSON.stringify(input.contact));
       Contacts.Utils.defineConstant("kind", "info.mobo.syncml.contact:1", Contacts.Person);
       log("Get contact " + input.contactId + " transfer it to version " + version + " vCard.");
       vCardExporter.exportOne(input.contactId, false).then(function (future) {
@@ -192,15 +193,21 @@ var vCard = (function () {
             data = data.replace(/TEL;TYPE=CELL,VOICE/g,"TEL;TYPE=CELL");
             data = data.replace(/CELL;VOICE/g,"CELL");
             data = data.replace(/\nTYPE=:/g,"URL:"); //repair borked up URL thing. Omitting type here..
+						
+						//webos seems to "forget" the note field.. add it here.
             if (input.contact && input.contact.note) {
               note = input.contact.note;
+							if (note) {
+								note.replace(/[^\r]\n/g,"\r\n");
+							}
               if (version === "2.1") {
                 note = quoted_printable_encode(note);
               }
               note = quote(note);
               log("Having note: " + note);
               data = data.replace("END:VCARD","NOTE:" + note + "\r\nEND:VCARD");
-            }
+            }			
+						
             log("Modified data: " + data);
             resFuture.result = { returnValue: true, result: data };
           }
