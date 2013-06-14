@@ -6,8 +6,8 @@ var SyncMLAccount = (function () {
   var version = 2,
     savedFields = ["url", "name", "datastores", "accountId", "username_enc", "password_enc", "deviceName", "syncInterval", "dbWatch"],
     dsNames = ["calendar", "contacts"],
-    savedFieldsDS = ["path", "method", "dbId", "enabled"],
-    savedFieldsDSSync = ["next", "serverNext", "lastRev", "serverType", "serverId", "allTimeStats", "lastTen"],
+    savedFieldsDS = ["next", "serverNext", "path", "method", "dbId", "enabled"],
+    savedFieldsDSSync = ["lastRev", "serverType", "serverId", "allTimeStats", "lastTen", "serverMan"],
 //  currentAccount = { //account object!
 //      //keystore!
 //      //from user during account creation:

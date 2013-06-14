@@ -339,6 +339,10 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
                       account.datastores[k].serverId = cmd.items[0].data.getElementsByTagName("DevID").item(0).firstChild.nodeValue;
                       log("Stored serverId: " + account.datastores[k].serverId);
                     }
+										if (cmd.items[0].data.getElementsByTagName("Man").item(0)) {
+											account.datastores[k].serverMan = cmd.items[0].data.getElementsByTagName("Man").item(0).firstChild.nodeValue;
+											log("Stored serverMan: " + account.datastores[k].serverMan);
+										}
                   } else {
                     log(k + " is not the right datastore");
                   }
@@ -594,7 +598,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
 
   function mContinueSync(name, data) {
     var addedItems = 0, allItemsForThisDS = 0, ti = 0, i, obj, type;
-    //TODO: what happens if this is called two times with different data objects?
+
     try {
       if (!data.success) {
         resultCallback({success: false});
@@ -670,9 +674,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
     }
   }
 
-  //this will try to get all changes from the device.
-  //TODO: this most probably won't work if calendar and contacts are enabled, because two asynchronous functions are called and not synchronized again. 
-  //need to handle that where I build the next message to the server.
+  //this will try to get all changes from the device. 
   function getSyncData() {
     var i, method;
     try {
@@ -767,6 +769,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
               if (alert.items && alert.items[0] && alert.items[0].meta && alert.items[0].meta.anchor && alert.items[0].meta.anchor.next) {
                 log("Got next: " + alert.items[0].meta.anchor.next + " for server, save.");
                 account.datastores[alert.items[0].target].serverNext = alert.items[0].meta.anchor.next;
+								SyncMLAccount.saveConfig(false); //directly store serverNext!!
               }
             }
           }
@@ -902,7 +905,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
 		        });
 		        datastores.push({name: ds.name, type: ds.type});
 
-		        if (!ds.serverType || !ds.serverId || ds.method === "slow" || ds.method === "refresh-from-client" || ds.method === "refresh-from-server") {
+		        if (!ds.serverType || !ds.serverId || !ds.serverMan || ds.method === "slow" || ds.method === "refresh-from-client" || ds.method === "refresh-from-server") {
               doPutDevInfo = true;
               ds.lastRev = 0; //reset last rev on refresh.
 		          nextMsg.doGetDevInfo();
