@@ -88,24 +88,37 @@ var commonCallbacks = (function () {
 
 		/**
 		 * Deletes all items by a call to palm database service.
-     * @param {Object} input = {kind: db.kind, account: account}
+     * @param {Object} input = {kind: db.kind, account: account, datastore: datastore}
 		 */
 		deleteAllItems: function (input) {
 		  log("deleteAllItems called for " + input.kind + " from account " + input.account.accountId);
       try {
-        DB.del({from: input.kind, where: [{prop: "accountId", op: "=", val: input.account.accountId}] }, false).then(
+        DB.del({from: input.kind, where: [{prop: "accountId", op: "=", val: input.account.accountId}] }, false).then(this,
           function (future) {
             try {
               var r = future.result;
               if (r.returnValue === true) {
                 log("Successfully deleted all elements: " + JSON.stringify(r));
-                input.callback({success: true});
+                //input.callback({success: true});
+								DB.put([{"_kind": input.kind, dummy: "dummy"}]).then(this, function (f) {
+									if (f.result.returnValue === true) {
+										log("did put dummy object. Id: " + f.result.results[0].id);
+										input.localId = f.result.results[0].id;
+										input.stats = { deleteOK: 0, delteFailed: 0};
+										this.deleteItem(input);
+									} else {
+										log("Could not put dummy object.");
+										log("Error in deleteAllItems: " + future.exception.errorText + " ( " + future.exception.errorCode + ")");
+										input.callback({success: false});
+									}
+								});
+								
               } else {
                 log("Error in deleteAllItems: " + future.exception.errorText + "( " + future.exception.errorCode + ")");
                 input.callback({success: false});
               }
             } catch (e) {
-              log("Exception in deleteAllItems future: " + exception + " - " + JSON.stringify(exception));
+              log("Exception in deleteAllItems future: " + e + " - " + JSON.stringify(e));
               input.callback({success: false});
             }
           }
@@ -183,7 +196,7 @@ var commonCallbacks = (function () {
         datastore.stats = moboCopy(stats);
 
         //save outcome = ok, method and stats in db!
-        datastore.lastTen[0] = {ok: datastore.ok, method: datastore.method, stats: moboCopy(stats), ts: date.getTime(), time: date.toDateString() };
+        datastore.lastTen[0] = {ok: datastore.ok, method: datastore.method, stats: moboCopy(stats), ts: date.getTime(), time: date.toLocaleString()};
         if (!datastore.allTimeStats) {
           datastore.allTimeStats = {};
         }
