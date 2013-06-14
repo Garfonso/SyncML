@@ -383,7 +383,13 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
       //sync finished successful! :)
       log("All ok. Finished sync, call last callback.");
       logToApp("Got last message and parsed it, sync was successful.");
-      resultCallback({success: true, account: account }); //return account to update next / last sync. Mode might also be set by server. Nothing else should have changed.
+			
+			if (account.doImmediateRefresh) {
+				log("Need to do refresh, starting that now.");
+				logToApp("Need to do refresh, because slow sync was requested. Doing that now.");
+				PalmCall.call("palm://info.mobo.syncml.client.service/", "sync", account).then(this, function (f) { log("refres sync finished."); });
+			} 
+			resultCallback({success: true, account: account }); //return account to update next / last sync. Mode might also be set by server. Nothing else should have changed.
     } catch (e) {
       logError_lib(e);
     }
@@ -746,18 +752,30 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
             if (account.datastores[alert.items[0].target]) {
               if (alert.data) {
                 log("Got " + alert.items[0].target + " method: " + alert.data);
-                  account.datastores[alert.items[0].target].oldMethod = account.datastores[alert.items[0].target].method;
-                if (account.datastores[alert.items[0].target].method === "205" && alert.data === "201") {
-                  log("Requested refresh from server, won't switch to slow sync.");
-                } else {
-                  account.datastores[alert.items[0].target].method = SyncMLAlertCodes[alert.data];
-                }
+								if (!account.doImmediateRefresh) {
+									account.datastores[alert.items[0].target].oldMethod = account.datastores[alert.items[0].target].method;
+								}
+							
+								//server requested slow sync, ignore and just send own updates.. do this only for two-way and one-way-from server, obviously :)
+								log("Alert.data: " + alert.data + " and account->method: " + account.datastores[alert.items[0].target].method);
+								if (alert.data === "201" && (account.datastores[alert.items[0].target].method === "two-way" || account.datastores[alert.items[0].target].method === "one-way-from-server")) { 
+									log ("Delaying refresh.");
+									account.doImmediateRefresh = true;
+									needRefresh = false;
+								} else {
+									//don't switch to slow for refresh from server syncs.
+									if (account.datastores[alert.items[0].target].method === "refresh-from-server" && alert.data === "201") {
+										log("Requested refresh from server, won't switch to slow sync.");
+									} else {
+										//just use server method.
+										account.datastores[alert.items[0].target].method = SyncMLAlertCodes[alert.data];
+									}
+								}
                 log("adding " + alert.items[0].target + " to will be synced.");
                 willBeSynced.push(alert.items[0].target);
-                syncAndMethod.push(alert.items[0].target + " method " + SyncMLAlertCodes[alert.data]);
+                syncAndMethod.push(alert.items[0].target + " method " + account.datastores[alert.items[0].target].method);
                 account.datastores[alert.items[0].target].state = "receivedInit";
-                log("willbesynced: " + alert.items[0].target + " method " + SyncMLAlertCodes[alert.data]);
-                needRefresh = false;
+                log("willbesynced: " + alert.items[0].target + " method " + account.datastores[alert.items[0].target].method);
               }
               if (alert.items && alert.items[0] && alert.items[0].meta && alert.items[0].meta.anchor && alert.items[0].meta.anchor.last) {
                 account.datastores[alert.items[0].target].serverLast = account.datastores[alert.items[0].target].serverNext;
@@ -777,8 +795,8 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
         if (needRefresh) {
           logToApp("Could not find datastore for requested refresh.");
           log("Server told us that we need to refresh, but did not send a alert for that... fail. :(");
-          resultCallback({success: false});
-          return;
+          //resultCallback({success: false});
+          //return;
         }
         logToApp("Will sync " + JSON.stringify(syncAndMethod));
         getSyncData();
@@ -880,12 +898,14 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
 		},
 
 		sendSyncInitializationMsg: function (callback) {
-		  var i, ds, datastores = [], doPutDevInfo = false;
+		  var i, ds, datastores = [], doPutDevInfo = false, method;
 		  try {
 		    nextMsg = syncMLMessage();
 		    nextMsg.addCredentials(account);
 		    nextMsg.setFinal(true);
-		    resultCallback = callback;
+				if (callback) {
+					resultCallback = callback;
+				}
 
 		    for (i = 0; i < dsNames.length; i += 1) {
 		      ds = account.datastores[dsNames[i]];
@@ -895,8 +915,13 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
             }
 		        ds.last = ds.next;
 		        ds.next = (new Date().getTime() / 1000).toFixed();
+						method = SyncMLModes[ds.method];
+						if (account.doImmediateRefresh) { //did a corrupted slow sync and now need to do a complete refresh!
+							method = "205";
+							log("Am required to do a refresh. Overwrite method with: " + method);
+						}
 		        nextMsg.addAlert({
-		          data: SyncMLModes[ds.method],
+		          data: method,
 		          items: [{
 		            target: ds.path,
 		            source: dsNames[i],
@@ -907,7 +932,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
 
 		        if (!ds.serverType || !ds.serverId || !ds.serverMan || ds.method === "slow" || ds.method === "refresh-from-client" || ds.method === "refresh-from-server") {
               doPutDevInfo = true;
-              ds.lastRev = 0; //reset last rev on refresh.
+              //ds.lastRev = 0; //reset last rev on refresh. I think that is not necessary.
 		          nextMsg.doGetDevInfo();
 		        }
 		      }
@@ -919,6 +944,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
 
 		    logToApp("Sending initialization message to server.");
 		    sendToServer(nextMsg, parseInitResponse);
+				account.doImmediateRefresh = false;
 		  } catch (e) {
 	      logError_lib(e);
 	    }

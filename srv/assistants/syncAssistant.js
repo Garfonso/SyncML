@@ -96,21 +96,24 @@ syncAssistant.prototype.run = function (outerFuture, subscription) {
     });
     return;
   }
+	finishAssistant = function (result) {
+		finishAssistant_global({name: "syncAssistant", outerFuture: outerFuture, result: result, accountId: accountId});
+		//logSubscription = undefined; //delete subscription.
+	};
+	logError = function (e) {
+		logError_global(e, "syncAssistant");
+		finishAssistant({finalResult: true, returnVaule: false, success: false});
+	};
+
   try {
     outerFutures.push(outerFuture);
     accountId = args.accountId;
-    this.controller.args.$activity.accountId = accountId;
+		if (this.controller.args.$activity) {
+			this.controller.args.$activity.accountId = accountId;
+		}
     if (!accountId) {
       accountId = "noId";
     }
-    finishAssistant = function (result) {
-      finishAssistant_global({name: "syncAssistant", outerFuture: outerFuture, result: result, accountId: accountId});
-      logSubscription = undefined; //delete subscription.
-    };
-    logError = function (e) {
-      logError_global(e, "syncAssistant");
-      finishAssistant({finalResult: true, returnVaule: false, success: false});
-    };
     //log("Params: " + JSON.stringify(this.controller.args));
     log("Future: " + JSON.stringify(outerFuture.result));
 
@@ -119,8 +122,10 @@ syncAssistant.prototype.run = function (outerFuture, subscription) {
       if (subscription) {
         logSubscription = subscription; //cool, seems to work. :)
         logToApp("Sync of this account already running, connecting output to app.");
-      }
-      return;
+				return;
+      } else {
+				outerFuture.then(this.run.bind(this));
+			}
     }
 
     if (!args.accountId && args.index < 0 && !args.name) {
@@ -212,16 +217,18 @@ syncAssistant.prototype.run = function (outerFuture, subscription) {
         log("initialize.result: " + JSON.stringify(f2.result));
 
         log("Starting sync");
-        if (account && account.accountId) {
-          account = SyncMLAccount.getAccountById(account.accountId);
-        } else if (account.index >= 0) {
-          account = SyncMLAccount.getAccount(account.index);
-        } else if (account.name) {
-          account = SyncMLAccount.getAccountByName(account.name);
-        }
-        if (args.$activity && account && account.accountId) {
-          args.$activity.accountId = account.accountId;
-        }
+				if (!account.doImmediateRefresh) { //already have full account as param. Avoid overriding of doImmediateRefresh field.
+					if (account && account.accountId) {
+						account = SyncMLAccount.getAccountById(account.accountId);
+					} else if (account.index >= 0) {
+						account = SyncMLAccount.getAccount(account.index);
+					} else if (account.name) {
+						account = SyncMLAccount.getAccountByName(account.name);
+					}
+					if (args.$activity && account && account.accountId) {
+						args.$activity.accountId = account.accountId;
+					}
+				}
 
         if (!account.username || !account.password || !account.url) {
           log("Account seems to be not fully configured. Can't sync.");
