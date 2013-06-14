@@ -92,10 +92,100 @@ var contactCallbacks = (function () {
       logError_lib(e);
     }
   }
+	
+	function applyContactHacks(contact, serverData) {
+		var i, haveHome = false, haveWork = false, mail, problem = false, newMails = [], removeEmail = function (mail) {
+			problem = true;
+			if (mail.type === "type_home" && !haveWork) {
+				mail.type = "type_work";
+				haveWork = true;
+				newMails.push(mail);
+				log("keep mail " + mail.value + " with changed type of " + mail.type);
+				return;
+			}
+			if (mail.type === "type_work" && !haveHome) {
+				mail.type = "type_home";
+				haveHome = true;
+				newMails.push(mail);
+				log("keep mail " + mail.value + " with changed type of " + mail.type);
+				return;
+			}
+			
+			contact.note += "\nE-Mail: " + mail.value;
+			log("Removed mail " + mail.value + " with type " + mail.type);
+			log("new note: " + contact.note);
+		};
+		
+		//eGroupware can't handle many e-mail adresses. It allows to have only one work and one home address at a time..
+		//repair contact and modify it in database. When callback comes back, generate vCard.
+		if (contact.emails.length > 1) {
+			log("Having more than one e-mails.");
+			log("ServerMan: " + serverData.serverMan);
+			if (serverData && serverData.serverMan  && serverData.serverMan.toLowerCase().indexOf("egroupware") > -1) {
+				log("Server is egroupware. Check e-Mails. Server can only handle one work and one home address per contact!");
+				for (i = 0; i < contact.emails.length; i += 1) {
+					mail = contact.emails[i];
+					log("Got mail " + mail.value + " of type " + mail.type);
+					
+					if (mail.type === "type_work") {
+						log("work");
+						if (haveWork) {
+							log("had work already, kill this email.");
+							removeEmail(mail);
+						} else {
+							log("keep this work mail.");
+							newMails.push(mail);
+							haveWork = true;
+						}
+					} else if (mail.type === "type_home") {
+						log("home");
+						if (haveHome) {
+							log("had home already, kill this email.");
+							removeEmail(mail);
+						} else {
+							log("keep this home mail.");
+							newMails.push(mail);
+							haveHome = true;
+						}
+					} else {
+						log ("Unsupported type. Will try to change it.");
+						if (!haveHome) {
+							log("modified to home");
+							mail.type = "type_home";
+							haveHome = true;
+							newMails.push(mail);
+						} else if (!haveWork) {
+							log("modified to work");
+							mail.type = "type_work";
+							haveWork = true;
+							newMails.push(mail);
+						} else {
+							removeEmail(mail);
+						}
+						problem = true;
+					}
+				}
+			}
+		}
+		
+		if (problem) {
+			log("now have " + newMails.length + " mails of " + contact.emails.length);
+			contact.emails = newMails;
+		}
+		return problem;
+	}
   
   function createContactArray(input) {
     //format contacts array for syncml and call callback: 
-    var update = [], del = [], add = [], i, obj, result, callback, updates = 0;
+    var update = [], del = [], add = [], i, obj, result, callback, updates = 0, 
+			hackUpdateCallback = function (f) {
+				var r = f.result;
+				if (r.returnValue !== true) {
+					log("Updated of modified contact failed.");										
+					log(JSON.stringify(r));
+				}
+				vCard.generateVCard(this).then(this.obj, callback);
+			};
     callback = function (future) {
       try {
         if (future.result.returnValue === true) {
@@ -130,14 +220,20 @@ var contactCallbacks = (function () {
               input.account.datastores.contacts.lastRev = result._rev;
             }
             
-            log("Got contact: " + JSON.stringify(result));
+            log("Got contact: " + JSON.stringify(result));						
             if (result._del === true) {
               obj = { localId: result._id, uid: result.uId};
               del.push(obj);
             } else {
               obj = { localId: result._id, uid: result.uId, contact: result, account: input.account};
               updates += 1;
-              vCard.generateVCard({contactId: result._id, contact: result, accountName: input.account.name, serverData: input.serverData}).then(obj, callback);
+							
+							if (applyContactHacks(result, input.account.datastores.contacts)) {
+								//copy data into new object that will be "this" in callback.
+								DB.merge([result]).then({contactId: result._id, contact: result, accountName: input.account.name, serverData: input.serverData, obj: obj}, hackUpdateCallback);
+							} else {
+								vCard.generateVCard({contactId: result._id, contact: result, accountName: input.account.name, serverData: input.serverData}).then(obj, callback);
+							}
             }
           } catch (e) {
             log("Error while adding element " + i + " of " + input.result.length + ". Error: " + JSON.stringify(e));
