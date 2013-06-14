@@ -34,6 +34,11 @@ Known Issues:
 - service dies if a sync with too many items from the device (i.e. a slow sync with a huge database) is started. :(
 
 Changelog:
+2013-06-11 => 0.1.28
+- syncml account now stores server manufactor for hacks
+- server next is now again saved in db directly when it is recieved. Should prevent some slow syncs.
+- fixed x-vcard and vcard version confusion
+- added hacks for eGroupware
 2013-06-11 => 0.1.27
 - switched to vCard (3.0)
 - fixed issues with contact sync and notes (from server)
