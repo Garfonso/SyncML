@@ -758,7 +758,10 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
 							
 								//server requested slow sync, ignore and just send own updates.. do this only for two-way and one-way-from server, obviously :)
 								log("Alert.data: " + alert.data + " and account->method: " + account.datastores[alert.items[0].target].method);
-								if (alert.data === "201" && (account.datastores[alert.items[0].target].method === "two-way" || account.datastores[alert.items[0].target].method === "one-way-from-server")) { 
+								if (account.slowSyncDisabled && 
+								    alert.data === "201" && 
+									   (account.datastores[alert.items[0].target].method === "two-way" || 
+										  account.datastores[alert.items[0].target].method === "one-way-from-server")) { 
 									log ("Delaying refresh.");
 									account.doImmediateRefresh = true;
 									needRefresh = false;

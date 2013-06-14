@@ -4,7 +4,7 @@
 
 var SyncMLAccount = (function () {
   var version = 2,
-    savedFields = ["url", "name", "datastores", "accountId", "username_enc", "password_enc", "deviceName", "syncInterval", "dbWatch"],
+    savedFields = ["url", "name", "datastores", "accountId", "username_enc", "password_enc", "deviceName", "syncInterval", "dbWatch", "slowSyncDisabled"],
     dsNames = ["calendar", "contacts"],
     savedFieldsDS = ["next", "serverNext", "path", "method", "dbId", "enabled"],
     savedFieldsDSSync = ["lastRev", "serverType", "serverId", "allTimeStats", "lastTen", "serverMan"],

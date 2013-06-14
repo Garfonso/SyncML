@@ -86,6 +86,7 @@ ConfigSyncMLAccountAssistant.prototype.setup = function () {
     { label: $L("1 Day"), value: "1d"},
     { label: $L("Disable"), value: "disabled"} ], label: $L("Automatic Sync"), modelProperty: "syncInterval"}, this.account);
   this.controller.setupWidget("ckDBWatch", { modelProperty: "dbWatch"}, this.account);
+	this.controller.setupWidget("ckSlowSyncDisabled", { modelProperty: "slowSyncDisabled"}, this.account);
 	
 	this.btnSaveModel = { buttonClass:'primary', label: $L("Check Credentials"), disabled: false};
 	this.controller.setupWidget("btnSave", {type: Mojo.Widget.activityButton}, this.btnSaveModel);
