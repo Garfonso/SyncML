@@ -10,7 +10,7 @@ syncAssistant.prototype.finished = function (account) {
     SyncMLAccount.setAccount(account);
     log("Saving config to store new revs.");
     SyncMLAccount.saveConfig(true).then(function (f) {
-      log("StoreAccounts returned: " + JSON.stringify(f.result));
+      //log("StoreAccounts returned: " + JSON.stringify(f.result));
       outerFuture.result = { returnValue: f.result.returnValue };
     });
   };
@@ -19,7 +19,7 @@ syncAssistant.prototype.finished = function (account) {
     if (f.result && f.result.calendar && f.result.contacts) {
       saveAccounts();
     } else {
-      log("Cleanup not finished, yet: " + JSON.stringify(f.result));
+      //log("Cleanup not finished, yet: " + JSON.stringify(f.result));
       f.then(checkRevsResult);
     }
   };
@@ -64,7 +64,7 @@ syncAssistant.prototype.finished = function (account) {
 syncAssistant.prototype.run = function (outerFuture, subscription) {
   log("============== syncAssistant");
   var finishAssistant, logError, initializeCallback, syncCallback, finishCallback, checkAccountCallback,
-    f, args = this.controller.args, account = this.controller.args, accountId;
+    f, args = this.controller.args, account = this.controller.args, accountId, that = this;
   log("Activity: " + JSON.stringify(this.controller.args.$activity));
   //log("args: " + JSON.stringify(args));
   if (args.$activity && args.$activity.trigger && args.$activity.trigger.returnValue === false) {
@@ -98,7 +98,7 @@ syncAssistant.prototype.run = function (outerFuture, subscription) {
   }
 	finishAssistant = function (result) {
 		finishAssistant_global({name: "syncAssistant", outerFuture: outerFuture, result: result, accountId: accountId});
-		//logSubscription = undefined; //delete subscription.
+		logSubscription = undefined; //delete subscription.
 	};
 	logError = function (e) {
 		logError_global(e, "syncAssistant");
@@ -139,6 +139,13 @@ syncAssistant.prototype.run = function (outerFuture, subscription) {
 
 
     finishCallback = function (f) {
+			if (account.doImmediateRefresh) {
+				logToApp("Need to do refresh. Do that now.");
+				outerFuture.result = {account: account};
+				checkAccountCallback({result: {returnValue: true}});
+				return;
+			}
+		
       if (f.result.returnValue === true) {
         log("Success, returning to client");
         finishAssistant({ finalResult: true, success: true, reason: "All went well, updates", account: account});
@@ -151,10 +158,8 @@ syncAssistant.prototype.run = function (outerFuture, subscription) {
     syncCallback = function (result) {
       try {
         log("Sync came back.");
-        //log("result: " + JSON.stringify(result));
-        //log(JSON.stringify(result));
         if (result.success === true) {
-          this.finished(account).then(this, finishCallback);
+          that.finished(account).then(finishCallback);
         } else {
           finishAssistant({ finalResult: true, success: false, reason: "Internal sync error." });
         }
@@ -202,7 +207,7 @@ syncAssistant.prototype.run = function (outerFuture, subscription) {
             ]);
           log("SyncML initialized.");
           logToApp("SyncML completely initialized, starting sync process.");
-          SyncML.sendSyncInitializationMsg(syncCallback.bind(this));
+          SyncML.sendSyncInitializationMsg(syncCallback);
         } else {
           log("check and creation of accounts and calendar did not work.");
           finishAssistant({ finalResult: true, success: false, reason: "Could not create/check account/calendar." });
@@ -237,7 +242,7 @@ syncAssistant.prototype.run = function (outerFuture, subscription) {
           return;
         }
 
-        this.checkAccount(account).then(this, checkAccountCallback);
+        that.checkAccount(account).then(checkAccountCallback);
       } else {
         log("Initialization failed... :(");
         finishAssistant({ finalResult: true, success: false, reason: "Initialization failed." });
@@ -248,7 +253,7 @@ syncAssistant.prototype.run = function (outerFuture, subscription) {
     logSubscription = subscription;
     try {
       f = initialize({devID: true, keymanager: true, accounts: true, accountsInfo: true, iCal: true, vCard: true});
-      f.then(this, initializeCallback);
+      f.then(initializeCallback);
     } catch (e1) {
       logError(e1);
     }

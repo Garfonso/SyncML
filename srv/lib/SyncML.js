@@ -384,11 +384,11 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
       log("All ok. Finished sync, call last callback.");
       logToApp("Got last message and parsed it, sync was successful.");
 			
-			if (account.doImmediateRefresh) {
+			/*if (account.doImmediateRefresh) {
 				log("Need to do refresh, starting that now.");
 				logToApp("Need to do refresh, because slow sync was requested. Doing that now.");
 				PalmCall.call("palm://info.mobo.syncml.client.service/", "sync", account).then(this, function (f) { log("refres sync finished."); });
-			} 
+			} */
 			resultCallback({success: true, account: account }); //return account to update next / last sync. Mode might also be set by server. Nothing else should have changed.
     } catch (e) {
       logError_lib(e);

@@ -34,6 +34,8 @@ Known Issues:
 - service dies if a sync with too many items from the device (i.e. a slow sync with a huge database) is started. :(
 
 Changelog:
+2013-06-15 => 0.1.30
+- changed disable slow sync hack, so that sync is now visible in app again.
 2013-06-14 => 0.1.29
 - fixed rev for delete all. Will not send all delete commands to server, if no update did happen.
 - hack to disable slow sync. Now only sends recent changes to server and then does a refresh from server.

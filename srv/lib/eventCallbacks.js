@@ -374,7 +374,7 @@ var eventCallbacks = (function () {
 		        outerFuture.result = res;
 		        log("event cleanup finished.");
 		      } else {
-		        log("event cleanup not finished yet: " + JSON.stringify(f.result));
+		        //log("event cleanup not finished yet: " + JSON.stringify(f.result));
 		        f.then(finishFinished);
 		      }
 		    };
@@ -404,7 +404,7 @@ var eventCallbacks = (function () {
             }
 		      } catch (e) {
             log("Error in updateParentId: ");
-            log(JSON.stringify(e));
+            //log(JSON.stringify(e));
             logError_lib(e);
           }
 		    };

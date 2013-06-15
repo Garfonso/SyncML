@@ -108,8 +108,9 @@ var logError_global = function (error, name) {
     name = arguments.callee.caller.name;
   }
   log("Exception in " + name);
-  log("Complete exception: " + JSON.stringify(error));
+  //log("Complete exception: " + JSON.stringify(error));
   logToApp(error.name + ": " + error.message + ", operation stopped in " + name);
+	log("Stack: " + JSON.stringify(error.stack));
 };
 
 var logError_lib = function (error) {
