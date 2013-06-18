@@ -59,47 +59,48 @@ SyncSceneAssistant.prototype.startSync = function ()
   
   var oldMsg = "", future, account, keepInTouch,
     getResult = function (f) {
-		
-    if (f.result.finalResult) {
-      //log("FINAL RESULT!!");
-      log(oldMsg);
-      //sync finished.
-      if (f.result.success) {
-        logStatus("Sync returned ok");
-      } else {
-        logStatus("Sync returned with error.");
-      }				
-      this.controller.get("btnStart").mojo.deactivate();
-      this.buttonModel.disabled = false;
-      this.controller.modelChanged(this.buttonModel);
-      this.locked = false;
-      log("Canceling futures: ");
-      f.cancel();
-      PalmCall.cancel(future);
-      log("Ok.");
-    } else {
-      f.then(this, getResult);
-    }
-		
-		if (f.result.account) {
-			if (f.result.account.datastores.calendar.enabled) {
-				this.printStats("Calendar", f.result.account.datastores.calendar.stats);
+		if (f.result) {
+			if (f.result.account) {
+				if (f.result.account.datastores.calendar.enabled) {
+					this.printStats("Calendar", f.result.account.datastores.calendar.stats);
+				}
+				if (f.result.account.datastores.contacts.enabled) {
+					this.printStats("Contacts", f.result.account.datastores.contacts.stats);
+				}
 			}
-			if (f.result.account.datastores.contacts.enabled) {
-				this.printStats("Contacts", f.result.account.datastores.contacts.stats);
+		
+			if (f.result.finalResult) {
+				//log("FINAL RESULT!!");
+				log(oldMsg);
+				//sync finished.
+				if (f.result.success) {
+					logStatus("Sync returned ok");
+				} else {
+					logStatus("Sync returned with error.");
+				}
+				this.controller.get("btnStart").mojo.deactivate();
+				this.buttonModel.disabled = false;
+				this.controller.modelChanged(this.buttonModel);
+				this.locked = false;
+				log("Canceling futures: ");
+				f.cancel();
+				PalmCall.cancel(future);
+				log("Ok.");
+			} else {
+				f.then(this, getResult);
+			}
+			
+			if (f.result.msg) {
+				log(oldMsg);
+				oldMsg = f.result.msg;
+				logStatus(f.result.msg);
+			}
+
+			if (f.result.reason) {
+				log(f.result.reason);
+				logStatus(f.result.reason);
 			}
 		}
-    
-    if (f.result.msg) {
-      log(oldMsg);
-      oldMsg = f.result.msg;
-      logStatus(f.result.msg);
-    }
-
-    if (f.result.reason) {
-      log(f.result.reason);
-      logStatus(f.result.reason);
-    }
   };
       
   try {
