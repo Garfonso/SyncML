@@ -1,5 +1,36 @@
 /*global IMPORTS, libraries, Mojo, MojoLoader, log, iCal, vCard, logToApp, SyncMLAccount, DeviceProperties, KeyManager */
 
+var outputMemoryUsage = function() {
+	var mem = process.memoryUsage();
+	log("Memory Usage - rss: " + (mem.rss / 1024 / 1024) + "MB, vsize: " + (mem.vsize / 1024 / 1024) + "MB, heapTotal: " + (mem.heapTotal / 1024 / 1024) + "MB, heapUsed: " + (mem.heapUsed /1024 / 1024) + "MB");
+	setTimeout(outputMemoryUsage, 500);
+};
+
+var syncs = 0;
+var keepRunning = function() {
+	if (syncs > 0) {
+		log("Triggering dummy call to keep service active.");
+		PalmCall.call("palm://info.mobo.syncml.client.service/", "idle", {}).then(function (f) {
+			log("Service call successful: " + f.result.returnValue);
+		});
+	}
+	setTimeout(keepRunning, 10000);
+};
+
+var stream;
+var log = function (logmsg) {
+	console.error(logmsg);
+	try {
+	  if (typeof stream === "undefined") {
+	    stream = fs.createWriteStream("/media/internal/.info.mobo.syncml.log", {flags:"a"});
+	  }
+	  stream.write(new Date() + ": " + logmsg + "\n");
+	  //stream.end();
+	} catch(e) {
+	  console.error("Unable to write to file: " + e);
+	}
+};
+
 try {
   console.error("Starting to load libraries");
   var Foundations = IMPORTS.foundations;
@@ -15,8 +46,6 @@ try {
   var urlModule = IMPORTS.require('url');
   var httpModule = IMPORTS.require('http');
   var bufferModule = IMPORTS.require('buffer');
-	var process = IMPORTS.require('process');
-	var util = IMPORTS.require('util');
   var Err = Foundations.Err;
 
   try {
@@ -41,7 +70,6 @@ var locked = false;
 var previousOperationFuture = new Future();
 var syncingAccountIds = {};
 var outerFutures = [];
-var syncs = 0;
 
 //params: outerFuture, result, accountId, name
 var finishAssistant_global = function(p) {
@@ -95,20 +123,6 @@ var startAssistant = function(params) {
     }
   }
   return true;
-};
-
-var stream;
-var log = function (logmsg) {
-	console.error(logmsg);
-	try {
-	  if (typeof stream === "undefined") {
-	    stream = fs.createWriteStream("/media/internal/.info.mobo.syncml.log", {flags:"a"});
-	  }
-	  stream.write(new Date() + ": " + logmsg + "\n");
-	  //stream.end();
-	} catch(e) {
-	  console.error("Unable to write to file: " + e);
-	}
 };
 
 var logError_global = function (error, name) {
@@ -575,19 +589,4 @@ var moboCopy = function(source) {
     }
   }
   return target;
-};
-
-var outputMemoryUsage = function() {
-	log("Memory Usage: " + util.inspect(process.memoryUsage()));
-	setTimeout(outputMemoryUsage, 500);
-};
-
-var keepRunning = function() {
-	if (syncs > 0) {
-		log("Triggering dummy call to keep service active.");
-		PalmCall.call("palm://info.mobo.syncml.client.service/", "idle", {}).then(function (f) {
-			log("Service call successful: " + f.result.returnValue);
-		});
-	}
-	setTimeout(keepRunning, 10000);
 };
