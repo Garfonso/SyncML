@@ -43,7 +43,7 @@ syncAssistant.prototype.finished = function (account) {
   if (account.datastores.contacts && account.datastores.contacts.enabled) {
     contacts = account.datastores.contacts;    
     contactCallbacks.finishSync(account, innerFuture);
-    if (contacts.ok) {
+    if (contacts.ok === true) {
       log("Contacts sync worked, rev: " + contacts.lastRev);
     } else {
       log("Contacts sync had errors.");
@@ -140,8 +140,9 @@ syncAssistant.prototype.run = function (outerFuture, subscription) {
 
     finishCallback = function (f) {
 			if (account.doImmediateRefresh) {
-				logToApp("Need to do refresh. Do that now.");
-				outerFuture.result = {account: account};
+				//manually log
+				var f = logSubscription.get();
+				f.result = { msg: "Need to do refresh. Do that now.", account: account };
 				checkAccountCallback({result: {returnValue: true}});
 				return;
 			}
