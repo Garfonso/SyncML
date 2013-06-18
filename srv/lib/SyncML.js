@@ -378,17 +378,14 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
       for (i = 0; i < willBeSynced.length; i += 1) {
         if (account.datastores[willBeSynced[i]]) {
           account.datastores[willBeSynced[i]].state = "finished";
+					account.datastores[willBeSynced[i]].ok = true;
+					log("Set " + willBeSynced[i] + " to sync ok " + account.datastores[willBeSynced[i]].ok);
         }
       }
       //sync finished successful! :)
       log("All ok. Finished sync, call last callback.");
       logToApp("Got last message and parsed it, sync was successful.");
-			
-			/*if (account.doImmediateRefresh) {
-				log("Need to do refresh, starting that now.");
-				logToApp("Need to do refresh, because slow sync was requested. Doing that now.");
-				PalmCall.call("palm://info.mobo.syncml.client.service/", "sync", account).then(this, function (f) { log("refres sync finished."); });
-			} */
+						
 			resultCallback({success: true, account: account }); //return account to update next / last sync. Mode might also be set by server. Nothing else should have changed.
     } catch (e) {
       logError_lib(e);
@@ -466,8 +463,9 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
           log("Not final message. there will be more.");
           sendToServer(message, parseSyncResponse); //continue sync.
         }
-      }
-      log("Not finished, yet");
+      } else {
+				log("Not finished, yet");
+			}
     } catch (e) {
       logError_lib(e);
     }
@@ -522,8 +520,8 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
         log("Did not receive a sync cmd.");
         for (i = 0; i < willBeSynced.length; i += 1) {
           if (account.datastores[willBeSynced[i]] &&
-              account.datastores[willBeSynced[i]].method !== "one-way-from-client" &&
-              account.datastores[willBeSynced[i]].method !== "refresh-from-client") {
+              account.datastores[willBeSynced[i]].actual_method !== "one-way-from-client" &&
+              account.datastores[willBeSynced[i]].actual_method !== "refresh-from-client") {
             account.datastores[willBeSynced[i]].state = "waitingSyncCmd";
             waitingSync = true;
           }
@@ -560,40 +558,42 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
       }
       secondTry = false;
 
-      //server will answer with sync-command(s) that contains server changes:
-      for (i = 0; lastMsg.getBody().sync && i < lastMsg.getBody().sync.length; i += 1) {
-        log("Processing sync " + (i + 1) + " of " + lastMsg.getBody().sync.length + " syncs.");
-        sync = lastMsg.getBody().sync[i];
-        ds = account.datastores[sync.target];
+			if (!account.doImmediateRefresh) { //don't to adds and stuff. Will do a refresh anyway, soon.
+				//server will answer with sync-command(s) that contains server changes:
+				for (i = 0; lastMsg.getBody().sync && i < lastMsg.getBody().sync.length; i += 1) {
+					log("Processing sync " + (i + 1) + " of " + lastMsg.getBody().sync.length + " syncs.");
+					sync = lastMsg.getBody().sync[i];
+					ds = account.datastores[sync.target];
 
-        for (ti = 0; ti < types.length; ti += 1) {
-          for (j = 0; sync[types[ti]] && j < sync[types[ti]].length; j += 1) {
-            cmd = sync[types[ti]][j];
-            for (k = 0; k < cmd.items.length; k += 1) {
-              ds[types[ti]] += 1;
-              item = undefined;
-              if (types[ti] !== "del") {
-                item = cmd.items[k].data;
-                if (cmd.items[k].format === "b64") {
-                  item = Base64.decode(item); //CDATA needs to be removed in SyncMLMessage.
-                }
-              }
-              setTimeout(ds[callbacks[ti]].bind(this,
-                {
-                  type: types[ti],
-                  callback: itemActionCallback,
-                  localId: cmd.items[k].target,
-                  globalId: {sync: i, item: k, cmd: j, cmdId: cmd.cmdId }, //abuse cmdId to get globalId later and find status better later. :)
-                  item: item,
-                  name: ds.name,
-                  serverData: ds,
-                  account: account
-                }), 100);
-            }
-          }
-        }
-        ds.state = "processingData";
-      } //sync cmd processing.
+					for (ti = 0; ti < types.length; ti += 1) {
+						for (j = 0; sync[types[ti]] && j < sync[types[ti]].length; j += 1) {
+							cmd = sync[types[ti]][j];
+							for (k = 0; k < cmd.items.length; k += 1) {
+								ds[types[ti]] += 1;
+								item = undefined;
+								if (types[ti] !== "del") {
+									item = cmd.items[k].data;
+									if (cmd.items[k].format === "b64") {
+										item = Base64.decode(item); //CDATA needs to be removed in SyncMLMessage.
+									}
+								}
+								setTimeout(ds[callbacks[ti]].bind(this,
+									{
+										type: types[ti],
+										callback: itemActionCallback,
+										localId: cmd.items[k].target,
+										globalId: {sync: i, item: k, cmd: j, cmdId: cmd.cmdId }, //abuse cmdId to get globalId later and find status better later. :)
+										item: item,
+										name: ds.name,
+										serverData: ds,
+										account: account
+									}), 100);
+							}
+						}
+					}
+					ds.state = "processingData";
+				} //sync cmd processing.
+			}
       log("Parsing of sync response finished.");
       logToApp("Sync cmd parsed, now processing data.");
       itemActionCallback({}); //in case there was no action to be done, continue with sync by calling itemActionCallback.
@@ -614,7 +614,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
         for (i = 0; data[types[ti]] && i < data[types[ti]].length; i += 1) {
           obj = data[types[ti]][i];
           type = types[ti];
-          if (account.datastores[name].method === "slow" && type === "replace") { //make sure that we send only adds on slow sync.
+          if (account.datastores[name].actual_method === "slow" && type === "replace") { //make sure that we send only adds on slow sync.
             type = "add";
           }
           nextMsg.addSyncCmd({
@@ -690,7 +690,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
       if (i < willBeSynced.length) {
         if (account.datastores[willBeSynced[i]]) {
           log("ServerIdGetSyncData: " + account.datastores[willBeSynced[i]].serverId);
-          method = account.datastores[willBeSynced[i]].method;
+          method = account.datastores[willBeSynced[i]].actual_method;
           if (method === "slow" || method === "refresh-from-client") {
             log("Getting all data, because of slow sync or refresh from client.");
             account.datastores[willBeSynced[i]].getAllData({callback: mContinueSync.bind(null, willBeSynced[i]), serverData: account.datastores[willBeSynced[i]], account: account});
@@ -752,9 +752,10 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
             if (account.datastores[alert.items[0].target]) {
               if (alert.data) {
                 log("Got " + alert.items[0].target + " method: " + alert.data);
-								if (!account.doImmediateRefresh) {
-									account.datastores[alert.items[0].target].oldMethod = account.datastores[alert.items[0].target].method;
-								}
+								//not needed anymore..
+								//if (!account.doImmediateRefresh) {
+								//	account.datastores[alert.items[0].target].oldMethod = account.datastores[alert.items[0].target].method;
+								//}
 							
 								//server requested slow sync, ignore and just send own updates.. do this only for two-way and one-way-from server, obviously :)
 								log("Alert.data: " + alert.data + " and account->method: " + account.datastores[alert.items[0].target].method);
@@ -765,20 +766,21 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
 									log ("Delaying refresh.");
 									account.doImmediateRefresh = true;
 									needRefresh = false;
+									account.datastores[alert.items[0].target].actual_method = account.datastores[alert.items[0].target].method;
 								} else {
 									//don't switch to slow for refresh from server syncs.
 									if (account.datastores[alert.items[0].target].method === "refresh-from-server" && alert.data === "201") {
 										log("Requested refresh from server, won't switch to slow sync.");
 									} else {
 										//just use server method.
-										account.datastores[alert.items[0].target].method = SyncMLAlertCodes[alert.data];
+										account.datastores[alert.items[0].target].actual_method = SyncMLAlertCodes[alert.data];
 									}
 								}
                 log("adding " + alert.items[0].target + " to will be synced.");
                 willBeSynced.push(alert.items[0].target);
-                syncAndMethod.push(alert.items[0].target + " method " + account.datastores[alert.items[0].target].method);
+                syncAndMethod.push(alert.items[0].target + " method " + account.datastores[alert.items[0].target].actual_method);
                 account.datastores[alert.items[0].target].state = "receivedInit";
-                log("willbesynced: " + alert.items[0].target + " method " + account.datastores[alert.items[0].target].method);
+                log("willbesynced: " + alert.items[0].target + " method " + account.datastores[alert.items[0].target].actual_method);
               }
               if (alert.items && alert.items[0] && alert.items[0].meta && alert.items[0].meta.anchor && alert.items[0].meta.anchor.last) {
                 account.datastores[alert.items[0].target].serverLast = account.datastores[alert.items[0].target].serverNext;
@@ -860,7 +862,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
             ds.delOwn = 0;
             ds.mapping = [];
             ds.state = "sendingInit";
-            ds.ok = true;
+            ds.ok = false;
           }
         }
         secondTry = false;
@@ -935,7 +937,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
 
 		        if (!ds.serverType || !ds.serverId || !ds.serverMan || ds.method === "slow" || ds.method === "refresh-from-client" || ds.method === "refresh-from-server") {
               doPutDevInfo = true;
-              //ds.lastRev = 0; //reset last rev on refresh. I think that is not necessary.
+              ds.lastRev = 0; //reset last rev on refresh.
 		          nextMsg.doGetDevInfo();
 		        }
 		      }

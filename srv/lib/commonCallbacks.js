@@ -173,6 +173,7 @@ var commonCallbacks = (function () {
         //if sync did go wrong, we want to get the changes from last time again
         // (or we want to keep the oldLastRev if there were no items at all (?))
         if (!datastore.ok || datastore.lastRev === 0) {
+					logToApp("Sync had issues, resetting lastRev.");
           datastore.lastRev = datastore.oldLastRev;
         }
         
@@ -211,10 +212,10 @@ var commonCallbacks = (function () {
           delete datastore.oldMethod;
           
           //for slow and refresh switch to two-way fast sync after successful sync. Don't do that for one-way!
-          if (datastore.ok && 
+          /*if (datastore.ok && 
                 (datastore.method === "slow" || datastore.method.indexOf("refresh") !== -1)) {
             datastore.method = "two-way";
-          }
+          }*/
         }
 
 				stats.updateOK = 0;
