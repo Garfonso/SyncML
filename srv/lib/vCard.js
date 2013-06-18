@@ -105,18 +105,18 @@ var vCard = (function () {
       data = [];
       for (i = 0; i < lines.length; i += 1) {
         currentLine = lines[i];
-				log("CurrentLine: " + currentLine);
+				//log("CurrentLine: " + currentLine);
 				//check for start of photo mode
 				if (currentLine.indexOf("PHOTO") > -1) {
 					log("got photo...");
 					photoData = currentLine.substring(currentLine.indexOf(":") + 1);
-					log("PhotoData: " + photoData);
+					//log("PhotoData: " + photoData);
 					continue; //skip photo init line..
 				}
 				
 				if (!emptyLine.test(currentLine)) {
 					if (version === "2.1") {
-						log("Decode, because version " + version);
+						//log("Decode, because version " + version);
 						currentLine = quoted_printable_decode(currentLine);
 						currentLine = currentLine.replace(/\r?\n=?/g,'\\n');
 					}
