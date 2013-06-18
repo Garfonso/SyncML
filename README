@@ -34,6 +34,10 @@ Known Issues:
 - service dies if a sync with too many items from the device (i.e. a slow sync with a huge database) is started. :(
 
 Changelog:
+2013-06-18 => 0.1.31
+- service could get killed before sync did finish. Hope to have a fix for that now.
+- service periodically prints out its memory usage to the log, now.
+- slow sync hack now outputs item statistics for first sync, too.
 2013-06-15 => 0.1.30
 - changed disable slow sync hack, so that sync is now visible in app again.
 2013-06-14 => 0.1.29
