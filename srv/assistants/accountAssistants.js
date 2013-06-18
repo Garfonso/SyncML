@@ -197,6 +197,6 @@ storeAccountsAssistant.prototype.run = function (outerFuture) {
 var idleAssistant = function (future) {};
 
 idleAssistant.prototype.run = function (outerFuture) {
-  log("Keeping service active. Syncs: " + JSON.stringify(syncingAccountIds));
+  log("Keeping service active. Syncs: " + syncs);
 };
 
