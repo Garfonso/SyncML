@@ -51,9 +51,9 @@
               "assistant": "storeAccountsAssistant",
               "public": true
             },
-            {
-              "name": "resetService",
-              "assistant": "resetServiceAssistant",
+						{
+              "name": "idle",
+              "assistant": "idleAssistant",
               "public": true
             }
 		      ]

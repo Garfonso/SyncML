@@ -15,6 +15,8 @@ try {
   var urlModule = IMPORTS.require('url');
   var httpModule = IMPORTS.require('http');
   var bufferModule = IMPORTS.require('buffer');
+	var process = IMPORTS.require('process');
+	var util = IMPORTS.require('util');
   var Err = Foundations.Err;
 
   try {
@@ -28,6 +30,9 @@ try {
   }
   
 	console.error("--------->Loaded Libraries OK");
+	
+	outputMemoryUsage();
+	keepRunning();
 } catch (Error) {
   console.error("Error during loading libraries: " + Error);
 }
@@ -36,6 +41,7 @@ var locked = false;
 var previousOperationFuture = new Future();
 var syncingAccountIds = {};
 var outerFutures = [];
+var syncs = 0;
 
 //params: outerFuture, result, accountId, name
 var finishAssistant_global = function(p) {
@@ -51,6 +57,7 @@ var finishAssistant_global = function(p) {
     if (syncingAccountIds[p.accountId]) {
       syncingAccountIds[p.accountId].outerFuture.result = p.result;
       delete syncingAccountIds[p.accountId]; //release lock.
+			syncs -= 1;
     }
   }
 };
@@ -66,6 +73,7 @@ var startAssistant = function(params) {
       } else {
         log("Locking account " + params.accountId + " to prevent multiple syncs.");
         syncingAccountIds[params.accountId] = {syncing: true, outerFuture: params.outerFuture};
+				syncs += 1;
         return true;
       }
     }
@@ -567,4 +575,19 @@ var moboCopy = function(source) {
     }
   }
   return target;
+};
+
+var outputMemoryUsage = function() {
+	log("Memory Usage: " + util.inspect(process.memoryUsage()));
+	setTimeout(outputMemoryUsage, 500);
+};
+
+var keepRunning = function() {
+	if (syncs > 0) {
+		log("Triggering dummy call to keep service active.");
+		PalmCall.call("palm://info.mobo.syncml.client.service/", "idle", {}).then(function (f) {
+			log("Service call successful: " + f.result.returnValue);
+		});
+	}
+	setTimeout(keepRunning, 10000);
 };

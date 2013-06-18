@@ -194,11 +194,9 @@ storeAccountsAssistant.prototype.run = function (outerFuture) {
   }
 };
 
-var resetServiceAssistant = function (future) {};
+var idleAssistant = function (future) {};
 
-resetServiceAssistant.prototype.run = function (outerFuture) {
-  log("Service Locked: " + locked + " syncs.");
-  log("Will try to exit service now.");
-  process.exit(0);
-  log("This should not get printed, right?");
+idleAssistant.prototype.run = function (outerFuture) {
+  log("Keeping service active. Syncs: " + JSON.stringify(syncingAccountIds));
 };
+
