@@ -173,7 +173,9 @@ var commonCallbacks = (function () {
         //if sync did go wrong, we want to get the changes from last time again
         // (or we want to keep the oldLastRev if there were no items at all (?))
         if (!datastore.ok || datastore.lastRev === 0) {
-					logToApp("Sync had issues, resetting lastRev.");
+					if (!datastore.ok) {
+						logToApp("Sync had issues, resetting lastRev.");
+					}
           datastore.lastRev = datastore.oldLastRev;
         }
         
