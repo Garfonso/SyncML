@@ -198,5 +198,6 @@ var idleAssistant = function (future) {};
 
 idleAssistant.prototype.run = function (outerFuture) {
   log("Keeping service active. Syncs: " + syncs);
+  outerFuture.result = { returnValue: true };
 };
 
