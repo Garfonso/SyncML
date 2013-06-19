@@ -135,14 +135,17 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
       if (!received) {
         now = Date.now();
         log ("Message " + id + " was send last before " + ((now - lastSend) / 1000) + " seconds, was not yet received.");
-        timeoutID = setTimeout(checkTimeout, 1000);
         if (now - lastSend > 60*1000) { //last send before one minute?
           if (retry <= 5) {
             log("Trying to resend message.");
             retrySend({name:"Timeout", message:"Got no response in one minute."});
           } else {
             log("Already tried 5 times. Seems as if server won't answer? Sync seems broken.");
+            clearTimeout(timeoutID);
+            logError_lib({msg: "Message " + id + " timedout, even after retries. Sync failed."});
           }
+        } else {
+          timeoutID = setTimeout(checkTimeout, 1000);
         }
       } else {
         log ("Message " + id + " received, returning.");
@@ -163,7 +166,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
           { "bodyEncoding":"utf8" , 
         "headers": {"Content-Type":"application/vnd.syncml+xml", "Content-Length": text.length} } );
       lastSend = Date.now();
-      setTimeout(checkTimeout, 1000);
+      timeoutID = setTimeout(checkTimeout, 1000);
       future.then(this, function(f) {
         try {        
           if (f.result && f.result.status === 200) {
@@ -174,6 +177,7 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
               retrySend({name:"ConnectionError", message:"Got empty response, this indicates connection problem."});
             } else {
               received = true;
+              clearTimeout(timeoutID); //did receive message => cancel timeouts.
               callback(f.result.responseText);
             }
           } else { //request failure!

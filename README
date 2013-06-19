@@ -34,6 +34,9 @@ Known Issues:
 - service dies if a sync with too many items from the device (i.e. a slow sync with a huge database) is started. :(
 
 Changelog:
+- fixed retry mechanism. It could keep on trying, even if the message was received or it should stop after 5 retries...
+- fixed timeout while calling idle assistant
+- fixed wrong message about failed syncs when no changes did happen at all.
 2013-06-18 => 0.1.31
 - service could get killed before sync did finish. Hope to have a fix for that now.
 - service periodically prints out its memory usage to the log, now.
