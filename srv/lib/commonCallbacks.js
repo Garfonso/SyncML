@@ -199,14 +199,14 @@ var commonCallbacks = (function () {
         datastore.stats = moboCopy(stats);
 
         //save outcome = ok, method and stats in db!
-        datastore.lastTen[0] = {ok: datastore.ok, method: datastore.method, stats: moboCopy(stats), ts: date.getTime(), time: date.toLocaleString()};
+        datastore.lastTen[0] = {ok: datastore.ok, method: datastore.actual_method, confMethod: datastore.method, stats: moboCopy(stats), ts: date.getTime(), time: date.toLocaleString()};
         if (!datastore.allTimeStats) {
           datastore.allTimeStats = {};
         }
-        if (!datastore.allTimeStats[datastore.method]) {
-          datastore.allTimeStats[datastore.method] = 0;
+        if (!datastore.allTimeStats[datastore.actual_method]) {
+          datastore.allTimeStats[datastore.actual_method] = 0;
         } 
-        datastore.allTimeStats[datastore.method] += 1;
+        datastore.allTimeStats[datastore.actual_method] += 1;
         
         //maybe server requested slow sync, restore old method here.
         if (datastore.oldMethod) {
