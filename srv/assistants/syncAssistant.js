@@ -10,7 +10,7 @@ syncAssistant.prototype.finished = function (account) {
     SyncMLAccount.setAccount(account);
     log("Saving config to store new revs.");
     SyncMLAccount.saveConfig(true).then(function (f) {
-      //log("StoreAccounts returned: " + JSON.stringify(f.result));
+      log("StoreAccounts returned.");
       outerFuture.result = { returnValue: f.result.returnValue };
     });
   };
@@ -139,21 +139,27 @@ syncAssistant.prototype.run = function (outerFuture, subscription) {
 
 
     finishCallback = function (f) {
-			if (account.doImmediateRefresh) {
-				//manually log
-				var f = logSubscription.get();
-				f.result = { msg: "Need to do refresh. Do that now.", account: account };
-				checkAccountCallback({result: {returnValue: true}});
-				return;
+		  try {
+				log("Reached finishCallback.");
+				if (account.doImmediateRefresh) {
+					//manually log
+					var f = logSubscription.get();
+					f.result = { msg: "Need to do refresh. Do that now.", account: account };
+					checkAccountCallback({result: {returnValue: true}});
+					return;
+				}
+			
+				if (f.result.returnValue === true) {
+					log("Success, returning to client");
+					finishAssistant({ finalResult: true, success: true, reason: "All went well, updates", account: account});
+				} else {
+					log("Failure, returning to client");
+					finishAssistant({ finalResult: true, success: false, reason: "Failure in cleanup, expect trouble with next sync."});
+				}
+			} catch (e) {
+				logError(e);
+				finishAssistant({ finalResult: true, success: false, reason: "Failure in cleanup, got an exception: " + e.name + " - " + e.message});
 			}
-		
-      if (f.result.returnValue === true) {
-        log("Success, returning to client");
-        finishAssistant({ finalResult: true, success: true, reason: "All went well, updates", account: account});
-      } else {
-        log("Failure, returning to client");
-        finishAssistant({ finalResult: true, success: false, reason: "Failure in cleanup, expect trouble with next sync."});
-      }
     };
 
     syncCallback = function (result) {
