@@ -149,6 +149,7 @@ var logError_lib = function (error) {
 process.on("uncaughtException",function(e) {
   log("Uncaought error!!!");
   logError_lib(e);
+  throw e;
 });
 
 var logSubscription;
