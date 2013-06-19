@@ -465,7 +465,12 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
         } else {
           logToApp("Sending sync cmd/response to server, more data will transmitted.");
           log("Not final message. there will be more.");
-          sendToServer(message, parseSyncResponse); //continue sync.
+					if (account.doImmediateRefresh && msgQueue.length === 0) {
+						logToApp("Did send all own changes. Now kill this sync and do refresh.");
+						resultCallback({success: true, account: account }); //return account to update next / last sync. Mode might also be set by server. Nothing else should have changed.
+					} else {
+						sendToServer(message, parseSyncResponse); //continue sync.
+					}
         }
       } else {
 				log("Not finished, yet");
@@ -693,7 +698,6 @@ var SyncML = (function () {      //lastMsg allways is the last response from the
       dsIndex += 1;
       if (i < willBeSynced.length) {
         if (account.datastores[willBeSynced[i]]) {
-          log("ServerIdGetSyncData: " + account.datastores[willBeSynced[i]].serverId);
           method = account.datastores[willBeSynced[i]].actual_method;
           if (method === "slow" || method === "refresh-from-client") {
             log("Getting all data, because of slow sync or refresh from client.");
