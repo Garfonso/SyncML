@@ -34,6 +34,10 @@ Known Issues:
 - service dies if a sync with too many items from the device (i.e. a slow sync with a huge database) is started. :(
 
 Changelog:
+2013-06-19 => 0.1.32
+- fixed statistics that are saved in db.
+- fixed possible issue that immediate refresh (on slow sync hack) would not happen. Now immediate refresh flag is saved in db.
+- fixed possible issue that service won't finish
 - fixed retry mechanism. It could keep on trying, even if the message was received or it should stop after 5 retries...
 - fixed timeout while calling idle assistant
 - fixed wrong message about failed syncs when no changes did happen at all.
