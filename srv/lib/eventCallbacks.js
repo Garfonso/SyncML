@@ -342,7 +342,7 @@ var eventCallbacks = (function () {
 		},
 
 		getLatestRev: function (account) {
-      commonCallbacks.getLatestRev(account, "info.mobo.syncml.calendarevent:1");
+      return commonCallbacks.getLatestRev(account, "info.mobo.syncml.calendarevent:1");
 		},
 
 		finishSync: function (account, outerFuture) {

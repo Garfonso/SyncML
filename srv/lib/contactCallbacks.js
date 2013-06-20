@@ -339,7 +339,7 @@ var contactCallbacks = (function () {
 		},
 
 		getLatestRev: function (account) {
-      commonCallbacks.getLatestRev(account, "info.mobo.syncml.contact:1");
+      return commonCallbacks.getLatestRev(account, "info.mobo.syncml.contact:1");
 		},
 
 		finishSync: function (account, outerFuture) {
