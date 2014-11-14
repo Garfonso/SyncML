@@ -3,7 +3,7 @@
 var outputMemoryUsage = function() {
 	var mem = process.memoryUsage();
 	log("Memory Usage - rss: " + (mem.rss / 1024 / 1024) + "MB, vsize: " + (mem.vsize / 1024 / 1024) + "MB, heapTotal: " + (mem.heapTotal / 1024 / 1024) + "MB, heapUsed: " + (mem.heapUsed /1024 / 1024) + "MB");
-	setTimeout(outputMemoryUsage, 500);
+	setTimeout(outputMemoryUsage, 10000);
 };
 
 var syncs = 0;
@@ -142,8 +142,9 @@ var logError_lib = function (error) {
     outerFutures[i].result = { returnValue: false, finalResult: true, success: false, reason: "Exception " + error.name + ": " + error.message};
   }
   syncingAccountIds = {}; //release sync lock.
+	syncs = 0;
   throw error; //this will stop the service from processing..?
-  //process.exit(-1); don't do that. App won't get our results.. *sigh*
+  setTimeout(process.exit().bind(-1), 2000); //don't do that. App won't get our results.. *sigh*
 };
 
 process.on("uncaughtException",function(e) {

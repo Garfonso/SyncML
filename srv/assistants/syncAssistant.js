@@ -225,35 +225,39 @@ syncAssistant.prototype.run = function (outerFuture, subscription) {
     };
 
     initializeCallback = function (f2) {
-      if (f2.result.returnValue === true) {
-        log("initialize.result: " + JSON.stringify(f2.result));
+			try {
+				if (f2.result.returnValue === true) {
+					log("initialize.result: " + JSON.stringify(f2.result));
 
-        log("Starting sync");
-				if (!account.doImmediateRefresh) { //already have full account as param. Avoid overriding of doImmediateRefresh field.
-					if (account && account.accountId) {
-						account = SyncMLAccount.getAccountById(account.accountId);
-					} else if (account.index >= 0) {
-						account = SyncMLAccount.getAccount(account.index);
-					} else if (account.name) {
-						account = SyncMLAccount.getAccountByName(account.name);
+					log("Starting sync");
+					if (!account.doImmediateRefresh) { //already have full account as param. Avoid overriding of doImmediateRefresh field.
+						if (account && account.accountId) {
+							account = SyncMLAccount.getAccountById(account.accountId);
+						} else if (account.index >= 0) {
+							account = SyncMLAccount.getAccount(account.index);
+						} else if (account.name) {
+							account = SyncMLAccount.getAccountByName(account.name);
+						}
+						if (args.$activity && account && account.accountId) {
+							args.$activity.accountId = account.accountId;
+						}
 					}
-					if (args.$activity && account && account.accountId) {
-						args.$activity.accountId = account.accountId;
+
+					if (!account || !account.username || !account.password || !account.url) {
+						log("Account seems to be not fully configured. Can't sync.");
+						log("Account: " + JSON.stringify(account));
+						finishAssistant({ finalResult: true, success: false, reason: "Account not fully configured: " + JSON.stringify(account) });
+						return;
 					}
+
+					that.checkAccount(account).then(checkAccountCallback);
+				} else {
+					log("Initialization failed... :(");
+					finishAssistant({ finalResult: true, success: false, reason: "Initialization failed." });
 				}
-
-        if (!account.username || !account.password || !account.url) {
-          log("Account seems to be not fully configured. Can't sync.");
-          log("Account: " + JSON.stringify(account));
-          finishAssistant({ finalResult: true, success: false, reason: "Account not fully configured: " + JSON.stringify(account) });
-          return;
-        }
-
-        that.checkAccount(account).then(checkAccountCallback);
-      } else {
-        log("Initialization failed... :(");
-        finishAssistant({ finalResult: true, success: false, reason: "Initialization failed." });
-      }
+			} catch (e) {
+				logError(e);
+			}
       //return future;
     };
 
